@@ -199,7 +199,7 @@ function LoginScreen({ onSubmit }: { onSubmit: (event: FormEvent<HTMLFormElement
         </div>
         <form className="login-card" onSubmit={onSubmit}>
           <span className="brand-mark">MH</span>
-          <p className="eyebrow">Investor Demo</p>
+          <p className="eyebrow">Investor presentation</p>
           <h1>ManHub</h1>
           <p>Diagnosis-first automotive service, from customer symptom to workshop job and parts commission.</p>
           <label>
@@ -316,11 +316,13 @@ function CustomerHome({
         </div>
         <div>
           <strong>Toyota Vios 1.5G</strong>
-          <p>WXY 4321 - 2021 - 68,420 km</p>
+          <p>WXY 4321 - 2021</p>
+          <p>Mileage 68,420 km</p>
         </div>
       </article>
-      <button className="primary-button wide" onClick={() => setDiagnosisOpen(!diagnosisOpen)}>
-        Describe a problem
+      <button className="primary-button wide diagnose-button" onClick={() => setDiagnosisOpen(!diagnosisOpen)}>
+        <strong>Describe a problem</strong>
+        <span>Type it, snap a photo, or record the noise - AI pre-checks it</span>
       </button>
       {diagnosisOpen && <DiagnosisFlow />}
       <div className="quick-actions">
@@ -369,15 +371,16 @@ function CustomerWorkshops() {
         {["Nearest", "Top rated", "Brake service", "Open now"].map((chip) => <span key={chip}>{chip}</span>)}
       </div>
       {[
-        ["AutoFix Pro", "1.2 km", "4.8 rating", "offers brake pad replacement"],
-        ["QuickCare Motors", "2.5 km", "4.6 rating", "same-day slot available"],
-        ["Evergreen Auto Centre", "3.1 km", "4.5 rating", "trusted Toyota service"],
-      ].map(([name, distance, rating, detail]) => (
+        ["AutoFix Pro", "1.2 km", "4.8 rating", "Brake service, Toyota", "97% match"],
+        ["QuickCare Motors", "2.5 km", "4.6 rating", "Open now, Same-day", "93% match"],
+        ["Evergreen Auto Centre", "3.1 km", "4.5 rating", "Trusted Vios service", "89% match"],
+      ].map(([name, distance, rating, tags, match]) => (
         <article className="workshop-card" key={name}>
-          <div><strong>{name}</strong><p>{detail}</p></div>
+          <div><strong>{name}</strong><p>{tags}</p></div>
           <span>{distance}</span>
           <small>{rating}</small>
-          <button>Choose workshop</button>
+          <em>{match}</em>
+          <button>Book</button>
         </article>
       ))}
       <p className="helper-note">Workshops are chosen by the customer, not auto-assigned.</p>
@@ -394,8 +397,11 @@ function CustomerParts() {
   ];
   return (
     <div className="phone-content">
-      <h2>Parts</h2>
-      <p className="subtle">Recommended for your Vios from today's diagnosis.</p>
+      <h2>Spare parts</h2>
+      <article className="diagnosis-banner">
+        <strong>Recommended for your Vios</strong>
+        <span>from today's diagnosis</span>
+      </article>
       {parts.map(([name, price, tag]) => (
         <article className="part-card" key={name}>
           <div><strong>{name}</strong>{tag && <span>{tag}</span>}</div>
@@ -412,8 +418,12 @@ function CustomerOrders() {
     <div className="phone-content">
       <h2>Orders</h2>
       <article className="order-summary">
-        <span>Job ID #MF-08471</span>
-        <strong>In progress</strong>
+        <div>
+          <strong>Brake pad replacement</strong>
+          <span>AutoFix Pro - Tech Ahmad F.</span>
+          <small>#MF-08471</small>
+        </div>
+        <b>IN PROGRESS</b>
       </article>
       <div className="timeline">
         {["Booking confirmed", "Diagnosis confirmed by technician", "Repair in progress", "Ready for pickup"].map((step, index) => (
@@ -432,7 +442,10 @@ function CustomerMe() {
     <div className="phone-content">
       <div className="profile-block">
         <span className="avatar large">DT</span>
-        <h2>Daniel Tan</h2>
+        <div>
+          <h2>Daniel Tan</h2>
+          <p>daniel.t@email.com</p>
+        </div>
       </div>
       <div className="stats-row">
         <div><strong>2</strong><span>vehicles</span></div>
@@ -449,8 +462,8 @@ function CustomerMe() {
 function TechnicianPortal({ notes }: { notes: ReactNode }) {
   return (
     <PortalFrame
-      title="ManHub · Technician"
-      sidebar={["Job inbox", "My schedule", "Earnings", "Training", "Profile"]}
+      title="ManHub - Technician"
+      sidebar={["Job inbox 3", "My schedule", "Earnings", "Training", "Profile"]}
       notes={notes}
     >
       <div className="portal-heading">
@@ -460,7 +473,7 @@ function TechnicianPortal({ notes }: { notes: ReactNode }) {
       <div className="portal-grid two">
         <article className="panel highlight">
           <span>AI PRE-DIAGNOSIS - NEEDS YOUR REVIEW</span>
-          <h2>Front brake pads worn, likely less than 3mm</h2>
+          <h2>Front brake pads worn, likely &lt; 3mm</h2>
           <div className="metric-line"><strong>Confidence</strong><span>87%</span></div>
           <div className="metric-line"><strong>Source</strong><span>customer photo + squealing when braking</span></div>
           <div className="metric-line"><strong>Estimated quote</strong><span>RM 280-420</span></div>
@@ -503,7 +516,7 @@ function TechnicianPortal({ notes }: { notes: ReactNode }) {
 function WorkshopPortal({ notes }: { notes: ReactNode }) {
   return (
     <PortalFrame
-      title="ManHub · Workshop Owner"
+      title="ManHub - Workshop Owner"
       sidebar={["Today's jobs", "Bays & capacity", "Technicians", "Settlement", "Reviews"]}
       notes={notes}
     >
@@ -524,7 +537,7 @@ function WorkshopPortal({ notes }: { notes: ReactNode }) {
             ["#08471 Brake pads", "Vios WXY4321", "Ahmad F.", "Bay 2", "In progress", "RM312"],
             ["#08465 Oil change", "Myvi VBK9902", "Lim W.", "Bay 1", "Ready", "RM226"],
             ["#08469 Battery swap", "X70 WC5511", "Ravi K.", "Bay 3", "In progress", "RM388"],
-            ["#08474 Aircon service", "City BNV7733", "unassigned", "booked 3:00 PM", "est. RM280"],
+            ["#08474 Aircon service", "City BNV7733", "unassigned", "Booked 3:00 PM", "est. RM280"],
           ]}
         />
       </article>
@@ -535,7 +548,7 @@ function WorkshopPortal({ notes }: { notes: ReactNode }) {
 function SupplierPortal({ notes }: { notes: ReactNode }) {
   return (
     <PortalFrame
-      title="ManHub · Supplier"
+      title="ManHub - Supplier"
       sidebar={["Orders to fulfil", "My catalogue", "Stock flags", "Payouts", "Analytics"]}
       notes={notes}
     >
@@ -566,7 +579,7 @@ function SupplierPortal({ notes }: { notes: ReactNode }) {
 function AdminPortal({ notes }: { notes: ReactNode }) {
   return (
     <PortalFrame
-      title="ManHub · Super Admin"
+      title="ManHub - Super Admin"
       sidebar={["Overview", "Verification", "Jobs monitor", "Settlement", "Disputes", "Config"]}
       notes={notes}
     >
@@ -634,7 +647,7 @@ function PortalFrame({
       <div className="portal-main">
         <header className="portal-header">
           <h1>{title}</h1>
-          <span>Live demo data</span>
+          <span>Today's marketplace</span>
         </header>
         <div className="portal-content">
           <div className="portal-workspace">{children}</div>

@@ -160,6 +160,26 @@ button {
   width: 100%;
 }
 
+.diagnose-button {
+  display: grid;
+  justify-items: start;
+  gap: 4px;
+  padding: 15px 16px;
+  text-align: left;
+}
+
+.diagnose-button strong {
+  font-size: 17px;
+}
+
+.diagnose-button span {
+  color: rgba(255, 255, 255, 0.82);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.35;
+  white-space: normal;
+}
+
 .login-screen {
   min-height: 100vh;
   display: grid;
@@ -603,6 +623,26 @@ button {
   font-weight: 900;
 }
 
+.diagnosis-banner {
+  display: grid;
+  gap: 5px;
+  border-radius: 8px;
+  padding: 15px;
+  background: linear-gradient(135deg, var(--blue), #4da3ff);
+  color: #fff;
+  box-shadow: 0 14px 28px rgba(25, 118, 232, 0.22);
+}
+
+.diagnosis-banner strong {
+  font-size: 16px;
+}
+
+.diagnosis-banner span {
+  color: rgba(255, 255, 255, 0.82);
+  font-size: 12px;
+  font-weight: 800;
+}
+
 .ai-card {
   border-radius: 8px;
   padding: 14px;
@@ -695,10 +735,24 @@ button {
   font-weight: 900;
 }
 
+.workshop-card em {
+  justify-self: start;
+  align-self: center;
+  border-radius: 999px;
+  background: #e6f7f1;
+  color: var(--success);
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 900;
+  padding: 6px 9px;
+}
+
 .workshop-card button {
-  grid-column: 1 / -1;
+  justify-self: end;
   color: var(--blue);
   background: var(--blue-2);
+  min-height: 34px;
+  padding: 7px 14px;
 }
 
 .part-card,
@@ -715,7 +769,28 @@ button {
   gap: 7px;
 }
 
-.order-summary strong {
+.order-summary div {
+  display: grid;
+  gap: 4px;
+}
+
+.order-summary span,
+.order-summary small,
+.profile-block p {
+  color: var(--muted);
+  margin: 0;
+}
+
+.order-summary b {
+  border-radius: 999px;
+  background: #e6f7f1;
+  color: var(--success);
+  font-size: 11px;
+  padding: 7px 9px;
+  white-space: nowrap;
+}
+
+.order-summary > strong {
   color: var(--success);
 }
 
