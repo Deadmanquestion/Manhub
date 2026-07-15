@@ -1,14 +1,55 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 
 type CustomerTab = "Home" | "Workshops" | "Parts" | "Orders" | "Me";
 
+type Part = {
+  diagnosis: boolean;
+  fit: string;
+  kind: string;
+  name: string;
+  price: string;
+};
+
 const tabs: CustomerTab[] = ["Home", "Workshops", "Parts", "Orders", "Me"];
+const filters = ["Nearest", "Top rated", "Brake service", "Open now"];
+
+const workshops = [
+  { name: "AutoFix Pro", distance: "1.2 km", rating: "4.8", count: "(234)", tags: "Oil - Brakes - Tyres" },
+  { name: "QuickCare Motors", distance: "2.5 km", rating: "4.6", count: "(158)", tags: "General - AC - Battery" },
+  { name: "Evergreen Auto Centre", distance: "3.1 km", rating: "4.5", count: "(96)", tags: "Engine - Diagnostics" },
+];
+
+const parts: Part[] = [
+  { kind: "brake", name: "Brake pad set (front) - Bendix", fit: "Fits Vios 1.5G 2021", price: "RM 168", diagnosis: true },
+  { kind: "fluid", name: "Brake fluid DOT4 1L", fit: "Fits all models", price: "RM 32", diagnosis: true },
+  { kind: "oil", name: "Engine oil 5W-30 fully syn 4L", fit: "Fits Vios 1.5G 2021", price: "RM 189", diagnosis: false },
+  { kind: "battery", name: "Battery NS60L - Century", fit: "Fits Vios 1.5G 2021", price: "RM 245", diagnosis: false },
+];
 
 export default function Home() {
   const [activeTab, setActiveTab] = useState<CustomerTab>("Home");
   const [diagnosisOpen, setDiagnosisOpen] = useState(false);
+  const [precheckSent, setPrecheckSent] = useState(false);
+  const [activeFilter, setActiveFilter] = useState("Nearest");
+  const [selectedWorkshop, setSelectedWorkshop] = useState("AutoFix Pro");
+  const [reservedParts, setReservedParts] = useState<string[]>([
+    "Brake pad set (front) - Bendix",
+    "Brake fluid DOT4 1L",
+  ]);
+  const [profilePanel, setProfilePanel] = useState("My vehicles");
+
+  function reservePart(name: string) {
+    setReservedParts((current) =>
+      current.includes(name) ? current.filter((item) => item !== name) : [...current, name],
+    );
+  }
+
+  function bookWorkshop(name: string) {
+    setSelectedWorkshop(name);
+    setActiveTab("Orders");
+  }
 
   return (
     <main className="app-page">
@@ -20,12 +61,42 @@ export default function Home() {
 
         <div className="app-content">
           {activeTab === "Home" && (
-            <HomeTab diagnosisOpen={diagnosisOpen} setDiagnosisOpen={setDiagnosisOpen} />
+            <HomeTab
+              diagnosisOpen={diagnosisOpen}
+              precheckSent={precheckSent}
+              setActiveTab={setActiveTab}
+              setDiagnosisOpen={setDiagnosisOpen}
+              setPrecheckSent={setPrecheckSent}
+            />
           )}
-          {activeTab === "Workshops" && <WorkshopsTab />}
-          {activeTab === "Parts" && <PartsTab />}
-          {activeTab === "Orders" && <OrdersTab />}
-          {activeTab === "Me" && <MeTab />}
+          {activeTab === "Workshops" && (
+            <WorkshopsTab
+              activeFilter={activeFilter}
+              bookWorkshop={bookWorkshop}
+              selectedWorkshop={selectedWorkshop}
+              setActiveFilter={setActiveFilter}
+            />
+          )}
+          {activeTab === "Parts" && (
+            <PartsTab
+              reservePart={reservePart}
+              reservedParts={reservedParts}
+              setActiveTab={setActiveTab}
+            />
+          )}
+          {activeTab === "Orders" && (
+            <OrdersTab
+              reservedParts={reservedParts}
+              selectedWorkshop={selectedWorkshop}
+              setActiveTab={setActiveTab}
+            />
+          )}
+          {activeTab === "Me" && (
+            <MeTab
+              profilePanel={profilePanel}
+              setProfilePanel={setProfilePanel}
+            />
+          )}
         </div>
 
         <nav className="bottom-tabs" aria-label="Main tabs">
@@ -48,10 +119,16 @@ export default function Home() {
 
 function HomeTab({
   diagnosisOpen,
+  precheckSent,
+  setActiveTab,
   setDiagnosisOpen,
+  setPrecheckSent,
 }: {
   diagnosisOpen: boolean;
+  precheckSent: boolean;
+  setActiveTab: (tab: CustomerTab) => void;
   setDiagnosisOpen: (open: boolean) => void;
+  setPrecheckSent: (sent: boolean) => void;
 }) {
   return (
     <>
@@ -76,17 +153,23 @@ function HomeTab({
 
       {diagnosisOpen && (
         <article className="ai-card">
-          <span>AI pre-check</span>
-          <strong>Front brake pads worn, likely &lt; 3mm</strong>
-          <p>Confidence 87% - estimated range RM 280-420</p>
-          <small>Technician confirms before the final quote.</small>
+          <span>{precheckSent ? "AI pre-check ready" : "Describe symptom"}</span>
+          <strong>{precheckSent ? "Front brake pads worn, likely < 3mm" : "High-pitched squeal when braking"}</strong>
+          <p>{precheckSent ? "Confidence 87% - estimated range RM 280-420" : "Worse in the morning. Photo and sound note attached."}</p>
+          <small>{precheckSent ? "Technician confirms before the final quote." : "Tap send to generate the ManHub pre-check."}</small>
+          <div className="inline-actions">
+            <button type="button" onClick={() => setPrecheckSent(true)}>
+              {precheckSent ? "Pre-check sent" : "Send pre-check"}
+            </button>
+            <button type="button" onClick={() => setActiveTab("Parts")}>View parts</button>
+          </div>
         </article>
       )}
 
       <div className="quick-actions">
-        <button type="button"><span className="quick-icon search" />Find workshop</button>
-        <button type="button"><span className="quick-icon wheel" />Spare parts</button>
-        <button type="button"><span className="quick-icon record" />My records</button>
+        <button type="button" onClick={() => setActiveTab("Workshops")}><span className="quick-icon search" />Find workshop</button>
+        <button type="button" onClick={() => setActiveTab("Parts")}><span className="quick-icon wheel" />Spare parts</button>
+        <button type="button" onClick={() => setActiveTab("Me")}><span className="quick-icon record" />My records</button>
       </div>
 
       <section className="reminders">
@@ -104,35 +187,60 @@ function HomeTab({
   );
 }
 
-function WorkshopsTab() {
-  const workshops = [
-    ["AutoFix Pro", "1.2 km", "4.8", "(234)", "Oil - Brakes - Tyres"],
-    ["QuickCare Motors", "2.5 km", "4.6", "(158)", "General - AC - Battery"],
-    ["Evergreen Auto Centre", "3.1 km", "4.5", "(96)", "Engine - Diagnostics"],
-  ];
+function WorkshopsTab({
+  activeFilter,
+  bookWorkshop,
+  selectedWorkshop,
+  setActiveFilter,
+}: {
+  activeFilter: string;
+  bookWorkshop: (name: string) => void;
+  selectedWorkshop: string;
+  setActiveFilter: (filter: string) => void;
+}) {
+  const sortedWorkshops = useMemo(() => {
+    if (activeFilter === "Top rated") {
+      return [...workshops].sort((a, b) => Number(b.rating) - Number(a.rating));
+    }
+    if (activeFilter === "Open now") {
+      return [...workshops].reverse();
+    }
+    return workshops;
+  }, [activeFilter]);
 
   return (
     <>
       <h1>Find a workshop</h1>
-      <div className="search-box">Brake service near Bandar Sunway...</div>
+      <label className="search-box">
+        <input defaultValue="Brake service near Bandar Sunway..." aria-label="Search workshops" />
+      </label>
 
       <div className="filter-row">
-        {["Nearest", "Top rated", "Brake service", "Open now"].map((filter, index) => (
-          <span className={index === 0 ? "selected" : ""} key={filter}>{filter}</span>
+        {filters.map((filter) => (
+          <button
+            className={activeFilter === filter ? "selected" : ""}
+            key={filter}
+            onClick={() => setActiveFilter(filter)}
+            type="button"
+          >
+            {filter}
+          </button>
         ))}
       </div>
 
       <div className="workshop-list">
-        {workshops.map(([name, distance, rating, count, tags]) => (
-          <article className="workshop-card" key={name}>
+        {sortedWorkshops.map((workshop) => (
+          <article className="workshop-card" key={workshop.name}>
             <div>
-              <strong>{name}</strong>
-              <p><b>{rating}</b> {count} - {tags}</p>
-              <em>Offers brake pad replacement</em>
+              <strong>{workshop.name}</strong>
+              <p><b>{workshop.rating}</b> {workshop.count} - {workshop.tags}</p>
+              <em>{selectedWorkshop === workshop.name ? "Selected for this job" : "Offers brake pad replacement"}</em>
             </div>
             <aside>
-              <span>{distance}</span>
-              <button type="button">Book</button>
+              <span>{workshop.distance}</span>
+              <button type="button" onClick={() => bookWorkshop(workshop.name)}>
+                {selectedWorkshop === workshop.name ? "Booked" : "Book"}
+              </button>
             </aside>
           </article>
         ))}
@@ -141,38 +249,57 @@ function WorkshopsTab() {
   );
 }
 
-function PartsTab() {
-  const parts = [
-    ["brake", "Brake pad set (front) - Bendix", "Fits Vios 1.5G 2021", "RM 168", true],
-    ["fluid", "Brake fluid DOT4 1L", "Fits all models", "RM 32", true],
-    ["oil", "Engine oil 5W-30 fully syn 4L", "Fits Vios 1.5G 2021", "RM 189", false],
-    ["battery", "Battery NS60L - Century", "Fits Vios 1.5G 2021", "RM 245", false],
-  ];
-
+function PartsTab({
+  reservePart,
+  reservedParts,
+  setActiveTab,
+}: {
+  reservePart: (name: string) => void;
+  reservedParts: string[];
+  setActiveTab: (tab: CustomerTab) => void;
+}) {
   return (
     <>
       <h1>Spare parts</h1>
       <article className="parts-banner">
         <strong>Recommended for your Vios - from today's diagnosis</strong>
-        <span>Parts are reserved at the workshop. Pay only when the job is confirmed.</span>
+        <span>{reservedParts.length} parts reserved. Pay only when the job is confirmed.</span>
       </article>
 
       <div className="parts-grid">
-        {parts.map(([kind, name, fit, price, diagnosis]) => (
-          <article className="part-card" key={name}>
-            <div className={`part-image ${kind}`} />
-            <strong>{name}</strong>
-            <span>{fit}</span>
-            <b>{price}</b>
-            {diagnosis && <em>FROM DIAGNOSIS</em>}
-          </article>
-        ))}
+        {parts.map((part) => {
+          const reserved = reservedParts.includes(part.name);
+          return (
+            <article className={`part-card ${reserved ? "reserved" : ""}`} key={part.name}>
+              <div className={`part-image ${part.kind}`} />
+              <strong>{part.name}</strong>
+              <span>{part.fit}</span>
+              <b>{part.price}</b>
+              {part.diagnosis && <em>FROM DIAGNOSIS</em>}
+              <button type="button" onClick={() => reservePart(part.name)}>
+                {reserved ? "Reserved" : "Reserve"}
+              </button>
+            </article>
+          );
+        })}
       </div>
+
+      <button className="wide-action" type="button" onClick={() => setActiveTab("Orders")}>
+        View order
+      </button>
     </>
   );
 }
 
-function OrdersTab() {
+function OrdersTab({
+  reservedParts,
+  selectedWorkshop,
+  setActiveTab,
+}: {
+  reservedParts: string[];
+  selectedWorkshop: string;
+  setActiveTab: (tab: CustomerTab) => void;
+}) {
   return (
     <>
       <h1>My orders</h1>
@@ -180,7 +307,7 @@ function OrdersTab() {
         <header>
           <div>
             <strong>Brake pad replacement</strong>
-            <span>AutoFix Pro - Tech Ahmad F.</span>
+            <span>{selectedWorkshop} - Tech Ahmad F.</span>
           </div>
           <aside>
             <b>IN PROGRESS</b>
@@ -188,13 +315,23 @@ function OrdersTab() {
           </aside>
         </header>
 
+        <div className="reserved-summary">
+          <strong>{reservedParts.length} reserved parts</strong>
+          <span>{reservedParts.slice(0, 2).join(", ") || "No parts reserved yet"}</span>
+        </div>
+
         <div className="timeline">
-          <TimelineStep state="done" title="Booking confirmed" detail="Today 10:05" />
+          <TimelineStep state="done" title="Booking confirmed" detail={`Today 10:05 - ${selectedWorkshop}`} />
           <TimelineStep state="done" title="Diagnosis confirmed by technician" detail="Today 11:20 - quote approved RM 312" />
           <TimelineStep state="active" title="Repair in progress" detail="Started 11:45 - est. 1 hr remaining" />
           <TimelineStep title="Ready for pickup" detail="You'll get a notification" />
         </div>
       </article>
+
+      <div className="inline-actions bottom-actions">
+        <button type="button" onClick={() => setActiveTab("Workshops")}>Change workshop</button>
+        <button type="button" onClick={() => setActiveTab("Parts")}>Edit parts</button>
+      </div>
     </>
   );
 }
@@ -219,7 +356,20 @@ function TimelineStep({
   );
 }
 
-function MeTab() {
+function MeTab({
+  profilePanel,
+  setProfilePanel,
+}: {
+  profilePanel: string;
+  setProfilePanel: (panel: string) => void;
+}) {
+  const panelText: Record<string, string> = {
+    "My vehicles": "Toyota Vios 1.5G - WXY 4321 and Perodua Myvi - VBK 9902.",
+    "Digital service records": "12 completed services, including brake pads, oil changes, and battery replacement.",
+    "Payment methods": "Visa ending 2488 is ready for workshop deposits and pickup payment.",
+    "Help & support": "ManHub support is available daily from 9:00 AM to 9:00 PM.",
+  };
+
   return (
     <>
       <section className="profile">
@@ -237,10 +387,22 @@ function MeTab() {
       </div>
 
       <div className="menu-list">
-        {["My vehicles", "Digital service records", "Payment methods", "Help & support"].map((item) => (
-          <button key={item} type="button">{item}<span>&gt;</span></button>
+        {Object.keys(panelText).map((item) => (
+          <button
+            className={profilePanel === item ? "active" : ""}
+            key={item}
+            onClick={() => setProfilePanel(item)}
+            type="button"
+          >
+            {item}<span>&gt;</span>
+          </button>
         ))}
       </div>
+
+      <article className="detail-panel">
+        <strong>{profilePanel}</strong>
+        <span>{panelText[profilePanel]}</span>
+      </article>
     </>
   );
 }

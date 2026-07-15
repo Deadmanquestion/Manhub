@@ -216,6 +216,30 @@ button {
   font-size: 12px;
 }
 
+.inline-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 11px;
+}
+
+.inline-actions button,
+.wide-action,
+.part-card button {
+  border-radius: 9px;
+  background: var(--blue-soft);
+  color: #286ac2;
+  padding: 8px 10px;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.inline-actions button:first-child,
+.wide-action {
+  background: var(--blue);
+  color: #fff;
+}
+
 .quick-actions {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -315,6 +339,7 @@ button {
 }
 
 .search-box {
+  display: block;
   border: 1px solid var(--line);
   border-radius: 13px;
   background: #fff;
@@ -334,6 +359,15 @@ button {
   margin-right: 8px;
 }
 
+.search-box input {
+  width: calc(100% - 24px);
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+}
+
 .filter-row {
   display: flex;
   flex-wrap: wrap;
@@ -341,7 +375,7 @@ button {
   margin-bottom: 12px;
 }
 
-.filter-row span {
+.filter-row button {
   border: 1px solid var(--line);
   border-radius: 999px;
   background: #fff;
@@ -453,6 +487,11 @@ button {
   padding: 10px;
 }
 
+.part-card.reserved {
+  border-color: #bdebd8;
+  box-shadow: inset 0 0 0 1px #d9f7ea;
+}
+
 .part-image {
   display: grid;
   place-items: center;
@@ -525,6 +564,23 @@ button {
   font-weight: 900;
 }
 
+.part-card button {
+  width: 100%;
+  margin-top: 8px;
+  background: #eef4ff;
+}
+
+.part-card.reserved button {
+  background: #e9f9f2;
+  color: var(--green);
+}
+
+.wide-action {
+  width: 100%;
+  margin-top: 14px;
+  min-height: 40px;
+}
+
 .order-card {
   border: 1px solid var(--line);
   border-radius: 13px;
@@ -559,6 +615,25 @@ button {
   color: var(--amber);
   font-size: 11px;
   white-space: nowrap;
+}
+
+.reserved-summary {
+  border-radius: 10px;
+  background: #f0f6ff;
+  padding: 10px;
+  margin-bottom: 14px;
+}
+
+.reserved-summary strong,
+.reserved-summary span {
+  display: block;
+}
+
+.reserved-summary span {
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.25;
 }
 
 .timeline {
@@ -671,9 +746,35 @@ button {
   text-align: left;
 }
 
+.menu-list button.active {
+  border-color: #cfe0fb;
+  background: #eef4ff;
+  color: #286ac2;
+}
+
 .menu-list span {
   color: var(--muted);
   font-size: 20px;
+}
+
+.detail-panel {
+  border: 1px solid var(--line);
+  border-radius: 13px;
+  background: #fff;
+  padding: 13px;
+  margin-top: 12px;
+}
+
+.detail-panel strong,
+.detail-panel span {
+  display: block;
+}
+
+.detail-panel span {
+  margin-top: 5px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.35;
 }
 
 .bottom-tabs {
