@@ -1,0 +1,8 @@
+services:
+  - type: static_site
+    name: manhub
+    buildCommand: npm ci && npm run render:build
+    staticPublishPath: ./out
+    envVars:
+      - key: NODE_VERSION
+        value: 22.13.0
