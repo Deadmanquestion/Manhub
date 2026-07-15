@@ -1,112 +1,52 @@
 "use client";
 
-import { FormEvent, ReactNode, useMemo, useState } from "react";
+import { FormEvent, ReactNode, useState } from "react";
 
 type View = "navigator" | "customer" | "technician" | "workshop" | "supplier" | "admin";
 type CustomerTab = "Home" | "Workshops" | "Parts" | "Orders" | "Me";
 
-const roleCards: Array<{
-  id: View;
-  role: string;
-  title: string;
-  summary: string;
-  proof: string;
-}> = [
-  {
-    id: "customer",
-    role: "Customer",
-    title: "End User App",
-    summary: "Daniel describes symptoms, reviews a diagnosis-led quote, and chooses a workshop.",
-    proof: "Shows customer ownership of booking and trust in diagnosis-first service.",
-  },
-  {
-    id: "technician",
-    role: "Technician",
-    title: "Technician Portal",
-    summary: "Certified technicians review AI pre-diagnoses, correct them, and build quotes.",
-    proof: "Shows human validation and quote control before work starts.",
-  },
-  {
-    id: "workshop",
-    role: "Workshop Owner",
-    title: "Workshop Owner Portal",
-    summary: "Owners manage jobs, bays, technicians, billings, and platform settlement.",
-    proof: "Shows capacity orchestration and workshop economics.",
-  },
-  {
-    id: "supplier",
-    role: "Supplier",
-    title: "Supplier Portal",
-    summary: "Suppliers list consigned parts and fulfil items once sold through service jobs.",
-    proof: "Shows inventory monetization with commission only on completed sales.",
-  },
-  {
-    id: "admin",
-    role: "Super Admin",
-    title: "Super Admin Portal",
-    summary: "Platform operators verify partners, monitor jobs, and approve settlement runs.",
-    proof: "Shows governance, marketplace health, and take-rate visibility.",
-  },
-];
-
-const roleSwitcher = [
-  { label: "Customer", view: "customer" as View },
-  { label: "Technician", view: "technician" as View },
-  { label: "Workshop Owner", view: "workshop" as View },
-  { label: "Supplier", view: "supplier" as View },
-  { label: "Super Admin", view: "admin" as View },
+const roleCards: Array<{ id: View; title: string; text: string }> = [
+  { id: "customer", title: "End User App", text: "Clickable five-tab phone flow for customers." },
+  { id: "technician", title: "Technician Portal", text: "Diagnosis review before a quote reaches the customer." },
+  { id: "workshop", title: "Workshop Owner Portal", text: "Today floor, bays, billings, and workshop share." },
+  { id: "supplier", title: "Supplier Portal", text: "Consignment orders, fulfilment, and 75% payout." },
+  { id: "admin", title: "Super Admin Portal", text: "Verification, settlement, commission, and platform health." },
 ];
 
 const customerTabs: CustomerTab[] = ["Home", "Workshops", "Parts", "Orders", "Me"];
 
-const notes: Record<View, { proves: string; decision: string; revenue: string }> = {
-  navigator: {
-    proves: "ManHub can tell one connected marketplace story across customers, technicians, workshops, suppliers, and platform operators.",
-    decision: "Each role has a clear reason to participate, with diagnosis as the entry point instead of generic booking.",
-    revenue: "Service commissions and parts commissions are visible before diving into role screens.",
+const proofCards = [
+  {
+    tag: "服务优先",
+    title: "The home screen sells diagnosis, not products.",
+    text: 'The biggest element is "Describe a problem" - the parts tab exists but never competes for the first tap.',
   },
-  customer: {
-    proves: "Customers start with the problem, receive an explainable pre-diagnosis, and still choose the workshop.",
-    decision: "The platform builds trust by pairing AI speed with technician confirmation before final quote.",
-    revenue: "Diagnosis drives a service job and relevant parts recommendations without turning the app into a generic storefront.",
+  {
+    tag: "签名元素",
+    title: "The AI job card.",
+    text: "Urgency is a workshop gauge, cost is a range not a price, and the amber line says a technician confirms before quoting.",
   },
-  technician: {
-    proves: "AI work is reviewed by certified technicians before customers receive final pricing.",
-    decision: "Technicians can confirm or correct the diagnosis and assemble a transparent quote.",
-    revenue: "The quote combines labour and parts, creating commissionable service and parts value.",
+  {
+    tag: "配件漏斗",
+    title: "Parts ride on the diagnosis.",
+    text: 'The two recommended parts reappear in the Parts tab marked "FROM DIAGNOSIS" - the 25% commission funnel works without a storefront push.',
   },
-  workshop: {
-    proves: "Workshops can manage capacity, technician assignment, and billings from one operating screen.",
-    decision: "The workshop keeps 80 percent of service billings while ManHub coordinates demand and settlement.",
-    revenue: "Today's jobs and billings make the platform take rate understandable at a glance.",
+  {
+    tag: "车主主选",
+    title: "Workshops are chosen, not assigned.",
+    text: 'Sorted by distance with a green "offers your service" match badge - exactly the proximity + service-match logic.',
   },
-  supplier: {
-    proves: "Suppliers can list consigned parts and fulfil orders only after those parts are sold through jobs.",
-    decision: "No listing fees lowers supplier friction while keeping fulfilment accountable.",
-    revenue: "Each parts sale shows a 25 percent commission and supplier payout.",
-  },
-  admin: {
-    proves: "The platform has controls for verification, settlement, disputes, and marketplace performance.",
-    decision: "ManHub can scale supply quality while supervising payments across workshops and suppliers.",
-    revenue: "GMV, commission earned, and settlement math show the commercial engine clearly.",
-  },
-};
+];
 
 export default function Home() {
   const [loggedIn, setLoggedIn] = useState(false);
   const [view, setView] = useState<View>("navigator");
   const [customerTab, setCustomerTab] = useState<CustomerTab>("Home");
-  const [diagnosisOpen, setDiagnosisOpen] = useState(true);
-
-  const activeRole = useMemo(
-    () => roleCards.find((role) => role.id === view),
-    [view],
-  );
+  const [diagnosisOpen, setDiagnosisOpen] = useState(false);
 
   function handleLogin(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setLoggedIn(true);
-    setView("navigator");
   }
 
   if (!loggedIn) {
@@ -114,62 +54,21 @@ export default function Home() {
   }
 
   return (
-    <main className="app-shell">
-      <header className="topbar">
-        <button className="brand-lockup" onClick={() => setView("navigator")} aria-label="Go to Demo Navigator">
-          <span className="brand-mark">MH</span>
-          <span>
-            <strong>ManHub</strong>
-            <small>Diagnosis-first automotive service platform</small>
-          </span>
-        </button>
-        <nav className="role-switcher" aria-label="Role switcher">
-          {roleSwitcher.map((role) => (
-            <button
-              key={role.view}
-              className={view === role.view ? "active" : ""}
-              onClick={() => setView(role.view)}
-            >
-              {role.label}
-            </button>
-          ))}
-        </nav>
-      </header>
-
+    <main className="presentation-shell">
       {view === "navigator" && <Navigator setView={setView} />}
       {view === "customer" && (
-        <section className="demo-stage phone-stage">
-          <div className="stage-copy">
-            <p className="eyebrow">End User App</p>
-            <h1>Diagnosis starts the job, then Daniel chooses where to repair.</h1>
-            <p>
-              The customer app keeps the flow simple: describe symptoms, receive a reviewed diagnosis, choose a
-              workshop, and track the repair.
-            </p>
-            <InvestorNotes view="customer" />
-          </div>
-          <PhoneApp
-            activeTab={customerTab}
-            setActiveTab={setCustomerTab}
-            diagnosisOpen={diagnosisOpen}
-            setDiagnosisOpen={setDiagnosisOpen}
-          />
-        </section>
+        <EndUserSlide
+          activeTab={customerTab}
+          setActiveTab={setCustomerTab}
+          diagnosisOpen={diagnosisOpen}
+          setDiagnosisOpen={setDiagnosisOpen}
+          setView={setView}
+        />
       )}
-      {view === "technician" && (
-        <TechnicianPortal notes={<InvestorNotes view="technician" compact />} />
-      )}
-      {view === "workshop" && <WorkshopPortal notes={<InvestorNotes view="workshop" compact />} />}
-      {view === "supplier" && <SupplierPortal notes={<InvestorNotes view="supplier" compact />} />}
-      {view === "admin" && <AdminPortal notes={<InvestorNotes view="admin" compact />} />}
-
-      {activeRole && view !== "navigator" && (
-        <footer className="presenter-strip">
-          <span>{activeRole.role}</span>
-          <strong>{activeRole.proof}</strong>
-          <button onClick={() => setView("navigator")}>Back to navigator</button>
-        </footer>
-      )}
+      {view === "technician" && <TechnicianSlide setView={setView} />}
+      {view === "workshop" && <WorkshopSlide setView={setView} />}
+      {view === "supplier" && <SupplierSlide setView={setView} />}
+      {view === "admin" && <AdminSlide setView={setView} />}
     </main>
   );
 }
@@ -177,81 +76,112 @@ export default function Home() {
 function LoginScreen({ onSubmit }: { onSubmit: (event: FormEvent<HTMLFormElement>) => void }) {
   return (
     <main className="login-screen">
-      <section className="login-panel">
-        <div className="login-visual" aria-hidden="true">
-          <div className="visual-grid">
-            <div className="flow-card large">
-              <span>1</span>
-              <strong>Symptom</strong>
-              <small>Brake squeal reported</small>
-            </div>
-            <div className="flow-card">
-              <span>2</span>
-              <strong>AI pre-diagnosis</strong>
-              <small>87% confidence</small>
-            </div>
-            <div className="flow-card">
-              <span>3</span>
-              <strong>Technician review</strong>
-              <small>Quote confirmed</small>
-            </div>
-          </div>
-        </div>
-        <form className="login-card" onSubmit={onSubmit}>
-          <span className="brand-mark">MH</span>
-          <p className="eyebrow">Investor presentation</p>
-          <h1>ManHub</h1>
-          <p>Diagnosis-first automotive service, from customer symptom to workshop job and parts commission.</p>
-          <label>
-            Email
-            <input type="email" defaultValue="investor@manhub.my" aria-label="Email" />
-          </label>
-          <label>
-            Password
-            <input type="password" defaultValue="manhub" aria-label="Password" />
-          </label>
-          <button className="primary-button" type="submit">
-            Enter demo
-          </button>
-        </form>
-      </section>
+      <form className="login-card" onSubmit={onSubmit}>
+        <span className="brand-mark">MH</span>
+        <p className="eyebrow">Investor presentation</p>
+        <h1>ManHub</h1>
+        <p>Diagnosis-first automotive service demo, rebranded from the reference structure into a ManHub product story.</p>
+        <label>
+          Email
+          <input type="email" defaultValue="investor@manhub.my" aria-label="Email" />
+        </label>
+        <label>
+          Password
+          <input type="password" defaultValue="manhub" aria-label="Password" />
+        </label>
+        <button className="primary-button" type="submit">Enter demo</button>
+      </form>
     </main>
   );
 }
 
 function Navigator({ setView }: { setView: (view: View) => void }) {
   return (
-    <section className="navigator">
-      <div className="navigator-hero">
-        <div>
-          <p className="eyebrow">Demo Navigator</p>
-          <h1>ManHub turns car problems into reviewed jobs, parts sales, and clear settlements.</h1>
-          <p>
-            Present the full marketplace in one flow: customer demand, technician confidence, workshop operations,
-            supplier fulfilment, and platform control.
-          </p>
-        </div>
-        <div className="market-map" aria-label="ManHub marketplace flow">
-          <div>Customer</div>
-          <div>AI Diagnosis</div>
-          <div>Technician</div>
-          <div>Workshop</div>
-          <div>Supplier</div>
-          <div>Settlement</div>
-        </div>
+    <section className="navigator-slide">
+      <div className="slide-header wide">
+        <p className="eyebrow">Demo Navigator</p>
+        <h1>ManHub investor demo</h1>
+        <p>Open each presentation slide and walk through the same five-role structure as the reference, with ManHub branding and mock marketplace data.</p>
       </div>
       <div className="navigator-grid">
         {roleCards.map((card) => (
-          <article className="role-card" key={card.id}>
-            <span>{card.role}</span>
-            <h2>{card.title}</h2>
-            <p>{card.summary}</p>
+          <article className="nav-card" key={card.id}>
+            <span>{card.title}</span>
+            <p>{card.text}</p>
             <button onClick={() => setView(card.id)}>View {card.title}</button>
           </article>
         ))}
       </div>
-      <InvestorNotes view="navigator" />
     </section>
+  );
+}
+
+function SlideHeader({
+  title,
+  subtitle,
+  decision,
+  setView,
+}: {
+  title: string;
+  subtitle: string;
+  decision: string;
+  setView: (view: View) => void;
+}) {
+  return (
+    <header className="slide-header">
+      <button className="back-button" onClick={() => setView("navigator")}>Demo Navigator</button>
+      <h1>{title}</h1>
+      <p>{subtitle}</p>
+      <span className="decision-chip">Decision shown: {decision}</span>
+    </header>
+  );
+}
+
+function EndUserSlide({
+  activeTab,
+  setActiveTab,
+  diagnosisOpen,
+  setDiagnosisOpen,
+  setView,
+}: {
+  activeTab: CustomerTab;
+  setActiveTab: (tab: CustomerTab) => void;
+  diagnosisOpen: boolean;
+  setDiagnosisOpen: (open: boolean) => void;
+  setView: (view: View) => void;
+}) {
+  return (
+    <section className="reference-slide">
+      <SlideHeader
+        title="End User App - service-first home"
+        subtitle="The phone is clickable: use the bottom tabs to walk through the five-tab structure. The diagnosis flow opens from the big blue button."
+        decision="服务优先首页 · 配件独立 tab 但由诊断驱动"
+        setView={setView}
+      />
+      <div className="phone-proof-layout">
+        <PhoneApp
+          activeTab={activeTab}
+          setActiveTab={setActiveTab}
+          diagnosisOpen={diagnosisOpen}
+          setDiagnosisOpen={setDiagnosisOpen}
+        />
+        <ProofPanel />
+      </div>
+    </section>
+  );
+}
+
+function ProofPanel() {
+  return (
+    <aside className="proof-panel">
+      <h2>What this screen proves</h2>
+      {proofCards.map((card) => (
+        <article className="proof-card" key={card.tag}>
+          <span>{card.tag}</span>
+          <p><strong>{card.title}</strong> {card.text}</p>
+        </article>
+      ))}
+    </aside>
   );
 }
 
@@ -268,23 +198,20 @@ function PhoneApp({
 }) {
   return (
     <div className="phone-frame">
-      <div className="phone-status">
-        <span>9:41</span>
-        <span>ManHub</span>
-      </div>
       <div className="phone-screen">
-        {activeTab === "Home" && (
-          <CustomerHome diagnosisOpen={diagnosisOpen} setDiagnosisOpen={setDiagnosisOpen} />
-        )}
-        {activeTab === "Workshops" && <CustomerWorkshops />}
-        {activeTab === "Parts" && <CustomerParts />}
-        {activeTab === "Orders" && <CustomerOrders />}
-        {activeTab === "Me" && <CustomerMe />}
+        <div className="phone-status"><span>9:41</span><span>▣ ▮</span></div>
+        <div className="phone-content">
+          {activeTab === "Home" && <HomeTab diagnosisOpen={diagnosisOpen} setDiagnosisOpen={setDiagnosisOpen} />}
+          {activeTab === "Workshops" && <WorkshopsTab />}
+          {activeTab === "Parts" && <PartsTab />}
+          {activeTab === "Orders" && <OrdersTab />}
+          {activeTab === "Me" && <MeTab />}
+        </div>
       </div>
       <nav className="bottom-tabs" aria-label="End user app tabs">
         {customerTabs.map((tab) => (
           <button key={tab} className={activeTab === tab ? "active" : ""} onClick={() => setActiveTab(tab)}>
-            <span className="tab-dot" />
+            <span>{tabIcon(tab)}</span>
             {tab}
           </button>
         ))}
@@ -293,7 +220,11 @@ function PhoneApp({
   );
 }
 
-function CustomerHome({
+function tabIcon(tab: CustomerTab) {
+  return ({ Home: "⌂", Workshops: "●", Parts: "◉", Orders: "◼", Me: "♟" } as Record<CustomerTab, string>)[tab];
+}
+
+function HomeTab({
   diagnosisOpen,
   setDiagnosisOpen,
 }: {
@@ -301,425 +232,322 @@ function CustomerHome({
   setDiagnosisOpen: (open: boolean) => void;
 }) {
   return (
-    <div className="phone-content">
-      <div className="phone-header">
-        <div>
-          <small>Good morning</small>
-          <h2>Hi Daniel</h2>
-        </div>
-        <span className="avatar">DT</span>
-      </div>
-      <article className="vehicle-card">
-        <div className="car-art" aria-hidden="true">
-          <span />
-          <span />
-        </div>
-        <div>
-          <strong>Toyota Vios 1.5G</strong>
-          <p>WXY 4321 - 2021</p>
-          <p>Mileage 68,420 km</p>
-        </div>
+    <>
+      <h2>Hi Daniel 👋</h2>
+      <article className="vehicle-tile">
+        <div><strong>Toyota Vios 1.5G</strong><span>WXY 4321 · 2021</span></div>
+        <div><small>Mileage</small><b>68,420 km</b></div>
       </article>
-      <button className="primary-button wide diagnose-button" onClick={() => setDiagnosisOpen(!diagnosisOpen)}>
+      <button className="diagnosis-button" onClick={() => setDiagnosisOpen(!diagnosisOpen)}>
+        <span>🧰</span>
         <strong>Describe a problem</strong>
-        <span>Type it, snap a photo, or record the noise - AI pre-checks it</span>
+        <small>Type it, snap a photo or record the noise - AI pre-checks it</small>
       </button>
-      {diagnosisOpen && <DiagnosisFlow />}
-      <div className="quick-actions">
-        {["Find workshop", "Spare parts", "My records"].map((item) => (
-          <button key={item}>{item}</button>
-        ))}
-      </div>
-      <section className="mini-list">
-        <h3>Reminders</h3>
-        <div><strong>Engine oil change due</strong><span>Due in 1,200 km</span></div>
-        <div><strong>Brake pads replaced</strong><span>Last service record</span></div>
-      </section>
-    </div>
-  );
-}
-
-function DiagnosisFlow() {
-  return (
-    <section className="diagnosis-flow">
-      <label>
-        Customer symptom
-        <textarea defaultValue="High-pitched squeal when braking, worse in the morning" />
-      </label>
-      <div className="photo-row">
-        <span>Photo attached</span>
-        <span>Brake area</span>
-      </div>
-      <article className="ai-card">
-        <span>AI pre-diagnosis</span>
-        <h3>Front brake pads worn, likely less than 3mm</h3>
-        <div className="confidence"><i style={{ width: "87%" }} /></div>
-        <p>Confidence 87%</p>
-        <strong>Estimated quote range RM 280-420</strong>
-        <small>Technician will confirm before final quote.</small>
-      </article>
-    </section>
-  );
-}
-
-function CustomerWorkshops() {
-  return (
-    <div className="phone-content">
-      <h2>Workshops</h2>
-      <input className="search" defaultValue="Brake service near me" aria-label="Search workshops" />
-      <div className="chips">
-        {["Nearest", "Top rated", "Brake service", "Open now"].map((chip) => <span key={chip}>{chip}</span>)}
-      </div>
-      {[
-        ["AutoFix Pro", "1.2 km", "4.8 rating", "Brake service, Toyota", "97% match"],
-        ["QuickCare Motors", "2.5 km", "4.6 rating", "Open now, Same-day", "93% match"],
-        ["Evergreen Auto Centre", "3.1 km", "4.5 rating", "Trusted Vios service", "89% match"],
-      ].map(([name, distance, rating, tags, match]) => (
-        <article className="workshop-card" key={name}>
-          <div><strong>{name}</strong><p>{tags}</p></div>
-          <span>{distance}</span>
-          <small>{rating}</small>
-          <em>{match}</em>
-          <button>Book</button>
+      {diagnosisOpen && (
+        <article className="ai-job-card">
+          <b>AI pre-check</b>
+          <strong>Front brake pads worn, likely &lt; 3mm</strong>
+          <p>Confidence 87% · quote range RM 280-420 · technician confirms before final quote</p>
         </article>
-      ))}
-      <p className="helper-note">Workshops are chosen by the customer, not auto-assigned.</p>
-    </div>
+      )}
+      <div className="quick-actions">
+        <button><span>⌕</span>Find workshop</button>
+        <button><span>◉</span>Spare parts</button>
+        <button><span>▤</span>My records</button>
+      </div>
+      <section className="reminders">
+        <h3>REMINDERS</h3>
+        <article className="reminder warn"><strong>Engine oil change due</strong><span>Next service at 70,000 km - about 1,580 km to go</span></article>
+        <article className="reminder ok"><strong>Brake pads replaced ✓</strong><span>Done 12 May at AutoFix Pro · in your service record</span></article>
+      </section>
+    </>
   );
 }
 
-function CustomerParts() {
-  const parts = [
-    ["Brake pad set front Bendix", "RM168", "FROM DIAGNOSIS"],
-    ["Brake fluid DOT4 1L", "RM32", "FROM DIAGNOSIS"],
-    ["Engine oil 5W-30", "RM189", ""],
-    ["Battery NS60L", "RM245", ""],
+function WorkshopsTab() {
+  const shops = [
+    ["AutoFix Pro", "1.2 km", "4.8", "(234)", "Oil · Brakes · Tyres"],
+    ["QuickCare Motors", "2.5 km", "4.6", "(158)", "General · AC · Battery"],
+    ["Evergreen Auto Centre", "3.1 km", "4.5", "(96)", "Engine · Diagnostics"],
   ];
   return (
-    <div className="phone-content">
+    <>
+      <h2>Find a workshop</h2>
+      <div className="phone-search">⌕ Brake service near Bandar Sunway...</div>
+      <div className="chips">
+        {["Nearest", "Top rated", "Brake service", "Open now"].map((chip, index) => (
+          <span className={index === 0 ? "active" : ""} key={chip}>{chip}</span>
+        ))}
+      </div>
+      <div className="shop-list">
+        {shops.map(([name, distance, rating, count, tags]) => (
+          <article className="shop-card" key={name}>
+            <div><strong>{name}</strong><p>★ {rating} {count} · {tags}</p><em>✓ Offers brake pad replacement</em></div>
+            <aside><span>{distance}</span><button>Book</button></aside>
+          </article>
+        ))}
+      </div>
+    </>
+  );
+}
+
+function PartsTab() {
+  const parts = [
+    ["🛑", "Brake pad set (front) - Bendix", "Fits Vios 1.5G 2021", "RM 168", true],
+    ["🧴", "Brake fluid DOT4 1L", "Fits all models", "RM 32", true],
+    ["🛢", "Engine oil 5W-30 fully syn 4L", "Fits Vios 1.5G 2021", "RM 189", false],
+    ["🔋", "Battery NS60L - Century", "Fits Vios 1.5G 2021", "RM 245", false],
+  ];
+  return (
+    <>
       <h2>Spare parts</h2>
-      <article className="diagnosis-banner">
-        <strong>Recommended for your Vios</strong>
-        <span>from today's diagnosis</span>
+      <article className="parts-hero">
+        <strong>Recommended for your Vios - from today's diagnosis</strong>
+        <span>Parts are reserved at the workshop. Pay only when the job is confirmed.</span>
       </article>
-      {parts.map(([name, price, tag]) => (
-        <article className="part-card" key={name}>
-          <div><strong>{name}</strong>{tag && <span>{tag}</span>}</div>
-          <b>{price}</b>
-        </article>
-      ))}
-      <p className="helper-note">Recommendations are diagnosis-led, not pushed as a storefront.</p>
-    </div>
-  );
-}
-
-function CustomerOrders() {
-  return (
-    <div className="phone-content">
-      <h2>Orders</h2>
-      <article className="order-summary">
-        <div>
-          <strong>Brake pad replacement</strong>
-          <span>AutoFix Pro - Tech Ahmad F.</span>
-          <small>#MF-08471</small>
-        </div>
-        <b>IN PROGRESS</b>
-      </article>
-      <div className="timeline">
-        {["Booking confirmed", "Diagnosis confirmed by technician", "Repair in progress", "Ready for pickup"].map((step, index) => (
-          <div className={index < 3 ? "done" : ""} key={step}>
-            <span />
-            <p>{step}</p>
-          </div>
+      <div className="parts-grid">
+        {parts.map(([icon, name, fit, price, diagnosis]) => (
+          <article className="product-card" key={name}>
+            <div className="product-image">{icon}</div>
+            <strong>{name}</strong>
+            <span>✓ {fit}</span>
+            <b>{price}</b>
+            {diagnosis && <em>FROM DIAGNOSIS</em>}
+          </article>
         ))}
       </div>
-    </div>
+    </>
   );
 }
 
-function CustomerMe() {
+function OrdersTab() {
   return (
-    <div className="phone-content">
-      <div className="profile-block">
-        <span className="avatar large">DT</span>
-        <div>
-          <h2>Daniel Tan</h2>
-          <p>daniel.t@email.com</p>
-        </div>
-      </div>
-      <div className="stats-row">
-        <div><strong>2</strong><span>vehicles</span></div>
-        <div><strong>12</strong><span>services</span></div>
-        <div><strong>840</strong><span>points</span></div>
-      </div>
-      {["My vehicles", "Digital service records", "Payment methods", "Help & support"].map((item) => (
-        <button className="menu-row" key={item}>{item}<span>View</span></button>
-      ))}
-    </div>
-  );
-}
-
-function TechnicianPortal({ notes }: { notes: ReactNode }) {
-  return (
-    <PortalFrame
-      title="ManHub - Technician"
-      sidebar={["Job inbox 3", "My schedule", "Earnings", "Training", "Profile"]}
-      notes={notes}
-    >
-      <div className="portal-heading">
-        <p className="eyebrow">Job inbox</p>
-        <h1>Job #MF-08471 - Toyota Vios 1.5G (WXY 4321)</h1>
-      </div>
-      <div className="portal-grid two">
-        <article className="panel highlight">
-          <span>AI PRE-DIAGNOSIS - NEEDS YOUR REVIEW</span>
-          <h2>Front brake pads worn, likely &lt; 3mm</h2>
-          <div className="metric-line"><strong>Confidence</strong><span>87%</span></div>
-          <div className="metric-line"><strong>Source</strong><span>customer photo + squealing when braking</span></div>
-          <div className="metric-line"><strong>Estimated quote</strong><span>RM 280-420</span></div>
-          <div className="button-row">
-            <button className="primary-button">Confirm diagnosis</button>
-            <button>Correct it</button>
-          </div>
-        </article>
-        <article className="panel">
-          <h2>Customer input</h2>
-          <InfoRows rows={[
-            ["Symptom", "High-pitched squeal when braking, worse in the morning"],
-            ["Photos", "2 brake area images"],
-            ["Vehicle history", "68,420 km, last brake inspection 9 months ago"],
-          ]} />
-        </article>
-      </div>
-      <article className="panel">
-        <div className="section-title">
-          <h2>Build quote</h2>
-          <span>Quote total RM312</span>
-        </div>
-        <DataTable
-          columns={["Line item", "Price"]}
-          rows={[
-            ["Brake pad set front Bendix", "RM168"],
-            ["Brake fluid DOT4 1L", "RM32"],
-            ["Labour pad replacement 1.5 hr", "RM112"],
-          ]}
-        />
-        <div className="button-row">
-          <button className="primary-button">Send quote to customer</button>
-          <button>Save draft</button>
-        </div>
-      </article>
-    </PortalFrame>
-  );
-}
-
-function WorkshopPortal({ notes }: { notes: ReactNode }) {
-  return (
-    <PortalFrame
-      title="ManHub - Workshop Owner"
-      sidebar={["Today's jobs", "Bays & capacity", "Technicians", "Settlement", "Reviews"]}
-      notes={notes}
-    >
-      <KpiGrid items={[
-        ["7", "Jobs today"],
-        ["3 / 4", "Bays occupied"],
-        ["RM 1,864", "Today's billings"],
-        ["RM 1,491", "Your 80% share"],
-      ]} />
-      <article className="panel">
-        <div className="section-title">
-          <h2>Job board</h2>
-          <span>Live operations view</span>
-        </div>
-        <DataTable
-          columns={["Job", "Vehicle", "Technician", "Bay", "Status", "Bill"]}
-          rows={[
-            ["#08471 Brake pads", "Vios WXY4321", "Ahmad F.", "Bay 2", "In progress", "RM312"],
-            ["#08465 Oil change", "Myvi VBK9902", "Lim W.", "Bay 1", "Ready", "RM226"],
-            ["#08469 Battery swap", "X70 WC5511", "Ravi K.", "Bay 3", "In progress", "RM388"],
-            ["#08474 Aircon service", "City BNV7733", "unassigned", "Booked 3:00 PM", "est. RM280"],
-          ]}
-        />
-      </article>
-    </PortalFrame>
-  );
-}
-
-function SupplierPortal({ notes }: { notes: ReactNode }) {
-  return (
-    <PortalFrame
-      title="ManHub - Supplier"
-      sidebar={["Orders to fulfil", "My catalogue", "Stock flags", "Payouts", "Analytics"]}
-      notes={notes}
-    >
-      <KpiGrid items={[
-        ["142", "Listed SKUs"],
-        ["38", "Sold this month"],
-        ["RM 4,212", "Pending payout"],
-      ]} />
-      <article className="panel">
-        <div className="section-title">
-          <h2>Orders to fulfil</h2>
-          <span>Consignment sales</span>
-        </div>
-        <DataTable
-          columns={["Order", "Part", "Deliver to", "Sold at", "Your payout", "Action"]}
-          rows={[
-            ["#P-2231", "Brake pad set front Bendix", "AutoFix Pro Sunway", "RM168", "RM126", "Confirm dispatch"],
-            ["#P-2232", "Brake fluid DOT4 1L", "AutoFix Pro Sunway", "RM32", "RM24", "Confirm dispatch"],
-            ["#P-2228", "Air filter K&N", "QuickCare Motors PJ", "RM89", "Paid RM66.75", "Delivered"],
-          ]}
-        />
-        <p className="panel-note">You are paid only when an item sells. No listing fees. 25% platform commission per sale.</p>
-      </article>
-    </PortalFrame>
-  );
-}
-
-function AdminPortal({ notes }: { notes: ReactNode }) {
-  return (
-    <PortalFrame
-      title="ManHub - Super Admin"
-      sidebar={["Overview", "Verification", "Jobs monitor", "Settlement", "Disputes", "Config"]}
-      notes={notes}
-    >
-      <KpiGrid items={[
-        ["RM 86,420", "GMV this month"],
-        ["RM 18,930", "Commission earned"],
-        ["214", "Jobs this week"],
-        ["4.7", "Platform rating"],
-      ]} />
-      <div className="portal-grid two">
-        <article className="panel">
-          <div className="section-title">
-            <h2>Verification queue</h2>
-            <span>Partner trust</span>
-          </div>
-          <DataTable
-            columns={["Type", "Name", "Status", "Action"]}
-            rows={[
-              ["Workshop", "Mega Auto Klang", "Docs review", "Open"],
-              ["Technician", "Tan C.W.", "cert upload, Pending", "Open"],
-              ["Supplier", "AutoParts2U Sdn Bhd", "New", "Open"],
-            ]}
-          />
-        </article>
-        <article className="panel">
-          <div className="section-title">
-            <h2>Settlement run</h2>
-            <span>Ready for approval</span>
-          </div>
-          <InfoRows rows={[
-            ["Workshops payout 80% of bills", "RM41,210"],
-            ["Suppliers payout 75% of parts", "RM9,640"],
-            ["Gateway fees 2%", "-RM1,272"],
-            ["Platform net commission", "RM12,480"],
-          ]} />
-          <button className="primary-button wide">Approve settlement run</button>
-        </article>
-      </div>
-    </PortalFrame>
-  );
-}
-
-function PortalFrame({
-  title,
-  sidebar,
-  children,
-  notes,
-}: {
-  title: string;
-  sidebar: string[];
-  children: ReactNode;
-  notes: ReactNode;
-}) {
-  return (
-    <section className="portal-shell">
-      <aside className="portal-sidebar">
-        <div className="brand-lockup static">
-          <span className="brand-mark">MH</span>
-          <span><strong>ManHub</strong><small>Portal</small></span>
-        </div>
-        {sidebar.map((item, index) => (
-          <button key={item} className={index === 0 ? "active" : ""}>{item}</button>
-        ))}
-      </aside>
-      <div className="portal-main">
-        <header className="portal-header">
-          <h1>{title}</h1>
-          <span>Today's marketplace</span>
+    <>
+      <h2>My orders</h2>
+      <article className="order-card">
+        <header>
+          <div><strong>Brake pad replacement</strong><span>AutoFix Pro · Tech Ahmad F.</span></div>
+          <aside><b>IN PROGRESS</b><span>#MF-08471</span></aside>
         </header>
-        <div className="portal-content">
-          <div className="portal-workspace">{children}</div>
-          <aside className="notes-rail">{notes}</aside>
+        <div className="order-timeline">
+          <Step done title="Booking confirmed" detail="Today 10:05" />
+          <Step done title="Diagnosis confirmed by technician" detail="Today 11:20 · quote approved RM 312" />
+          <Step active title="Repair in progress" detail="Started 11:45 · est. 1 hr remaining" />
+          <Step title="Ready for pickup" detail="You'll get a notification" />
         </div>
+      </article>
+    </>
+  );
+}
+
+function Step({ title, detail, done, active }: { title: string; detail: string; done?: boolean; active?: boolean }) {
+  return (
+    <div className={`step ${done ? "done" : ""} ${active ? "active" : ""}`}>
+      <i />
+      <p><strong>{title}</strong><span>{detail}</span></p>
+    </div>
+  );
+}
+
+function MeTab() {
+  return (
+    <>
+      <div className="profile-head">
+        <span>D</span>
+        <div><h2>Daniel Tan</h2><p>daniel.t@email.com</p></div>
       </div>
+      <div className="stat-grid">
+        <article><strong>2</strong><span>Vehicles</span></article>
+        <article><strong>12</strong><span>Services</span></article>
+        <article><strong>840</strong><span>Points</span></article>
+      </div>
+      <div className="menu-list">
+        {["My vehicles", "Digital service records", "Payment methods", "Help & support"].map((item) => (
+          <button key={item}>{item}<span>›</span></button>
+        ))}
+      </div>
+    </>
+  );
+}
+
+function TechnicianSlide({ setView }: { setView: (view: View) => void }) {
+  return (
+    <section className="reference-slide">
+      <SlideHeader
+        title="Technician Portal - diagnosis review"
+        subtitle="The heart of the semi-automatic model: the technician sees the AI's pre-diagnosis and must confirm or correct it before the quote goes to the customer."
+        decision="半自动诊断 - AI 建议, 技师确认"
+        setView={setView}
+      />
+      <PortalBoard title="ManHub · Technician" right="Ahmad Faizal · ★ 4.9 · IMI Certified" sidebar={["Job inbox 3", "My schedule", "Earnings", "Training", "Profile"]}>
+        <div className="tech-layout">
+          <section>
+            <h2>Job #MF-08471 - Toyota Vios 1.5G (WXY 4321)</h2>
+            <article className="review-card">
+              <span>⚡ AI PRE-DIAGNOSIS - NEEDS YOUR REVIEW</span>
+              <strong>Front brake pads worn (likely &lt; 3mm)</strong>
+              <p>Confidence 87% · from customer photo + "squealing when braking" · est. RM 280-420</p>
+              <div><button className="primary-button small">✓ Confirm diagnosis</button><button className="ghost-button">✎ Correct it</button></div>
+            </article>
+            <h3>Customer input</h3>
+            <InfoTable rows={[
+              ["Symptom", '"High-pitched squeal when braking, worse in the morning"'],
+              ["Photos", "2 attached · front-left wheel"],
+              ["Vehicle history", "Last brake service 28,000 km ago"],
+            ]} />
+          </section>
+          <section>
+            <h3>Build quote</h3>
+            <QuoteRows rows={[
+              ["Brake pad set (front) · Bendix", "RM 168.00"],
+              ["Brake fluid DOT4 1L", "RM 32.00"],
+              ["Labour - pad replacement (1.5 hr)", "RM 112.00"],
+            ]} />
+            <div className="quote-total"><strong>Quote total</strong><b>RM 312.00</b></div>
+            <div className="button-row"><button className="primary-button small">Send quote to customer</button><button className="ghost-button">Save draft</button></div>
+          </section>
+        </div>
+      </PortalBoard>
     </section>
   );
 }
 
-function InvestorNotes({ view, compact = false }: { view: View; compact?: boolean }) {
-  const note = notes[view];
+function WorkshopSlide({ setView }: { setView: (view: View) => void }) {
   return (
-    <aside className={compact ? "investor-notes compact" : "investor-notes"}>
-      <h2>Investor Notes</h2>
-      <div>
-        <strong>What this screen proves</strong>
-        <p>{note.proves}</p>
-      </div>
-      <div>
-        <strong>Business decision shown</strong>
-        <p>{note.decision}</p>
-      </div>
-      <div>
-        <strong>Revenue logic shown</strong>
-        <p>{note.revenue}</p>
-      </div>
-    </aside>
+    <section className="reference-slide">
+      <SlideHeader
+        title="Workshop Owner Portal - today's floor"
+        subtitle="The franchise owner's view: jobs flowing through the bays, the technicians on shift, and the 80% settlement after platform commission."
+        decision="80/20 分润 · 工位/技师管理"
+        setView={setView}
+      />
+      <PortalBoard title="ManHub · Workshop Owner" right="AutoFix Pro, Bandar Sunway" sidebar={["Today's jobs", "Bays & capacity", "Technicians", "Settlement", "Reviews"]}>
+        <Kpis items={[["7", "Jobs today"], ["3 / 4", "Bays occupied"], ["RM 1,864", "Today's billings"], ["RM 1,491", "Your 80% share"]]} />
+        <h2>Job board</h2>
+        <DataTable columns={["Job", "Vehicle", "Technician", "Bay", "Status", "Bill"]} rows={[
+          ["#08471 · Brake pads", "Vios · WXY 4321", "Ahmad F.", "2", "In progress", "RM 312"],
+          ["#08465 · Oil change", "Myvi · VBK 9902", "Lim W.", "1", "Ready", "RM 226"],
+          ["#08469 · Battery swap", "X70 · WC 5511", "Ravi K.", "3", "In progress", "RM 388"],
+          ["#08474 · Aircon service", "City · BNV 7733", "-", "-", "Booked 3:00 PM", "est. RM 280"],
+        ]} />
+      </PortalBoard>
+    </section>
   );
 }
 
-function KpiGrid({ items }: { items: string[][] }) {
+function SupplierSlide({ setView }: { setView: (view: View) => void }) {
+  return (
+    <section className="reference-slide">
+      <SlideHeader
+        title="Supplier Portal - consignment"
+        subtitle='The platform holds no stock. Suppliers list parts, get a "fulfil on sale" alert when something sells, and are paid per sale after the 25% commission.'
+        decision="Consignment 寄售 · 卖出才结算"
+        setView={setView}
+      />
+      <PortalBoard title="ManHub · Supplier" right="PartsHub Trading Sdn Bhd" sidebar={["Orders to fulfil 2", "My catalogue", "Stock flags", "Payouts", "Analytics"]}>
+        <Kpis items={[["142", "Listed SKUs"], ["38", "Sold this month"], ["RM 4,212", "Pending payout (75%)"]]} />
+        <h2>Sold - ship now</h2>
+        <DataTable columns={["Order", "Part", "Deliver to", "Sold at", "Your payout", ""]} rows={[
+          ["#P-2231", "Brake pad set (front) · Bendix", "AutoFix Pro, Sunway", "RM 168", "RM 126.00", "Confirm dispatch"],
+          ["#P-2232", "Brake fluid DOT4 1L", "AutoFix Pro, Sunway", "RM 32", "RM 24.00", "Confirm dispatch"],
+          ["#P-2228", "Air filter · K&N", "QuickCare Motors, PJ", "RM 89", "Paid RM 66.75", "Delivered"],
+        ]} />
+        <p className="portal-footnote">You are paid only when an item sells. No listing fees · 25% platform commission per sale.</p>
+      </PortalBoard>
+    </section>
+  );
+}
+
+function AdminSlide({ setView }: { setView: (view: View) => void }) {
+  return (
+    <section className="reference-slide">
+      <SlideHeader
+        title="Super Admin Portal - platform control"
+        subtitle="Verification queues, the commission engine and global job health - the operator's cockpit for the whole ecosystem."
+        decision="20% / 25% 抽成结算 · 审核队列"
+        setView={setView}
+      />
+      <PortalBoard title="ManHub · Super Admin" right="Operations · HQ" sidebar={["Overview", "Verification 6", "Jobs monitor", "Settlement", "Disputes 1", "Config"]}>
+        <Kpis items={[["RM 86,420", "GMV this month"], ["RM 18,930", "Commission earned"], ["214", "Jobs this week"], ["4.7 ★", "Avg. platform rating"]]} />
+        <div className="admin-grid">
+          <section>
+            <h2>Verification queue</h2>
+            <DataTable columns={["", "", ""]} rows={[
+              ["Workshop · Mega Auto, Klang", "Docs review", "Open"],
+              ["Technician · Tan C.W. (cert upload)", "Pending", "Open"],
+              ["Supplier · AutoParts2U Sdn Bhd", "New", "Open"],
+            ]} />
+          </section>
+          <section>
+            <h2>Settlement run - this week</h2>
+            <QuoteRows rows={[
+              ["Workshops payout (80% of bills)", "RM 41,210"],
+              ["Suppliers payout (75% of parts)", "RM 9,640"],
+              ["Gateway fees (2%)", "- RM 1,272"],
+            ]} />
+            <div className="quote-total"><strong>Platform net commission</strong><b>RM 12,480</b></div>
+            <button className="primary-button small">Approve settlement run</button>
+          </section>
+        </div>
+      </PortalBoard>
+    </section>
+  );
+}
+
+function PortalBoard({
+  title,
+  right,
+  sidebar,
+  children,
+}: {
+  title: string;
+  right: string;
+  sidebar: string[];
+  children: ReactNode;
+}) {
+  return (
+    <article className="portal-board">
+      <header><strong>⌁ {title}</strong><span>{right}</span></header>
+      <div className="portal-body">
+        <aside>
+          {sidebar.map((item, index) => <button className={index === 0 ? "active" : ""} key={item}>{item}</button>)}
+        </aside>
+        <main>{children}</main>
+      </div>
+    </article>
+  );
+}
+
+function Kpis({ items }: { items: string[][] }) {
   return (
     <div className="kpi-grid">
-      {items.map(([value, label]) => (
-        <article className="kpi-card" key={label}>
-          <strong>{value}</strong>
-          <span>{label}</span>
-        </article>
-      ))}
+      {items.map(([value, label]) => <article key={label}><strong>{value}</strong><span>{label}</span></article>)}
     </div>
   );
 }
 
 function DataTable({ columns, rows }: { columns: string[]; rows: string[][] }) {
   return (
-    <div className="table-wrap">
-      <table>
-        <thead>
-          <tr>{columns.map((column) => <th key={column}>{column}</th>)}</tr>
-        </thead>
-        <tbody>
-          {rows.map((row) => (
-            <tr key={row.join("-")}>
-              {row.map((cell, index) => <td key={`${cell}-${index}`}>{cell}</td>)}
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+    <table className="data-table">
+      <thead><tr>{columns.map((column) => <th key={column}>{column}</th>)}</tr></thead>
+      <tbody>
+        {rows.map((row) => <tr key={row.join("")}>{row.map((cell, index) => <td key={`${cell}-${index}`}>{renderCell(cell)}</td>)}</tr>)}
+      </tbody>
+    </table>
   );
 }
 
-function InfoRows({ rows }: { rows: string[][] }) {
-  return (
-    <div className="info-rows">
-      {rows.map(([label, value]) => (
-        <div key={label}>
-          <strong>{label}</strong>
-          <span>{value}</span>
-        </div>
-      ))}
-    </div>
-  );
+function renderCell(cell: string) {
+  if (["In progress", "Ready", "Booked 3:00 PM", "Docs review", "Pending", "New", "Open", "Confirm dispatch", "Delivered", "Paid RM 66.75"].includes(cell)) {
+    return <span className={`pill ${cell.toLowerCase().replaceAll(" ", "-").replaceAll(":", "")}`}>{cell}</span>;
+  }
+  return cell;
+}
+
+function InfoTable({ rows }: { rows: string[][] }) {
+  return <div className="info-table">{rows.map(([a, b]) => <div key={a}><span>{a}</span><strong>{b}</strong></div>)}</div>;
+}
+
+function QuoteRows({ rows }: { rows: string[][] }) {
+  return <div className="quote-rows">{rows.map(([a, b]) => <div key={a}><span>{a}</span><strong>{b}</strong></div>)}</div>;
 }
