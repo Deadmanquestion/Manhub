@@ -13,9 +13,9 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "ManHub Investor Demo",
+  title: "ManHub",
   description:
-    "A diagnosis-first automotive service platform demo for customers, technicians, workshops, suppliers, and operators.",
+    "A diagnosis-first automotive service app for customers.",
   icons: {
     icon: "/favicon.svg",
     shortcut: "/favicon.svg",
