@@ -13,6 +13,7 @@ type AppView =
   | "PaymentSuccess"
   | "Invoice"
   | "ServiceRecord"
+  | "MyVehicles"
   | "PartDetail"
   | "PartReservationSummary"
   | "PaymentReview"
@@ -64,6 +65,18 @@ type PendingPayment = {
   method: string;
 };
 
+type VehicleRecord = {
+  id: string;
+  make: string;
+  model: string;
+  plate: string;
+  year: string;
+  mileage: string;
+  engine: string;
+  lastService: string;
+  nextReminder: string;
+};
+
 const tabs: CustomerTab[] = ["Home", "Workshops", "Parts", "Orders", "Me"];
 const filters = ["Nearest", "Top rated", "Brake service", "Open now"];
 const vehicle = "Toyota Vios 1.5G";
@@ -75,6 +88,31 @@ const technician = "Ahmad F.";
 const diagnosis = "Front brake pads worn";
 const labourPrice = 112;
 const depositAmount = 50;
+
+const initialVehicles: VehicleRecord[] = [
+  {
+    id: "vios",
+    make: "Toyota",
+    model: "Vios 1.5G",
+    plate: "WXY 4321",
+    year: "2021",
+    mileage: "68,420 km",
+    engine: "1.5L petrol",
+    lastService: "Brake pad replacement - 12 May 2026",
+    nextReminder: "Engine oil change at 70,000 km",
+  },
+  {
+    id: "myvi",
+    make: "Perodua",
+    model: "Myvi 1.3",
+    plate: "VBK 9902",
+    year: "2019",
+    mileage: "82,100 km",
+    engine: "1.3L petrol",
+    lastService: "Battery inspection - 02 Jun 2026",
+    nextReminder: "Aircon service due next month",
+  },
+];
 
 const workshops: Workshop[] = [
   {
@@ -160,6 +198,7 @@ const parts: Part[] = [
 
 export default function Home() {
   const [view, setView] = useState<AppView>("Home");
+  const [vehicles, setVehicles] = useState<VehicleRecord[]>(initialVehicles);
   const [activeFilter, setActiveFilter] = useState("Nearest");
   const [selectedWorkshop, setSelectedWorkshop] = useState("AutoFix Pro");
   const [selectedPartName, setSelectedPartName] = useState(parts[0].name);
@@ -424,6 +463,13 @@ export default function Home() {
               setView={setView}
             />
           )}
+          {view === "MyVehicles" && (
+            <MyVehiclesPage
+              setView={setView}
+              setVehicles={setVehicles}
+              vehicles={vehicles}
+            />
+          )}
           {view === "SupportCenter" && (
             <SupportCenterPage
               paymentStatus={paymentStatus}
@@ -434,6 +480,7 @@ export default function Home() {
           )}
           {view === "Me" && (
             <MeTab
+              vehicleCount={vehicles.length}
               profilePanel={profilePanel}
               setProfilePanel={setProfilePanel}
               setView={setView}
@@ -464,7 +511,7 @@ function viewToTab(view: AppView): CustomerTab {
   if (view === "WorkshopDetail") return "Workshops";
   if (view === "QuoteReview" || view === "Payment" || view === "PaymentReview" || view === "PaymentSuccess" || view === "Invoice" || view === "OrderDetail") return "Orders";
   if (view === "PartDetail" || view === "PartReservationSummary") return "Parts";
-  if (view === "ServiceRecord" || view === "SupportCenter") return "Me";
+  if (view === "ServiceRecord" || view === "SupportCenter" || view === "MyVehicles") return "Me";
   return "Home";
 }
 
@@ -1334,17 +1381,117 @@ function SupportCenterPage({
   );
 }
 
+function MyVehiclesPage({
+  setVehicles,
+  setView,
+  vehicles,
+}: {
+  setVehicles: (updater: (current: VehicleRecord[]) => VehicleRecord[]) => void;
+  setView: (view: AppView) => void;
+  vehicles: VehicleRecord[];
+}) {
+  const [showForm, setShowForm] = useState(false);
+  const [selectedVehicleId, setSelectedVehicleId] = useState(vehicles[0]?.id ?? "");
+  const [newVehicle, setNewVehicle] = useState({
+    make: "Honda",
+    model: "City 1.5",
+    plate: "JQR 2281",
+    year: "2020",
+    mileage: "54,200 km",
+    engine: "1.5L petrol",
+  });
+  const selectedVehicle = vehicles.find((item) => item.id === selectedVehicleId) ?? vehicles[0];
+
+  function updateNewVehicle(field: keyof typeof newVehicle, value: string) {
+    setNewVehicle((current) => ({ ...current, [field]: value }));
+  }
+
+  function addVehicle() {
+    const id = `${newVehicle.plate.toLowerCase().replace(/[^a-z0-9]/g, "")}-${vehicles.length + 1}`;
+    const record: VehicleRecord = {
+      id,
+      ...newVehicle,
+      lastService: "No service record yet",
+      nextReminder: "Book first inspection with ManHub",
+    };
+    setVehicles((current) => [...current, record]);
+    setSelectedVehicleId(id);
+    setShowForm(false);
+  }
+
+  return (
+    <>
+      <BackButton label="Me" onClick={() => setView("Me")} />
+      <header className="page-header">
+        <h1>My vehicles</h1>
+        <p>Add and manage the cars linked to your ManHub service history.</p>
+      </header>
+
+      <div className="vehicle-list">
+        {vehicles.map((item) => (
+          <button
+            className={selectedVehicle?.id === item.id ? "selected" : ""}
+            key={item.id}
+            onClick={() => setSelectedVehicleId(item.id)}
+            type="button"
+          >
+            <strong>{item.make} {item.model}</strong>
+            <span>{item.plate} - {item.year}</span>
+          </button>
+        ))}
+      </div>
+
+      {selectedVehicle && (
+        <article className="vehicle-detail-card">
+          <span>Selected vehicle</span>
+          <strong>{selectedVehicle.make} {selectedVehicle.model}</strong>
+          <div className="job-meta">
+            <p><span>Plate</span><strong>{selectedVehicle.plate}</strong></p>
+            <p><span>Year</span><strong>{selectedVehicle.year}</strong></p>
+            <p><span>Mileage</span><strong>{selectedVehicle.mileage}</strong></p>
+            <p><span>Engine</span><strong>{selectedVehicle.engine}</strong></p>
+            <p><span>Last service</span><strong>{selectedVehicle.lastService}</strong></p>
+            <p><span>Next reminder</span><strong>{selectedVehicle.nextReminder}</strong></p>
+          </div>
+          <div className="button-stack">
+            <button className="wide-action" type="button" onClick={() => setView("Diagnosis")}>Book service for this vehicle</button>
+            <button className="secondary-wide" type="button" onClick={() => setView("ServiceRecord")}>View service records</button>
+          </div>
+        </article>
+      )}
+
+      <button className="secondary-wide" type="button" onClick={() => setShowForm(!showForm)}>
+        {showForm ? "Close add vehicle" : "Add vehicle"}
+      </button>
+
+      {showForm && (
+        <article className="vehicle-form">
+          <label>Make<input value={newVehicle.make} onChange={(event) => updateNewVehicle("make", event.target.value)} /></label>
+          <label>Model<input value={newVehicle.model} onChange={(event) => updateNewVehicle("model", event.target.value)} /></label>
+          <label>Plate number<input value={newVehicle.plate} onChange={(event) => updateNewVehicle("plate", event.target.value)} /></label>
+          <label>Year<input value={newVehicle.year} onChange={(event) => updateNewVehicle("year", event.target.value)} /></label>
+          <label>Mileage<input value={newVehicle.mileage} onChange={(event) => updateNewVehicle("mileage", event.target.value)} /></label>
+          <label>Engine<input value={newVehicle.engine} onChange={(event) => updateNewVehicle("engine", event.target.value)} /></label>
+          <button className="wide-action" type="button" onClick={addVehicle}>Save vehicle</button>
+        </article>
+      )}
+    </>
+  );
+}
+
 function MeTab({
+  vehicleCount,
   profilePanel,
   setProfilePanel,
   setView,
 }: {
+  vehicleCount: number;
   profilePanel: string;
   setProfilePanel: (panel: string) => void;
   setView: (view: AppView) => void;
 }) {
   const menu = [
-    { label: "My vehicles", action: () => setProfilePanel("My vehicles") },
+    { label: "My vehicles", action: () => setView("MyVehicles") },
     { label: "Digital service records", action: () => setView("ServiceRecord") },
     { label: "Payment methods", action: () => setView("Payment") },
     { label: "Help & support", action: () => setView("SupportCenter") },
@@ -1360,7 +1507,7 @@ function MeTab({
         </div>
       </section>
       <div className="stats">
-        <article><strong>2</strong><span>Vehicles</span></article>
+        <article><strong>{vehicleCount}</strong><span>Vehicles</span></article>
         <article><strong>12</strong><span>Services</span></article>
         <article><strong>840</strong><span>Points</span></article>
       </div>
@@ -1373,7 +1520,7 @@ function MeTab({
       </div>
       <article className="detail-panel">
         <strong>{profilePanel}</strong>
-        <span>{profilePanel === "My vehicles" ? "Toyota Vios 1.5G - WXY 4321 and Perodua Myvi - VBK 9902." : "Open a customer record to continue."}</span>
+        <span>{profilePanel === "My vehicles" ? "Open your vehicle portal to manage registered cars and add another vehicle." : "Open a customer record to continue."}</span>
       </article>
     </>
   );
