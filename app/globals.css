@@ -857,6 +857,7 @@ button {
 }
 
 .part-card strong,
+.part-card small,
 .part-card span,
 .part-card b,
 .part-card em {
@@ -867,6 +868,12 @@ button {
   min-height: 44px;
   font-size: 13px;
   line-height: 1.15;
+}
+
+.part-card small {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 900;
 }
 
 .part-card span {
@@ -896,6 +903,22 @@ button {
 .part-card.reserved button {
   background: #e9f9f2;
   color: var(--green);
+}
+
+.part-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 7px;
+}
+
+.part-actions button:first-child {
+  background: #fff;
+  border: 1px solid var(--line);
+  color: #286ac2;
+}
+
+.part-hero p {
+  line-height: 1.3;
 }
 
 .wide-action {
@@ -1095,6 +1118,63 @@ button {
   margin-top: 4px;
   color: var(--muted);
   font-size: 12px;
+}
+
+.service-list .inline-link {
+  width: fit-content;
+  padding: 0;
+  margin-top: 7px;
+  border: 0;
+  background: transparent;
+}
+
+.mini-list {
+  display: grid;
+  gap: 8px;
+  margin: 12px 0;
+}
+
+.mini-list h2 {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.mini-list article {
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  background: #fff;
+  padding: 11px;
+}
+
+.mini-list span,
+.mini-list strong,
+.mini-list small {
+  display: block;
+}
+
+.mini-list span {
+  color: #286ac2;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.mini-list strong {
+  margin-top: 3px;
+  font-size: 13px;
+  line-height: 1.25;
+}
+
+.mini-list small {
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.payment-items {
+  margin-bottom: 12px;
 }
 
 .option-list,
