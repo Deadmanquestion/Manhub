@@ -3,7 +3,29 @@
 import { useMemo, useState } from "react";
 
 type CustomerTab = "Home" | "Workshops" | "Parts" | "Orders" | "Me";
-type AppView = CustomerTab | "Diagnosis" | "WorkshopDetail" | "QuoteReview" | "OrderDetail" | "ServiceRecord";
+type AppView =
+  | CustomerTab
+  | "Diagnosis"
+  | "WorkshopDetail"
+  | "SupportCenter"
+  | "QuoteReview"
+  | "Payment"
+  | "PaymentSuccess"
+  | "Invoice"
+  | "ServiceRecord"
+  | "PartReservationSummary"
+  | "OrderDetail";
+type PartStatus = "Recommended" | "Soft reserved" | "Added to quote" | "Confirmed" | "Installed";
+type QuoteStatus = "Pending technician confirmation" | "Quote ready" | "Approved";
+type PaymentStatus = "Not required yet" | "Deposit pending" | "Deposit paid" | "Fully paid";
+type OrderStatus =
+  | "Booking confirmed"
+  | "Diagnosis confirmed"
+  | "Quote approved"
+  | "Deposit paid"
+  | "Repair in progress"
+  | "Ready for pickup"
+  | "Completed";
 
 type Part = {
   diagnosis: boolean;
@@ -11,6 +33,7 @@ type Part = {
   kind: string;
   name: string;
   price: number;
+  supplier: string;
 };
 
 type Workshop = {
@@ -22,8 +45,23 @@ type Workshop = {
   hours: string;
 };
 
+type ReceiptRecord = {
+  amount: number;
+  method: string;
+  receiptNo: string;
+};
+
 const tabs: CustomerTab[] = ["Home", "Workshops", "Parts", "Orders", "Me"];
 const filters = ["Nearest", "Top rated", "Brake service", "Open now"];
+const vehicle = "Toyota Vios 1.5G";
+const jobNo = "MF-08471";
+const quoteNo = "Q-08471";
+const invoiceNo = "INV-08471";
+const receiptNo = "RCPT-08471";
+const technician = "Ahmad F.";
+const diagnosis = "Front brake pads worn";
+const labourPrice = 112;
+const depositAmount = 50;
 
 const workshops: Workshop[] = [
   {
@@ -53,51 +91,118 @@ const workshops: Workshop[] = [
 ];
 
 const parts: Part[] = [
-  { kind: "brake", name: "Brake pad set (front) - Bendix", fit: "Fits Vios 1.5G 2021", price: 168, diagnosis: true },
-  { kind: "fluid", name: "Brake fluid DOT4 1L", fit: "Fits all models", price: 32, diagnosis: true },
-  { kind: "oil", name: "Engine oil 5W-30 fully syn 4L", fit: "Fits Vios 1.5G 2021", price: 189, diagnosis: false },
-  { kind: "battery", name: "Battery NS60L - Century", fit: "Fits Vios 1.5G 2021", price: 245, diagnosis: false },
+  {
+    kind: "brake",
+    name: "Brake pad set front Bendix",
+    fit: "Fits Toyota Vios 1.5G 2021",
+    price: 168,
+    diagnosis: true,
+    supplier: "PartsHub Trading Sdn Bhd",
+  },
+  {
+    kind: "fluid",
+    name: "Brake fluid DOT4 1L",
+    fit: "Fits all models",
+    price: 32,
+    diagnosis: true,
+    supplier: "AutoParts2U Sdn Bhd",
+  },
+  {
+    kind: "oil",
+    name: "Engine oil 5W-30 fully syn 4L",
+    fit: "Fits Toyota Vios 1.5G 2021",
+    price: 189,
+    diagnosis: false,
+    supplier: "PartsHub Trading Sdn Bhd",
+  },
+  {
+    kind: "battery",
+    name: "Battery NS60L - Century",
+    fit: "Fits Toyota Vios 1.5G 2021",
+    price: 245,
+    diagnosis: false,
+    supplier: "Century Battery Partner",
+  },
 ];
-
-const labourPrice = 112;
 
 export default function Home() {
   const [view, setView] = useState<AppView>("Home");
   const [activeFilter, setActiveFilter] = useState("Nearest");
   const [selectedWorkshop, setSelectedWorkshop] = useState("AutoFix Pro");
-  const [reservedParts, setReservedParts] = useState<string[]>([
-    "Brake pad set (front) - Bendix",
-    "Brake fluid DOT4 1L",
-  ]);
+  const [selectedPartName, setSelectedPartName] = useState(parts[0].name);
+  const [partStatuses, setPartStatuses] = useState<Record<string, PartStatus>>(
+    Object.fromEntries(parts.map((part) => [part.name, part.diagnosis ? "Recommended" : "Recommended"])) as Record<
+      string,
+      PartStatus
+    >,
+  );
   const [profilePanel, setProfilePanel] = useState("My vehicles");
   const [problem, setProblem] = useState("High-pitched squeal when braking, worse in the morning.");
   const [photoAttached, setPhotoAttached] = useState(false);
   const [noiseRecorded, setNoiseRecorded] = useState(false);
   const [aiDone, setAiDone] = useState(false);
   const [sentToTech, setSentToTech] = useState(false);
-  const [quoteApproved, setQuoteApproved] = useState(false);
+  const [quoteStatus, setQuoteStatus] = useState<QuoteStatus>("Quote ready");
+  const [paymentStatus, setPaymentStatus] = useState<PaymentStatus>("Deposit pending");
+  const [orderStatus, setOrderStatus] = useState<OrderStatus>("Diagnosis confirmed");
   const [questionAsked, setQuestionAsked] = useState(false);
+  const [supportNotice, setSupportNotice] = useState("");
+  const [lastPayment, setLastPayment] = useState<ReceiptRecord | null>(null);
 
   const selectedWorkshopData = workshops.find((workshop) => workshop.name === selectedWorkshop) ?? workshops[0];
-  const reservedPartDetails = parts.filter((part) => reservedParts.includes(part.name));
-  const quoteTotal = reservedPartDetails.reduce((sum, part) => sum + part.price, labourPrice);
+  const selectedPart = parts.find((part) => part.name === selectedPartName) ?? parts[0];
+  const quotedParts = parts.filter((part) => partStatuses[part.name] !== "Recommended");
+  const quoteParts = quotedParts.length > 0 ? quotedParts : parts.filter((part) => part.diagnosis);
+  const partsSubtotal = quoteParts.reduce((sum, part) => sum + part.price, 0);
+  const quoteTotal = partsSubtotal + labourPrice;
+  const paidAmount = paymentStatus === "Fully paid" ? quoteTotal : paymentStatus === "Deposit paid" ? depositAmount : 0;
+  const balance = quoteTotal - paidAmount;
+  const activeTab = tabs.includes(view as CustomerTab) ? (view as CustomerTab) : viewToTab(view);
 
-  function navigateTab(tab: CustomerTab) {
-    setView(tab);
+  function setPartStatus(name: string, status: PartStatus) {
+    setPartStatuses((current) => ({ ...current, [name]: status }));
   }
 
-  function reservePart(name: string) {
-    setReservedParts((current) =>
-      current.includes(name) ? current.filter((item) => item !== name) : [...current, name],
-    );
+  function openPartReservation(part: Part) {
+    setSelectedPartName(part.name);
+    setPartStatus(part.name, "Soft reserved");
+    setView("PartReservationSummary");
+  }
+
+  function addPartToQuote(part: Part) {
+    setPartStatus(part.name, "Added to quote");
+    setQuoteStatus("Quote ready");
+    setPaymentStatus("Deposit pending");
+    setOrderStatus("Diagnosis confirmed");
+    setView("QuoteReview");
+  }
+
+  function approveQuote() {
+    setQuoteStatus("Approved");
+    setPaymentStatus("Deposit pending");
+    setOrderStatus("Quote approved");
+    quoteParts.forEach((part) => setPartStatus(part.name, "Confirmed"));
+    setView("Payment");
+  }
+
+  function completePayment(amount: number, method: string, fullPayment: boolean) {
+    setPaymentStatus(fullPayment ? "Fully paid" : "Deposit paid");
+    setOrderStatus(fullPayment ? "Repair in progress" : "Deposit paid");
+    setLastPayment({ amount, method, receiptNo });
+    setView("PaymentSuccess");
   }
 
   function bookWorkshop(name: string) {
     setSelectedWorkshop(name);
+    setOrderStatus("Booking confirmed");
     setView("WorkshopDetail");
   }
 
-  const activeTab = tabs.includes(view as CustomerTab) ? (view as CustomerTab) : viewToTab(view);
+  function markCompletedAndOpenRecord() {
+    quoteParts.forEach((part) => setPartStatus(part.name, "Installed"));
+    setOrderStatus("Completed");
+    setView("ServiceRecord");
+  }
 
   return (
     <main className="app-page">
@@ -111,9 +216,11 @@ export default function Home() {
           {view === "Home" && (
             <HomeTab
               aiDone={aiDone}
-              quoteApproved={quoteApproved}
-              setView={setView}
+              orderStatus={orderStatus}
+              paymentStatus={paymentStatus}
+              quoteStatus={quoteStatus}
               selectedWorkshop={selectedWorkshop}
+              setView={setView}
             />
           )}
           {view === "Diagnosis" && (
@@ -125,8 +232,10 @@ export default function Home() {
               sentToTech={sentToTech}
               setAiDone={setAiDone}
               setNoiseRecorded={setNoiseRecorded}
+              setOrderStatus={setOrderStatus}
               setPhotoAttached={setPhotoAttached}
               setProblem={setProblem}
+              setQuoteStatus={setQuoteStatus}
               setSentToTech={setSentToTech}
               setView={setView}
               workshop={selectedWorkshopData}
@@ -138,6 +247,7 @@ export default function Home() {
               bookWorkshop={bookWorkshop}
               selectedWorkshop={selectedWorkshop}
               setActiveFilter={setActiveFilter}
+              setSelectedWorkshop={setSelectedWorkshop}
               setView={setView}
             />
           )}
@@ -151,44 +261,101 @@ export default function Home() {
           )}
           {view === "Parts" && (
             <PartsTab
-              reservePart={reservePart}
-              reservedParts={reservedParts}
+              openPartReservation={openPartReservation}
+              partStatuses={partStatuses}
+              quoteParts={quoteParts}
               setView={setView}
+            />
+          )}
+          {view === "PartReservationSummary" && (
+            <PartReservationSummaryPage
+              addPartToQuote={addPartToQuote}
+              part={selectedPart}
+              partStatus={partStatuses[selectedPart.name]}
+              setSupportNotice={setSupportNotice}
+              setView={setView}
+              workshop={selectedWorkshop}
             />
           )}
           {view === "Orders" && (
             <OrdersTab
-              quoteApproved={quoteApproved}
-              reservedParts={reservedParts}
+              orderStatus={orderStatus}
+              paymentStatus={paymentStatus}
+              quoteParts={quoteParts}
+              quoteStatus={quoteStatus}
               selectedWorkshop={selectedWorkshop}
               setView={setView}
-            />
-          )}
-          {view === "QuoteReview" && (
-            <QuoteReviewPage
-              quoteApproved={quoteApproved}
-              questionAsked={questionAsked}
-              reservedPartDetails={reservedPartDetails}
-              setQuestionAsked={setQuestionAsked}
-              setQuoteApproved={setQuoteApproved}
-              setView={setView}
-              total={quoteTotal}
             />
           )}
           {view === "OrderDetail" && (
             <OrderDetailPage
-              quoteApproved={quoteApproved}
-              reservedPartDetails={reservedPartDetails}
+              balance={balance}
+              orderStatus={orderStatus}
+              paidAmount={paidAmount}
+              paymentStatus={paymentStatus}
+              quoteParts={quoteParts}
+              quoteStatus={quoteStatus}
               selectedWorkshop={selectedWorkshop}
+              setOrderStatus={setOrderStatus}
+              setSupportNotice={setSupportNotice}
+              setView={setView}
+              total={quoteTotal}
+            />
+          )}
+          {view === "QuoteReview" && (
+            <QuoteReviewPage
+              approveQuote={approveQuote}
+              questionAsked={questionAsked}
+              quoteParts={quoteParts}
+              quoteStatus={quoteStatus}
+              selectedWorkshop={selectedWorkshop}
+              setQuestionAsked={setQuestionAsked}
+              setSelectedWorkshop={setSelectedWorkshop}
+              setView={setView}
+              total={quoteTotal}
+            />
+          )}
+          {view === "Payment" && (
+            <PaymentPage
+              completePayment={completePayment}
+              paymentStatus={paymentStatus}
+              setView={setView}
+              total={quoteTotal}
+            />
+          )}
+          {view === "PaymentSuccess" && (
+            <PaymentSuccessPage
+              lastPayment={lastPayment}
+              setView={setView}
+            />
+          )}
+          {view === "Invoice" && (
+            <InvoicePage
+              balance={balance}
+              markCompletedAndOpenRecord={markCompletedAndOpenRecord}
+              paidAmount={paidAmount}
+              partsSubtotal={partsSubtotal}
+              setSupportNotice={setSupportNotice}
               setView={setView}
               total={quoteTotal}
             />
           )}
           {view === "ServiceRecord" && (
             <ServiceRecordPage
-              reservedPartDetails={reservedPartDetails}
+              orderStatus={orderStatus}
+              quoteParts={quoteParts}
               selectedWorkshop={selectedWorkshop}
+              setOrderStatus={setOrderStatus}
+              setSupportNotice={setSupportNotice}
               setView={setView}
+            />
+          )}
+          {view === "SupportCenter" && (
+            <SupportCenterPage
+              paymentStatus={paymentStatus}
+              setSupportNotice={setSupportNotice}
+              setView={setView}
+              supportNotice={supportNotice}
             />
           )}
           {view === "Me" && (
@@ -205,7 +372,7 @@ export default function Home() {
             <button
               key={tab}
               className={activeTab === tab ? "active" : ""}
-              onClick={() => navigateTab(tab)}
+              onClick={() => setView(tab)}
               type="button"
             >
               <span className={`tab-icon ${tab.toLowerCase()}`} />
@@ -221,8 +388,9 @@ export default function Home() {
 function viewToTab(view: AppView): CustomerTab {
   if (view === "Diagnosis") return "Home";
   if (view === "WorkshopDetail") return "Workshops";
-  if (view === "QuoteReview" || view === "OrderDetail") return "Orders";
-  if (view === "ServiceRecord") return "Me";
+  if (view === "QuoteReview" || view === "Payment" || view === "PaymentSuccess" || view === "Invoice" || view === "OrderDetail") return "Orders";
+  if (view === "PartReservationSummary") return "Parts";
+  if (view === "ServiceRecord" || view === "SupportCenter") return "Me";
   return "Home";
 }
 
@@ -235,24 +403,31 @@ function BackButton({ label, onClick }: { label: string; onClick: () => void }) 
   );
 }
 
+function StatusPill({ label }: { label: string }) {
+  return <span className="status-pill">{label}</span>;
+}
+
 function HomeTab({
   aiDone,
-  quoteApproved,
+  orderStatus,
+  paymentStatus,
+  quoteStatus,
   selectedWorkshop,
   setView,
 }: {
   aiDone: boolean;
-  quoteApproved: boolean;
+  orderStatus: OrderStatus;
+  paymentStatus: PaymentStatus;
+  quoteStatus: QuoteStatus;
   selectedWorkshop: string;
   setView: (view: AppView) => void;
 }) {
   return (
     <>
       <h1>Hi Daniel</h1>
-
       <article className="vehicle-card">
         <div>
-          <strong>Toyota Vios 1.5G</strong>
+          <strong>{vehicle}</strong>
           <span>WXY 4321 - 2021</span>
         </div>
         <div>
@@ -269,13 +444,12 @@ function HomeTab({
 
       <article className="ai-card">
         <span>{aiDone ? "AI PRE-DIAGNOSIS READY" : "DIAGNOSIS-FIRST FLOW"}</span>
-        <strong>{aiDone ? "Front brake pads worn, likely under 3mm" : "ManHub starts with the problem, not parts"}</strong>
-        <p>{aiDone ? `Workshop selected: ${selectedWorkshop}. Quote review is ready.` : "The app guides the customer from symptom to workshop to technician confirmation."}</p>
+        <strong>{aiDone ? diagnosis : "ManHub starts with the problem, not parts"}</strong>
+        <p>Workshop: {selectedWorkshop}. Quote: {quoteStatus}. Payment: {paymentStatus}.</p>
+        <StatusPill label={orderStatus} />
         <div className="inline-actions">
           <button type="button" onClick={() => setView("Diagnosis")}>Open diagnosis</button>
-          <button type="button" onClick={() => setView(quoteApproved ? "OrderDetail" : "QuoteReview")}>
-            {quoteApproved ? "Track job" : "Review quote"}
-          </button>
+          <button type="button" onClick={() => setView("OrderDetail")}>Track job</button>
         </div>
       </article>
 
@@ -284,18 +458,6 @@ function HomeTab({
         <button type="button" onClick={() => setView("Parts")}><span className="quick-icon wheel" />Spare parts</button>
         <button type="button" onClick={() => setView("ServiceRecord")}><span className="quick-icon record" />Service record</button>
       </div>
-
-      <section className="reminders">
-        <h2>REMINDERS</h2>
-        <article className="reminder warning">
-          <strong>Engine oil change due</strong>
-          <span>Next service at 70,000 km - about 1,580 km to go</span>
-        </article>
-        <article className="reminder success">
-          <strong>Brake pads replaced</strong>
-          <span>Done 12 May at AutoFix Pro - in your service record</span>
-        </article>
-      </section>
     </>
   );
 }
@@ -308,8 +470,10 @@ function DiagnosisFlowPage({
   sentToTech,
   setAiDone,
   setNoiseRecorded,
+  setOrderStatus,
   setPhotoAttached,
   setProblem,
+  setQuoteStatus,
   setSentToTech,
   setView,
   workshop,
@@ -321,8 +485,10 @@ function DiagnosisFlowPage({
   sentToTech: boolean;
   setAiDone: (done: boolean) => void;
   setNoiseRecorded: (recorded: boolean) => void;
+  setOrderStatus: (status: OrderStatus) => void;
   setPhotoAttached: (attached: boolean) => void;
   setProblem: (problem: string) => void;
+  setQuoteStatus: (status: QuoteStatus) => void;
   setSentToTech: (sent: boolean) => void;
   setView: (view: AppView) => void;
   workshop: Workshop;
@@ -330,32 +496,19 @@ function DiagnosisFlowPage({
   const aiSummary = useMemo(() => {
     const signal = problem.toLowerCase();
     if (signal.includes("battery")) {
-      return {
-        title: "Battery health low or charging issue",
-        confidence: "82%",
-        range: "RM 220-360",
-        next: "Ask workshop to test battery and alternator before quote.",
-      };
+      return { title: "Battery health low or charging issue", confidence: "82%", range: "RM 220-360" };
     }
     if (signal.includes("oil") || signal.includes("smell")) {
-      return {
-        title: "Oil service or minor leak inspection needed",
-        confidence: "78%",
-        range: "RM 160-280",
-        next: "Technician checks oil level, filter, and underside leak marks.",
-      };
+      return { title: "Oil service or minor leak inspection needed", confidence: "78%", range: "RM 160-280" };
     }
-    return {
-      title: "Front brake pads worn, likely under 3mm",
-      confidence: "87%",
-      range: "RM 280-420",
-      next: "Technician confirms pad thickness before final quote.",
-    };
+    return { title: diagnosis, confidence: "87%", range: "RM 280-420" };
   }, [problem]);
 
-  function runAi() {
-    setAiDone(true);
-    setSentToTech(false);
+  function sendToTechnician() {
+    setSentToTech(true);
+    setQuoteStatus("Quote ready");
+    setOrderStatus("Diagnosis confirmed");
+    setView("QuoteReview");
   }
 
   return (
@@ -369,11 +522,7 @@ function DiagnosisFlowPage({
       <article className="form-card">
         <label>
           Describe your car problem
-          <textarea
-            aria-label="Describe your car problem"
-            onChange={(event) => setProblem(event.target.value)}
-            value={problem}
-          />
+          <textarea aria-label="Describe your car problem" onChange={(event) => setProblem(event.target.value)} value={problem} />
         </label>
         <div className="media-actions">
           <button className={photoAttached ? "done" : ""} onClick={() => setPhotoAttached(!photoAttached)} type="button">
@@ -383,19 +532,19 @@ function DiagnosisFlowPage({
             {noiseRecorded ? "Noise recorded" : "Record noise"}
           </button>
         </div>
-        <button className="wide-action" onClick={runAi} type="button">Run AI pre-diagnosis</button>
+        <button className="wide-action" onClick={() => setAiDone(true)} type="button">Run AI pre-diagnosis</button>
       </article>
 
       <article className={`diagnosis-result ${aiDone ? "ready" : ""}`}>
         <span>AI pre-diagnosis</span>
         <strong>{aiDone ? aiSummary.title : "Waiting for symptom input"}</strong>
-        <p>{aiDone ? `Confidence ${aiSummary.confidence}. ${aiSummary.next}` : "Upload a photo or record the noise to make the pre-check more credible."}</p>
+        <p>{aiDone ? `Confidence ${aiSummary.confidence}. Technician confirms before quote.` : "Add a photo or sound note to make the pre-check stronger."}</p>
       </article>
 
       <article className="estimate-card">
         <span>Estimated range</span>
         <strong>{aiDone ? aiSummary.range : "RM --"}</strong>
-        <small>Range only. Technician confirms before quote.</small>
+        <small>Range only. Final quote comes after workshop confirmation.</small>
       </article>
 
       <section className="step-stack">
@@ -403,14 +552,9 @@ function DiagnosisFlowPage({
           <span>Choose workshop</span>
           <strong>{workshop.name} - {workshop.distance}</strong>
         </button>
-        <button
-          className={sentToTech ? "sent" : ""}
-          disabled={!aiDone}
-          onClick={() => setSentToTech(true)}
-          type="button"
-        >
+        <button className={sentToTech ? "sent" : ""} disabled={!aiDone} onClick={sendToTechnician} type="button">
           <span>Send to technician</span>
-          <strong>{sentToTech ? "Sent to Ahmad F. for confirmation" : "Create technician review card"}</strong>
+          <strong>{sentToTech ? "Diagnosis sent" : "Create quote review"}</strong>
         </button>
       </section>
     </>
@@ -422,21 +566,19 @@ function WorkshopsTab({
   bookWorkshop,
   selectedWorkshop,
   setActiveFilter,
+  setSelectedWorkshop,
   setView,
 }: {
   activeFilter: string;
   bookWorkshop: (name: string) => void;
   selectedWorkshop: string;
   setActiveFilter: (filter: string) => void;
+  setSelectedWorkshop: (name: string) => void;
   setView: (view: AppView) => void;
 }) {
   const sortedWorkshops = useMemo(() => {
-    if (activeFilter === "Top rated") {
-      return [...workshops].sort((a, b) => Number(b.rating) - Number(a.rating));
-    }
-    if (activeFilter === "Open now") {
-      return [...workshops].reverse();
-    }
+    if (activeFilter === "Top rated") return [...workshops].sort((a, b) => Number(b.rating) - Number(a.rating));
+    if (activeFilter === "Open now") return [...workshops].reverse();
     return workshops;
   }, [activeFilter]);
 
@@ -446,20 +588,13 @@ function WorkshopsTab({
       <label className="search-box">
         <input defaultValue="Brake service near Bandar Sunway..." aria-label="Search workshops" />
       </label>
-
       <div className="filter-row">
         {filters.map((filter) => (
-          <button
-            className={activeFilter === filter ? "selected" : ""}
-            key={filter}
-            onClick={() => setActiveFilter(filter)}
-            type="button"
-          >
+          <button className={activeFilter === filter ? "selected" : ""} key={filter} onClick={() => setActiveFilter(filter)} type="button">
             {filter}
           </button>
         ))}
       </div>
-
       <div className="workshop-list">
         {sortedWorkshops.map((workshop) => (
           <article className="workshop-card" key={workshop.name}>
@@ -470,10 +605,8 @@ function WorkshopsTab({
             </div>
             <aside>
               <span>{workshop.distance}</span>
-              <button type="button" onClick={() => bookWorkshop(workshop.name)}>
-                {selectedWorkshop === workshop.name ? "Open" : "Book"}
-              </button>
-              <button className="text-link" type="button" onClick={() => setView("WorkshopDetail")}>Details</button>
+              <button type="button" onClick={() => bookWorkshop(workshop.name)}>{selectedWorkshop === workshop.name ? "Open" : "Book"}</button>
+              <button className="text-link" type="button" onClick={() => { setSelectedWorkshop(workshop.name); setView("WorkshopDetail"); }}>Details</button>
             </aside>
           </article>
         ))}
@@ -497,79 +630,115 @@ function WorkshopDetailPage({
     <>
       <BackButton label="Workshops" onClick={() => setView("Workshops")} />
       <article className="detail-hero">
-        <span>Recommended workshop</span>
+        <span>Customer-selected workshop</span>
         <h1>{workshop.name}</h1>
         <p><b>{workshop.rating}</b> {workshop.count} - {workshop.distance}</p>
         <em>Offers brake pad replacement</em>
       </article>
-
       <div className="info-grid">
         <article><span>Working hours</span><strong>{workshop.hours}</strong></article>
         <article><span>Services</span><strong>Brakes, tyres, oil, diagnostics</strong></article>
         <article><span>Technicians</span><strong>Ahmad F., Lim W., Ravi K.</strong></article>
         <article><span>Reviews</span><strong>"Fast diagnosis and clear quote."</strong></article>
       </div>
-
       <button className="wide-action" onClick={() => bookWorkshop(workshop.name)} type="button">
-        {selectedWorkshop === workshop.name ? "Booked with this workshop" : "Book with this workshop"}
+        {selectedWorkshop === workshop.name ? "Booking confirmed" : "Book with this workshop"}
       </button>
-      <button className="secondary-wide" onClick={() => setView("Diagnosis")} type="button">
-        Send diagnosis to this workshop
-      </button>
+      <button className="secondary-wide" onClick={() => setView("Diagnosis")} type="button">Send diagnosis to this workshop</button>
     </>
   );
 }
 
 function PartsTab({
-  reservePart,
-  reservedParts,
+  openPartReservation,
+  partStatuses,
+  quoteParts,
   setView,
 }: {
-  reservePart: (name: string) => void;
-  reservedParts: string[];
+  openPartReservation: (part: Part) => void;
+  partStatuses: Record<string, PartStatus>;
+  quoteParts: Part[];
   setView: (view: AppView) => void;
 }) {
   return (
     <>
       <h1>Spare parts</h1>
       <article className="parts-banner">
-        <strong>Recommended for your Vios - from today's diagnosis</strong>
-        <span>{reservedParts.length} parts reserved. Pay only when the job is confirmed.</span>
+        <strong>Recommended from today's diagnosis</strong>
+        <span>{quoteParts.length} parts linked to Job #{jobNo}. Charged only after technician confirms the quote.</span>
       </article>
-
       <div className="parts-grid">
-        {parts.map((part) => {
-          const reserved = reservedParts.includes(part.name);
-          return (
-            <article className={`part-card ${reserved ? "reserved" : ""}`} key={part.name}>
-              <div className={`part-image ${part.kind}`} />
-              <strong>{part.name}</strong>
-              <span>{part.fit}</span>
-              <b>RM {part.price}</b>
-              {part.diagnosis && <em>FROM DIAGNOSIS</em>}
-              <button type="button" onClick={() => reservePart(part.name)}>
-                {reserved ? "Reserved" : "Reserve"}
-              </button>
-            </article>
-          );
-        })}
+        {parts.map((part) => (
+          <article className={`part-card ${partStatuses[part.name] !== "Recommended" ? "reserved" : ""}`} key={part.name}>
+            <div className={`part-image ${part.kind}`} />
+            <strong>{part.name}</strong>
+            <span>{part.fit}</span>
+            <b>RM {part.price}</b>
+            <em>{partStatuses[part.name]}</em>
+            <button type="button" onClick={() => openPartReservation(part)}>
+              {partStatuses[part.name] === "Recommended" ? "Reserve" : "View reservation"}
+            </button>
+          </article>
+        ))}
       </div>
+      <button className="wide-action" type="button" onClick={() => setView("QuoteReview")}>Review quote</button>
+    </>
+  );
+}
 
-      <button className="wide-action" type="button" onClick={() => setView("QuoteReview")}>
-        Review quote
-      </button>
+function PartReservationSummaryPage({
+  addPartToQuote,
+  part,
+  partStatus,
+  setSupportNotice,
+  setView,
+  workshop,
+}: {
+  addPartToQuote: (part: Part) => void;
+  part: Part;
+  partStatus: PartStatus;
+  setSupportNotice: (notice: string) => void;
+  setView: (view: AppView) => void;
+  workshop: string;
+}) {
+  return (
+    <>
+      <BackButton label="Parts" onClick={() => setView("Parts")} />
+      <header className="page-header">
+        <h1>Part reservation</h1>
+        <p>No payment collected yet. This part will be charged only after technician confirms the quote.</p>
+      </header>
+      <article className="record-card">
+        <span>Reservation status: {partStatus}</span>
+        <strong>{part.name}</strong>
+        <p>RM {part.price} - {part.fit}</p>
+      </article>
+      <div className="job-meta">
+        <p><span>Linked diagnosis</span><strong>{diagnosis}</strong></p>
+        <p><span>Supplier</span><strong>{part.supplier}</strong></p>
+        <p><span>Workshop</span><strong>{workshop}</strong></p>
+      </div>
+      <div className="button-stack">
+        <button className="wide-action" type="button" onClick={() => addPartToQuote(part)}>Add to quote</button>
+        <button className="secondary-wide" type="button" onClick={() => setView("OrderDetail")}>View order</button>
+        <button className="secondary-wide" type="button" onClick={() => { setSupportNotice(`${workshop} received your parts question.`); setView("SupportCenter"); }}>Contact workshop</button>
+      </div>
     </>
   );
 }
 
 function OrdersTab({
-  quoteApproved,
-  reservedParts,
+  orderStatus,
+  paymentStatus,
+  quoteParts,
+  quoteStatus,
   selectedWorkshop,
   setView,
 }: {
-  quoteApproved: boolean;
-  reservedParts: string[];
+  orderStatus: OrderStatus;
+  paymentStatus: PaymentStatus;
+  quoteParts: Part[];
+  quoteStatus: QuoteStatus;
   selectedWorkshop: string;
   setView: (view: AppView) => void;
 }) {
@@ -579,23 +748,22 @@ function OrdersTab({
       <article className="order-card">
         <header>
           <div>
-            <strong>Brake pad replacement</strong>
-            <span>{selectedWorkshop} - Tech Ahmad F.</span>
+            <strong>Job #{jobNo}</strong>
+            <span>Brake pad replacement</span>
           </div>
           <aside>
-            <b>{quoteApproved ? "IN PROGRESS" : "QUOTE READY"}</b>
-            <span>#MF-08471</span>
+            <b>{orderStatus}</b>
+            <span>{selectedWorkshop}</span>
           </aside>
         </header>
-
         <div className="reserved-summary">
-          <strong>{reservedParts.length} reserved parts</strong>
-          <span>{reservedParts.slice(0, 2).join(", ") || "No parts reserved yet"}</span>
+          <strong>{quoteStatus}</strong>
+          <span>{quoteParts.map((part) => part.name).join(", ")}</span>
+          <StatusPill label={paymentStatus} />
         </div>
-
         <div className="inline-actions bottom-actions">
-          <button type="button" onClick={() => setView("QuoteReview")}>Quote review</button>
-          <button type="button" onClick={() => setView("OrderDetail")}>Order detail</button>
+          <button type="button" onClick={() => setView("OrderDetail")}>View order</button>
+          <button type="button" onClick={() => setView("QuoteReview")}>View quote</button>
         </div>
       </article>
     </>
@@ -603,19 +771,23 @@ function OrdersTab({
 }
 
 function QuoteReviewPage({
-  quoteApproved,
+  approveQuote,
   questionAsked,
-  reservedPartDetails,
+  quoteParts,
+  quoteStatus,
+  selectedWorkshop,
   setQuestionAsked,
-  setQuoteApproved,
+  setSelectedWorkshop,
   setView,
   total,
 }: {
-  quoteApproved: boolean;
+  approveQuote: () => void;
   questionAsked: boolean;
-  reservedPartDetails: Part[];
+  quoteParts: Part[];
+  quoteStatus: QuoteStatus;
+  selectedWorkshop: string;
   setQuestionAsked: (asked: boolean) => void;
-  setQuoteApproved: (approved: boolean) => void;
+  setSelectedWorkshop: (name: string) => void;
   setView: (view: AppView) => void;
   total: number;
 }) {
@@ -623,131 +795,245 @@ function QuoteReviewPage({
     <>
       <BackButton label="Orders" onClick={() => setView("Orders")} />
       <header className="page-header">
-        <h1>Quote review</h1>
-        <p>Technician confirmed diagnosis before the customer approves payment.</p>
+        <h1>Quote #{quoteNo}</h1>
+        <p>Job #{jobNo} - {vehicle}</p>
       </header>
-
       <article className="review-card">
-        <span>Technician confirmed diagnosis</span>
-        <strong>Front brake pads worn, replacement recommended</strong>
-        <small>Ahmad F. - IMI Certified - confidence 87%</small>
+        <span>{quoteStatus}</span>
+        <strong>{diagnosis}</strong>
+        <small>Workshop: {selectedWorkshop} - Technician: {technician}</small>
       </article>
-
       <div className="quote-lines">
-        {reservedPartDetails.map((part) => (
-          <div key={part.name}>
-            <span>{part.name}</span>
-            <strong>RM {part.price}</strong>
-          </div>
+        {quoteParts.map((part) => (
+          <div key={part.name}><span>{part.name}</span><strong>RM {part.price}</strong></div>
         ))}
-        <div>
-          <span>Labour - pad replacement (1.5 hr)</span>
-          <strong>RM {labourPrice}</strong>
-        </div>
-        <div className="total-row">
-          <span>Total</span>
-          <strong>RM {total}</strong>
-        </div>
+        <div><span>Brake pad replacement 1.5 hr</span><strong>RM {labourPrice}</strong></div>
+        <div className="total-row"><span>Total</span><strong>RM {total}</strong></div>
       </div>
+      <div className="button-stack">
+        <button className="wide-action" type="button" onClick={approveQuote}>Approve quote</button>
+        <button className="secondary-wide" type="button" onClick={() => setQuestionAsked(true)}>{questionAsked ? "Technician question sent" : "Ask technician"}</button>
+        <button className="secondary-wide" type="button" onClick={() => { setSelectedWorkshop("QuickCare Motors"); setView("Workshops"); }}>Choose another workshop</button>
+      </div>
+    </>
+  );
+}
 
-      <div className="inline-actions quote-actions">
-        <button type="button" onClick={() => setQuoteApproved(true)}>
-          {quoteApproved ? "Quote approved" : "Approve quote"}
-        </button>
-        <button type="button" onClick={() => setQuestionAsked(true)}>
-          {questionAsked ? "Question sent" : "Ask question"}
-        </button>
+function PaymentPage({
+  completePayment,
+  paymentStatus,
+  setView,
+  total,
+}: {
+  completePayment: (amount: number, method: string, fullPayment: boolean) => void;
+  paymentStatus: PaymentStatus;
+  setView: (view: AppView) => void;
+  total: number;
+}) {
+  const [method, setMethod] = useState("Online banking");
+  const methods = ["Online banking", "Touch 'n Go eWallet", "Card", "Pay at workshop"];
+
+  return (
+    <>
+      <BackButton label="Quote" onClick={() => setView("QuoteReview")} />
+      <header className="page-header">
+        <h1>Payment</h1>
+        <p>Amount due: RM {total}. Deposit required: RM {depositAmount}.</p>
+      </header>
+      <article className="estimate-card">
+        <span>Payment status</span>
+        <strong>{paymentStatus}</strong>
+        <small>Receipt is created after payment.</small>
+      </article>
+      <div className="option-list">
+        {methods.map((item) => (
+          <button className={method === item ? "selected" : ""} key={item} onClick={() => setMethod(item)} type="button">
+            {item}
+          </button>
+        ))}
       </div>
-      {quoteApproved && (
-        <button className="wide-action" type="button" onClick={() => setView("OrderDetail")}>Track job lifecycle</button>
-      )}
+      <div className="button-stack">
+        <button className="wide-action" type="button" onClick={() => completePayment(depositAmount, method, false)}>Pay deposit</button>
+        <button className="secondary-wide" type="button" onClick={() => completePayment(total, method, true)}>Pay full amount</button>
+      </div>
+    </>
+  );
+}
+
+function PaymentSuccessPage({
+  lastPayment,
+  setView,
+}: {
+  lastPayment: ReceiptRecord | null;
+  setView: (view: AppView) => void;
+}) {
+  return (
+    <>
+      <header className="success-panel">
+        <span>Payment successful</span>
+        <h1>{lastPayment?.receiptNo ?? receiptNo}</h1>
+        <p>Amount paid: RM {lastPayment?.amount ?? depositAmount}</p>
+        <small>Payment method: {lastPayment?.method ?? "Online banking"}</small>
+      </header>
+      <div className="button-stack">
+        <button className="wide-action" type="button" onClick={() => setView("OrderDetail")}>View order</button>
+        <button className="secondary-wide" type="button" onClick={() => setView("Invoice")}>View receipt</button>
+      </div>
+    </>
+  );
+}
+
+function InvoicePage({
+  balance,
+  markCompletedAndOpenRecord,
+  paidAmount,
+  partsSubtotal,
+  setSupportNotice,
+  setView,
+  total,
+}: {
+  balance: number;
+  markCompletedAndOpenRecord: () => void;
+  paidAmount: number;
+  partsSubtotal: number;
+  setSupportNotice: (notice: string) => void;
+  setView: (view: AppView) => void;
+  total: number;
+}) {
+  return (
+    <>
+      <BackButton label="Order" onClick={() => setView("OrderDetail")} />
+      <header className="page-header">
+        <h1>Invoice #{invoiceNo}</h1>
+        <p>Job: Brake pad replacement</p>
+      </header>
+      <div className="quote-lines">
+        <div><span>Parts subtotal</span><strong>RM {partsSubtotal}</strong></div>
+        <div><span>Labour subtotal</span><strong>RM {labourPrice}</strong></div>
+        <div><span>Total</span><strong>RM {total}</strong></div>
+        <div><span>Paid amount</span><strong>RM {paidAmount}</strong></div>
+        <div className="total-row"><span>Balance</span><strong>RM {balance}</strong></div>
+      </div>
+      <div className="button-stack">
+        <button className="wide-action" type="button" onClick={() => setSupportNotice("Invoice saved to Daniel's records.")}>Download invoice</button>
+        <button className="secondary-wide" type="button" onClick={() => setSupportNotice(`Receipt ${receiptNo} ready to share.`)}>Share receipt</button>
+        <button className="secondary-wide" type="button" onClick={markCompletedAndOpenRecord}>View service record</button>
+      </div>
     </>
   );
 }
 
 function OrderDetailPage({
-  quoteApproved,
-  reservedPartDetails,
+  balance,
+  orderStatus,
+  paidAmount,
+  paymentStatus,
+  quoteParts,
+  quoteStatus,
   selectedWorkshop,
+  setOrderStatus,
+  setSupportNotice,
   setView,
   total,
 }: {
-  quoteApproved: boolean;
-  reservedPartDetails: Part[];
+  balance: number;
+  orderStatus: OrderStatus;
+  paidAmount: number;
+  paymentStatus: PaymentStatus;
+  quoteParts: Part[];
+  quoteStatus: QuoteStatus;
   selectedWorkshop: string;
+  setOrderStatus: (status: OrderStatus) => void;
+  setSupportNotice: (notice: string) => void;
   setView: (view: AppView) => void;
   total: number;
 }) {
+  const timeline: OrderStatus[] = [
+    "Booking confirmed",
+    "Diagnosis confirmed",
+    "Quote approved",
+    "Deposit paid",
+    "Repair in progress",
+    "Ready for pickup",
+    "Completed",
+  ];
+  const currentIndex = timeline.indexOf(orderStatus);
+
   return (
     <>
       <BackButton label="Orders" onClick={() => setView("Orders")} />
       <article className="order-card">
         <header>
           <div>
-            <strong>Job #MF-08471</strong>
-            <span>Brake pad replacement</span>
+            <strong>Job #{jobNo}</strong>
+            <span>{vehicle}</span>
           </div>
           <aside>
-            <b>{quoteApproved ? "IN PROGRESS" : "WAITING APPROVAL"}</b>
+            <b>{orderStatus}</b>
             <span>RM {total}</span>
           </aside>
         </header>
-
         <div className="job-meta">
-          <p><span>Technician</span><strong>Ahmad F.</strong></p>
           <p><span>Workshop</span><strong>{selectedWorkshop}</strong></p>
-          <p><span>Diagnosis</span><strong>Confirmed</strong></p>
-          <p><span>Quote</span><strong>RM {total}</strong></p>
+          <p><span>Technician</span><strong>{technician}</strong></p>
+          <p><span>Quote</span><strong>{quoteStatus}</strong></p>
+          <p><span>Payment</span><strong>{paymentStatus}</strong></p>
         </div>
-
         <div className="timeline">
-          <TimelineStep state="done" title="Booking confirmed" detail={`Today 10:05 - ${selectedWorkshop}`} />
-          <TimelineStep state="done" title="Diagnosis confirmed" detail="Today 11:20 - technician verified brake pads" />
-          <TimelineStep state={quoteApproved ? "done" : "active"} title="Quote RM312" detail={quoteApproved ? "Customer approved quote" : "Waiting for customer approval"} />
-          <TimelineStep state={quoteApproved ? "active" : undefined} title="Repair in progress" detail="Started 11:45 - est. 1 hr remaining" />
+          {timeline.map((step, index) => (
+            <TimelineStep
+              detail={index <= currentIndex ? "Recorded in job timeline" : "Next step"}
+              key={step}
+              state={index < currentIndex ? "done" : index === currentIndex ? "active" : undefined}
+              title={step}
+            />
+          ))}
         </div>
       </article>
-
       <section className="service-list">
         <h2>Parts used</h2>
-        {reservedPartDetails.map((part) => (
-          <article key={part.name}>
-            <strong>{part.name}</strong>
-            <span>RM {part.price} - warranty eligible</span>
-          </article>
+        {quoteParts.map((part) => (
+          <article key={part.name}><strong>{part.name}</strong><span>RM {part.price} - warranty eligible</span></article>
         ))}
       </section>
+      <div className="quote-lines compact">
+        <div><span>Parts and labour</span><strong>RM {total}</strong></div>
+        <div><span>Paid amount</span><strong>RM {paidAmount}</strong></div>
+        <div className="total-row"><span>Balance</span><strong>RM {balance}</strong></div>
+      </div>
+      <div className="button-stack">
+        <button className="wide-action" type="button" onClick={() => setView("QuoteReview")}>View quote</button>
+        {paymentStatus === "Deposit pending" && <button className="secondary-wide" type="button" onClick={() => setView("Payment")}>Pay deposit</button>}
+        <button className="secondary-wide" type="button" onClick={() => { setSupportNotice(`${selectedWorkshop} received your message about Job #${jobNo}.`); setView("SupportCenter"); }}>Contact workshop</button>
+        <button className="secondary-wide" type="button" onClick={() => setView("Invoice")}>View invoice</button>
+        <button className="secondary-wide" type="button" onClick={() => { setOrderStatus("Completed"); setView("ServiceRecord"); }}>View service record</button>
+      </div>
     </>
   );
 }
 
-function TimelineStep({
-  title,
-  detail,
-  state,
-}: {
-  title: string;
-  detail: string;
-  state?: "done" | "active";
-}) {
+function TimelineStep({ title, detail, state }: { title: string; detail: string; state?: "done" | "active" }) {
   return (
     <div className={`timeline-step ${state ?? ""}`}>
       <i />
-      <p>
-        <strong>{title}</strong>
-        <span>{detail}</span>
-      </p>
+      <p><strong>{title}</strong><span>{detail}</span></p>
     </div>
   );
 }
 
 function ServiceRecordPage({
-  reservedPartDetails,
+  orderStatus,
+  quoteParts,
   selectedWorkshop,
+  setOrderStatus,
+  setSupportNotice,
   setView,
 }: {
-  reservedPartDetails: Part[];
+  orderStatus: OrderStatus;
+  quoteParts: Part[];
   selectedWorkshop: string;
+  setOrderStatus: (status: OrderStatus) => void;
+  setSupportNotice: (notice: string) => void;
   setView: (view: AppView) => void;
 }) {
   return (
@@ -755,31 +1041,79 @@ function ServiceRecordPage({
       <BackButton label="Me" onClick={() => setView("Me")} />
       <header className="page-header">
         <h1>Service record</h1>
-        <p>Long-term ownership data keeps the customer returning to ManHub.</p>
+        <p>{vehicle} - 12 May 2026</p>
       </header>
-
       <article className="record-card">
-        <span>Completed service</span>
+        <span>{orderStatus === "Completed" ? "Completed service" : "Service record preview"}</span>
         <strong>Brake pads replaced</strong>
-        <p>12 May 2026 - {selectedWorkshop}</p>
+        <p>{selectedWorkshop} - Technician {technician}</p>
       </article>
-
       <div className="job-meta">
-        <p><span>Workshop</span><strong>{selectedWorkshop}</strong></p>
-        <p><span>Technician</span><strong>Ahmad F.</strong></p>
+        <p><span>Vehicle</span><strong>{vehicle}</strong></p>
+        <p><span>Diagnosis</span><strong>{diagnosis}</strong></p>
+        <p><span>Work completed</span><strong>Front brake pad replacement and brake fluid top-up</strong></p>
         <p><span>Warranty</span><strong>6 months / 10,000 km</strong></p>
         <p><span>Next reminder</span><strong>Brake inspection at 78,000 km</strong></p>
       </div>
-
       <section className="service-list">
         <h2>Parts used</h2>
-        {reservedPartDetails.map((part) => (
-          <article key={part.name}>
-            <strong>{part.name}</strong>
-            <span>{part.fit}</span>
-          </article>
+        {quoteParts.map((part) => (
+          <article key={part.name}><strong>{part.name}</strong><span>{part.fit}</span></article>
         ))}
       </section>
+      <div className="button-stack">
+        <button className="wide-action" type="button" onClick={() => setSupportNotice("Service record saved for download.")}>Download record</button>
+        <button className="secondary-wide" type="button" onClick={() => { setOrderStatus("Booking confirmed"); setView("Diagnosis"); }}>Book next service</button>
+      </div>
+    </>
+  );
+}
+
+function SupportCenterPage({
+  paymentStatus,
+  setSupportNotice,
+  setView,
+  supportNotice,
+}: {
+  paymentStatus: PaymentStatus;
+  setSupportNotice: (notice: string) => void;
+  setView: (view: AppView) => void;
+  supportNotice: string;
+}) {
+  const supportItems = [
+    { label: "My booking", detail: `Check Job #${jobNo}`, action: () => setView("OrderDetail") },
+    { label: "My quote", detail: `Open Quote #${quoteNo}`, action: () => setView("QuoteReview") },
+    { label: "Payment / refund", detail: paymentStatus === "Deposit pending" ? "Pay deposit" : "View invoice", action: () => setView(paymentStatus === "Deposit pending" ? "Payment" : "Invoice") },
+    { label: "Parts reservation", detail: "Review reserved Bendix brake pads", action: () => setView("PartReservationSummary") },
+    { label: "Workshop issue", detail: "Message AutoFix Pro about this job", action: () => setSupportNotice("Workshop issue note added to Job #MF-08471.") },
+    { label: "General question", detail: "Send a question to ManHub support", action: () => setSupportNotice("General question saved. ManHub support will reply in-app.") },
+  ];
+
+  return (
+    <>
+      <BackButton label="Me" onClick={() => setView("Me")} />
+      <header className="page-header">
+        <h1>Support center</h1>
+        <p>Choose the issue so ManHub opens the right record first.</p>
+      </header>
+      <div className="support-list">
+        {supportItems.map((item) => (
+          <button key={item.label} onClick={item.action} type="button">
+            <strong>{item.label}</strong>
+            <span>{item.detail}</span>
+          </button>
+        ))}
+      </div>
+      <article className="emergency-card">
+        <span>Emergency assistance</span>
+        <strong>Need urgent help?</strong>
+        <p>Use these only for urgent roadside or safety issues.</p>
+        <div className="inline-actions">
+          <button type="button" onClick={() => setSupportNotice("WhatsApp assistance opened for emergency support.")}>WhatsApp</button>
+          <button type="button" onClick={() => setSupportNotice("Call request prepared for ManHub emergency line.")}>Call</button>
+        </div>
+      </article>
+      {supportNotice && <article className="notice-card">{supportNotice}</article>}
     </>
   );
 }
@@ -793,12 +1127,12 @@ function MeTab({
   setProfilePanel: (panel: string) => void;
   setView: (view: AppView) => void;
 }) {
-  const panelText: Record<string, string> = {
-    "My vehicles": "Toyota Vios 1.5G - WXY 4321 and Perodua Myvi - VBK 9902.",
-    "Digital service records": "12 completed services, including brake pads, oil changes, and battery replacement.",
-    "Payment methods": "Visa ending 2488 is ready for workshop deposits and pickup payment.",
-    "Help & support": "ManHub support is available daily from 9:00 AM to 9:00 PM.",
-  };
+  const menu = [
+    { label: "My vehicles", action: () => setProfilePanel("My vehicles") },
+    { label: "Digital service records", action: () => setView("ServiceRecord") },
+    { label: "Payment methods", action: () => setView("Payment") },
+    { label: "Help & support", action: () => setView("SupportCenter") },
+  ];
 
   return (
     <>
@@ -809,34 +1143,21 @@ function MeTab({
           <p>daniel.t@email.com</p>
         </div>
       </section>
-
       <div className="stats">
         <article><strong>2</strong><span>Vehicles</span></article>
         <article><strong>12</strong><span>Services</span></article>
         <article><strong>840</strong><span>Points</span></article>
       </div>
-
       <div className="menu-list">
-        {Object.keys(panelText).map((item) => (
-          <button
-            className={profilePanel === item ? "active" : ""}
-            key={item}
-            onClick={() => {
-              setProfilePanel(item);
-              if (item === "Digital service records") {
-                setView("ServiceRecord");
-              }
-            }}
-            type="button"
-          >
-            {item}<span>&gt;</span>
+        {menu.map((item) => (
+          <button className={profilePanel === item.label ? "active" : ""} key={item.label} onClick={() => { setProfilePanel(item.label); item.action(); }} type="button">
+            {item.label}<span>&gt;</span>
           </button>
         ))}
       </div>
-
       <article className="detail-panel">
         <strong>{profilePanel}</strong>
-        <span>{panelText[profilePanel]}</span>
+        <span>{profilePanel === "My vehicles" ? "Toyota Vios 1.5G - WXY 4321 and Perodua Myvi - VBK 9902." : "Open a customer record to continue."}</span>
       </article>
     </>
   );

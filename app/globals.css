@@ -255,6 +255,12 @@ button {
   margin-top: 11px;
 }
 
+.button-stack {
+  display: grid;
+  gap: 9px;
+  margin-top: 12px;
+}
+
 .inline-actions button,
 .wide-action,
 .part-card button {
@@ -270,6 +276,18 @@ button {
 .wide-action {
   background: var(--blue);
   color: #fff;
+}
+
+.status-pill {
+  display: inline-flex;
+  width: fit-content;
+  border-radius: 999px;
+  background: #e9f9f2;
+  color: var(--green);
+  padding: 5px 8px;
+  margin-top: 9px;
+  font-size: 11px;
+  font-weight: 900;
 }
 
 .form-card {
@@ -755,6 +773,10 @@ button {
   background: #fff;
 }
 
+.button-stack .secondary-wide {
+  margin-top: 0;
+}
+
 .parts-banner {
   border-radius: 13px;
   background: var(--navy);
@@ -1038,6 +1060,10 @@ button {
   font-size: 18px;
 }
 
+.quote-lines.compact {
+  margin-top: 12px;
+}
+
 .quote-actions {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -1069,6 +1095,128 @@ button {
   margin-top: 4px;
   color: var(--muted);
   font-size: 12px;
+}
+
+.option-list,
+.support-list {
+  display: grid;
+  gap: 9px;
+}
+
+.option-list button,
+.support-list button {
+  display: block;
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #fff;
+  color: var(--ink);
+  padding: 13px;
+  text-align: left;
+}
+
+.option-list button {
+  font-weight: 900;
+}
+
+.option-list button.selected {
+  border-color: #bdd2f8;
+  background: #eef4ff;
+  color: #286ac2;
+}
+
+.support-list strong,
+.support-list span {
+  display: block;
+}
+
+.support-list strong {
+  font-size: 14px;
+}
+
+.support-list span {
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.emergency-card,
+.notice-card,
+.success-panel {
+  border-radius: 14px;
+  padding: 14px;
+  margin-top: 12px;
+}
+
+.emergency-card {
+  border: 1px solid #f2d28c;
+  background: #fff8ea;
+}
+
+.emergency-card span,
+.emergency-card strong,
+.emergency-card p {
+  display: block;
+}
+
+.emergency-card span {
+  color: var(--amber);
+  font-size: 11px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.emergency-card strong {
+  margin-top: 5px;
+}
+
+.emergency-card p {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.notice-card {
+  border: 1px solid #bdebd8;
+  background: #e9f9f2;
+  color: #167856;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.success-panel {
+  border: 1px solid #bdebd8;
+  background: #e9f9f2;
+  text-align: center;
+}
+
+.success-panel span,
+.success-panel h1,
+.success-panel p,
+.success-panel small {
+  display: block;
+}
+
+.success-panel span {
+  color: var(--green);
+  font-size: 12px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.success-panel h1 {
+  margin: 9px 0;
+  font-size: 24px;
+}
+
+.success-panel p {
+  margin: 0;
+  font-weight: 900;
+}
+
+.success-panel small {
+  margin-top: 5px;
+  color: var(--muted);
 }
 
 .profile {
