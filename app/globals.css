@@ -186,32 +186,78 @@ button {
   line-height: 1.1;
 }
 
-.diagnosis-cta {
+.home-action-card {
   width: 100%;
   display: grid;
-  grid-template-columns: 34px 1fr;
-  gap: 1px 12px;
+  align-items: center;
+  border: 1px solid rgba(20, 45, 82, 0.08);
   margin: 16px 0 12px;
   border-radius: 15px;
-  background: var(--blue);
-  color: #fff;
-  padding: 17px 16px;
+  box-shadow: 0 12px 28px rgba(18, 39, 70, 0.12);
   text-align: left;
+  transition: transform 160ms ease, box-shadow 160ms ease, border-color 160ms ease;
 }
 
-.diagnosis-cta strong,
-.diagnosis-cta small {
+.home-action-card:hover {
+  border-color: rgba(47, 117, 228, 0.28);
+  box-shadow: 0 16px 34px rgba(18, 39, 70, 0.16);
+  transform: translateY(-1px);
+}
+
+.home-action-card:active {
+  box-shadow: 0 9px 20px rgba(18, 39, 70, 0.12);
+  transform: translateY(1px) scale(0.992);
+}
+
+.diagnosis-action-card {
+  grid-template-columns: 36px 1fr auto;
+  gap: 12px;
+  background: linear-gradient(135deg, #2f75e4 0%, #184fbb 100%);
+  color: #fff;
+  padding: 17px 15px;
+}
+
+.home-action-copy,
+.job-progress-copy,
+.home-action-copy strong,
+.home-action-copy small,
+.home-action-copy em,
+.job-progress-copy strong,
+.job-progress-copy small,
+.job-progress-copy em {
   display: block;
 }
 
-.diagnosis-cta strong {
-  font-size: 17px;
-  line-height: 1.15;
+.home-action-copy strong {
+  font-size: 18px;
+  line-height: 1.08;
 }
 
-.diagnosis-cta small {
-  color: rgba(255, 255, 255, 0.82);
+.home-action-copy small {
+  margin-top: 3px;
+  color: rgba(255, 255, 255, 0.88);
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.home-action-copy em {
+  margin-top: 3px;
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 11px;
+  font-style: normal;
   line-height: 1.25;
+}
+
+.card-chevron {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.16);
+  color: inherit;
+  font-size: 18px;
+  font-weight: 900;
 }
 
 .cta-icon,
@@ -251,36 +297,68 @@ button {
   background: #7c5520;
 }
 
-.ai-card {
-  border: 1px dashed #e0bb5b;
-  border-radius: 13px;
-  background: #fff8ea;
-  padding: 12px;
+.job-progress-card {
+  grid-template-columns: 1fr auto;
+  gap: 9px 12px;
+  background: #fff;
+  color: var(--ink);
+  padding: 15px;
   margin-bottom: 12px;
 }
 
-.ai-card span,
-.ai-card strong,
-.ai-card p,
-.ai-card small {
-  display: block;
+.job-progress-copy {
+  min-width: 0;
 }
 
-.ai-card span {
-  color: var(--amber);
+.job-progress-copy small {
+  color: var(--blue);
   font-size: 11px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.job-progress-copy strong {
+  margin-top: 4px;
+  font-size: 17px;
+  line-height: 1.1;
+}
+
+.job-progress-copy em {
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 12px;
+  font-style: normal;
   font-weight: 900;
 }
 
-.ai-card strong {
-  margin: 5px 0 4px;
+.job-progress-card .card-chevron {
+  grid-column: 2;
+  grid-row: 1 / span 3;
+  background: var(--blue-soft);
+  color: var(--blue);
 }
 
-.ai-card p,
-.ai-card small {
-  margin: 0;
+.job-progress-meter {
+  grid-column: 1 / 2;
+  width: 100%;
+  height: 8px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #e8eef6;
+}
+
+.job-progress-meter span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--green), var(--blue));
+}
+
+.job-progress-time {
+  grid-column: 1 / 2;
   color: var(--muted);
   font-size: 12px;
+  font-weight: 900;
 }
 
 .inline-actions {
