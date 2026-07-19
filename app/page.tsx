@@ -98,6 +98,15 @@ type ReceiptRecord = {
   reservedPartId: string;
 };
 
+type DiagnosisResult = {
+  confidence: number;
+  diagnosis: string;
+  estimated_cost_range: string;
+  possible_causes: string[];
+  recommended_actions: string[];
+  recommended_parts: string[];
+};
+
 type MockStore = {
   notifications: NotificationRecord[];
   orders: OrderRecord[];
@@ -256,6 +265,8 @@ export default function Home() {
   const [photoAttached, setPhotoAttached] = useState(false);
   const [noiseRecorded, setNoiseRecorded] = useState(false);
   const [aiDone, setAiDone] = useState(false);
+  const [diagnosisLoading, setDiagnosisLoading] = useState(false);
+  const [diagnosisResult, setDiagnosisResult] = useState<DiagnosisResult | null>(null);
   const [supportNotice, setSupportNotice] = useState("");
   const [paymentMethod, setPaymentMethod] = useState("Touch 'n Go eWallet");
   const [profilePanel, setProfilePanel] = useState("My vehicles");
@@ -387,6 +398,38 @@ export default function Home() {
     setView("PaymentSuccess");
   }
 
+  async function runAiDiagnosis() {
+    setDiagnosisLoading(true);
+    try {
+      const response = await fetch("/api/diagnose", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          carModel: `${selectedVehicle.make} ${selectedVehicle.model}`,
+          mileage: selectedVehicle.mileage,
+          symptom: problem,
+        }),
+      });
+      const result = await response.json() as DiagnosisResult;
+      setDiagnosisResult(result);
+      setAiDone(true);
+      setNotice("AI pre-diagnosis ready");
+    } catch {
+      setDiagnosisResult({
+        confidence: 87,
+        diagnosis,
+        estimated_cost_range: "RM 280-420",
+        possible_causes: ["Front brake pads worn", "Brake dust buildup", "Rotor surface needs inspection"],
+        recommended_actions: ["Inspect front brake pad thickness", "Check rotor surface", "Confirm final quote with a certified technician"],
+        recommended_parts: ["Bendix front brake pad set", "DOT4 brake fluid"],
+      });
+      setAiDone(true);
+      setNotice("AI pre-diagnosis ready");
+    } finally {
+      setDiagnosisLoading(false);
+    }
+  }
+
   return (
     <main className="app-page">
       <section className="phone-app" aria-label="ManHub customer app">
@@ -403,10 +446,12 @@ export default function Home() {
           {view === "Diagnosis" && (
             <DiagnosisFlowPage
               aiDone={aiDone}
+              diagnosisLoading={diagnosisLoading}
+              diagnosisResult={diagnosisResult}
               noiseRecorded={noiseRecorded}
               photoAttached={photoAttached}
               problem={problem}
-              setAiDone={setAiDone}
+              runAiDiagnosis={runAiDiagnosis}
               setNoiseRecorded={setNoiseRecorded}
               setPhotoAttached={setPhotoAttached}
               setProblem={setProblem}
@@ -626,10 +671,12 @@ function HomeTab({ order, setView, vehicle }: { order: OrderRecord; setView: (vi
 
 function DiagnosisFlowPage({
   aiDone,
+  diagnosisLoading,
+  diagnosisResult,
   noiseRecorded,
   photoAttached,
   problem,
-  setAiDone,
+  runAiDiagnosis,
   setNoiseRecorded,
   setPhotoAttached,
   setProblem,
@@ -637,10 +684,12 @@ function DiagnosisFlowPage({
   vehicle,
 }: {
   aiDone: boolean;
+  diagnosisLoading: boolean;
+  diagnosisResult: DiagnosisResult | null;
   noiseRecorded: boolean;
   photoAttached: boolean;
   problem: string;
-  setAiDone: (done: boolean) => void;
+  runAiDiagnosis: () => Promise<void>;
   setNoiseRecorded: (recorded: boolean) => void;
   setPhotoAttached: (attached: boolean) => void;
   setProblem: (problem: string) => void;
@@ -663,13 +712,36 @@ function DiagnosisFlowPage({
           <button className={photoAttached ? "done" : ""} onClick={() => setPhotoAttached(!photoAttached)} type="button">{photoAttached ? "Photo uploaded" : "Upload photo"}</button>
           <button className={noiseRecorded ? "done" : ""} onClick={() => setNoiseRecorded(!noiseRecorded)} type="button">{noiseRecorded ? "Noise recorded" : "Record noise"}</button>
         </div>
-        <button className="wide-action" onClick={() => setAiDone(true)} type="button">Run AI pre-diagnosis</button>
+        <button className="wide-action" disabled={diagnosisLoading} onClick={runAiDiagnosis} type="button">
+          {diagnosisLoading ? "Checking symptom..." : "Run AI pre-diagnosis"}
+        </button>
       </article>
       <article className={`diagnosis-result ${aiDone ? "ready" : ""}`}>
         <span>AI pre-diagnosis</span>
-        <strong>{aiDone ? diagnosis : "Waiting for symptom input"}</strong>
-        <p>{aiDone ? "Confidence 87%. Estimated range RM 280-420." : "Add photo or sound note to strengthen the pre-check."}</p>
+        <strong>{diagnosisResult?.diagnosis ?? (aiDone ? diagnosis : "Waiting for symptom input")}</strong>
+        <p>
+          {diagnosisResult
+            ? `Confidence ${diagnosisResult.confidence}%. Cost estimate ${diagnosisResult.estimated_cost_range}.`
+            : "Add photo or sound note to strengthen the pre-check."}
+        </p>
       </article>
+      {diagnosisResult && (
+        <section className="diagnosis-breakdown">
+          <article>
+            <h2>Recommended actions</h2>
+            {diagnosisResult.recommended_actions.map((item) => <p key={item}>{item}</p>)}
+          </article>
+          <article>
+            <h2>Recommended parts</h2>
+            {diagnosisResult.recommended_parts.map((item) => <p key={item}>{item}</p>)}
+          </article>
+          <article>
+            <h2>Possible causes</h2>
+            {diagnosisResult.possible_causes.map((item) => <p key={item}>{item}</p>)}
+          </article>
+          <small>This is an AI pre-diagnosis. A certified technician will confirm before final quote.</small>
+        </section>
+      )}
       <div className="button-stack">
         <button className="wide-action" type="button" onClick={() => setView("Workshops")}>Choose workshop</button>
         <button className="secondary-wide" type="button" onClick={() => setView("QuoteReview")}>Send to technician</button>
