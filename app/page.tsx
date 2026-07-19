@@ -19,7 +19,13 @@ type AppView =
   | "Invoice"
   | "ServiceRecord"
   | "SupportCenter"
-  | "OrderDetail";
+  | "OrderDetail"
+  | "WarrantyList"
+  | "WarrantyDetail"
+  | "ClaimWarranty"
+  | "SupplierWarrantyDashboard"
+  | "WorkshopWarrantyDashboard"
+  | "AdminWarrantyAnalytics";
 
 type VehicleRecord = {
   engine: string;
@@ -61,7 +67,7 @@ type ReservedPart = {
   id: string;
   jobNo: string;
   partId: string;
-  status: "Soft reserved" | "Added to quote" | "Deposit paid" | "Fully paid" | "Installed";
+  status: "Recommended" | "Soft reserved" | "Added to quote" | "Confirmed" | "Deposit paid" | "Fully paid" | "Installed";
   vehicleId: string;
 };
 
@@ -69,7 +75,7 @@ type OrderRecord = {
   diagnosis: string;
   id: string;
   jobNo: string;
-  status: "Booking confirmed" | "Diagnosis confirmed" | "Quote approved" | "Deposit paid" | "Repair in progress" | "Completed";
+  status: "Booking confirmed" | "Diagnosis confirmed" | "Quote approved" | "Deposit paid" | "Repair in progress" | "Ready for pickup" | "Completed";
   technician: string;
   vehicleId: string;
   workshop: string;
@@ -98,6 +104,45 @@ type ReceiptRecord = {
   reservedPartId: string;
 };
 
+type WarrantyStatus = "Active" | "Expired" | "Claimed" | "Cancelled";
+
+type WarrantyRecord = {
+  customer: string;
+  durationMonths: number;
+  expiryDate: string;
+  id: string;
+  invoiceNumber: string;
+  mileageLimit?: string;
+  orderId: string;
+  partBrand: string;
+  partId: string;
+  partName: string;
+  repairDate: string;
+  repairHistory: string[];
+  startDate: string;
+  status: WarrantyStatus;
+  supplier: string;
+  terms: string[];
+  vehicleId: string;
+  workshop: string;
+};
+
+type WarrantyClaimStatus = "Pending Review" | "Approved" | "Rejected" | "Inspection Requested";
+
+type WarrantyClaim = {
+  customerId: string;
+  description: string;
+  id: string;
+  inspectionStatus?: "New" | "Accepted" | "Scheduled" | "Report uploaded" | "Replacement recommended";
+  photos: string[];
+  report?: string;
+  reviewedAt?: string;
+  status: WarrantyClaimStatus;
+  submittedAt: string;
+  videos: string[];
+  warrantyId: string;
+};
+
 type DiagnosisResult = {
   confidence: number;
   diagnosis: string;
@@ -116,7 +161,10 @@ type MockStore = {
   selectedPartId: string;
   selectedReservedPartId: string;
   selectedVehicleId: string;
+  selectedWarrantyId: string;
   vehicles: VehicleRecord[];
+  warrantyClaims: WarrantyClaim[];
+  warranties: WarrantyRecord[];
 };
 
 const tabs: CustomerTab[] = ["Home", "Workshops", "Parts", "Orders", "Me"];
@@ -126,11 +174,13 @@ const quoteNo = "Q-08471";
 const invoiceNo = "INV-08471";
 const receiptNo = "RCPT-08471";
 const customerName = "Daniel Tan";
+const customerId = "customer-daniel";
 const diagnosis = "Front brake pads worn";
 const workshopName = "AutoFix Pro";
 const technician = "Ahmad F.";
 const labourSubtotal = 112;
 const reservationDeposit = 30;
+const repairDate = "19 Jul 2026";
 
 const workshops = [
   { name: "AutoFix Pro", distance: "1.2 km", rating: "4.8", count: "(234)", tags: "Oil - Brakes - Tyres", hours: "8:30 AM - 7:00 PM" },
@@ -222,6 +272,7 @@ const initialStore: MockStore = {
   selectedPartId: "bendix-front-brake",
   selectedReservedPartId: "",
   selectedVehicleId: "vios",
+  selectedWarrantyId: "",
   vehicles: [
     {
       engine: "1.5L petrol",
@@ -254,6 +305,8 @@ const initialStore: MockStore = {
       year: "2020",
     },
   ],
+  warrantyClaims: [],
+  warranties: [],
 };
 
 export default function Home() {
@@ -274,8 +327,10 @@ export default function Home() {
   const selectedVehicle = store.vehicles.find((item) => item.id === store.selectedVehicleId) ?? store.vehicles[0];
   const selectedPart = spareParts.find((item) => item.id === store.selectedPartId) ?? spareParts[0];
   const selectedReservedPart = store.reservedParts.find((item) => item.id === store.selectedReservedPartId) ?? store.reservedParts[0];
+  const selectedWarranty = store.warranties.find((item) => item.id === store.selectedWarrantyId) ?? store.warranties[0];
   const selectedOrder = store.orders[0];
   const relatedReservedParts = store.reservedParts.filter((item) => item.vehicleId === selectedVehicle.id);
+  const vehicleWarranties = store.warranties.filter((item) => item.vehicleId === selectedVehicle.id);
   const unreadCount = store.notifications.filter((item) => item.status === "Unread").length;
   const activeTab = tabs.includes(view as CustomerTab) ? (view as CustomerTab) : viewToTab(view);
 
@@ -369,6 +424,15 @@ export default function Home() {
     setView(nextView);
   }
 
+  function selectWarranty(warrantyId: string, nextView: AppView) {
+    updateStore((current) => ({
+      ...current,
+      selectedWarrantyId: warrantyId,
+      selectedVehicleId: current.warranties.find((item) => item.id === warrantyId)?.vehicleId ?? current.selectedVehicleId,
+    }));
+    setView(nextView);
+  }
+
   function payReservedPart(fullPayment: boolean) {
     if (!selectedReservedPart) return;
     const part = spareParts.find((item) => item.id === selectedReservedPart.partId) ?? spareParts[0];
@@ -396,6 +460,168 @@ export default function Home() {
     }));
     setNotice("Payment successful");
     setView("PaymentSuccess");
+  }
+
+  function approveQuote() {
+    updateStore((current) => ({
+      ...current,
+      orders: current.orders.map((order) => order.id === "order-08471" ? { ...order, status: "Quote approved" } : order),
+      reservedParts: current.reservedParts.map((item) => item.vehicleId === current.selectedVehicleId ? { ...item, status: "Confirmed" } : item),
+    }));
+    setNotice("Quote approved. Deposit is ready.");
+    setView("Payment");
+  }
+
+  function completeRepairAndCreateWarranty() {
+    let activatedWarrantyId = "";
+
+    updateStore((current) => {
+      const vehicle = current.vehicles.find((item) => item.id === current.selectedVehicleId) ?? current.vehicles[0];
+      const reserved = current.reservedParts.find((item) => item.vehicleId === vehicle.id) ?? {
+        createdAt: "Today 10:42 AM",
+        depositAmount: reservationDeposit,
+        diagnosis,
+        id: "reserved-bendix-front-brake",
+        jobNo,
+        partId: "bendix-front-brake",
+        status: "Installed" as const,
+        vehicleId: vehicle.id,
+      };
+      const part = partById(reserved.partId);
+      const warrantyId = `WRNT-${jobNo.replace("MF-", "")}-${part.id === "dot4-brake-fluid" ? "002" : "001"}`;
+      activatedWarrantyId = warrantyId;
+      const warrantyExists = current.warranties.some((item) => item.id === warrantyId);
+      const nextWarranty: WarrantyRecord = {
+        customer: customerName,
+        durationMonths: part.id === "century-ns60l" ? 12 : 6,
+        expiryDate: part.id === "century-ns60l" ? "19 Jul 2027" : "19 Jan 2027",
+        id: warrantyId,
+        invoiceNumber: invoiceNo,
+        mileageLimit: part.kind === "brake" ? "10,000 km" : undefined,
+        orderId: "order-08471",
+        partBrand: part.brand,
+        partId: part.id,
+        partName: part.name,
+        repairDate,
+        repairHistory: [
+          `Job #${jobNo} completed by ${technician}`,
+          `${part.brand} ${part.name} installed at ${workshopName}`,
+          `Invoice ${invoiceNo} linked to Warranty+`,
+        ],
+        startDate: repairDate,
+        status: "Active",
+        supplier: part.supplier,
+        terms: [
+          "Valid only for parts and labour transacted through ManHub.",
+          "A certified workshop inspection is required before claim approval.",
+          "Damage caused by misuse, racing, flood, or outside repair is excluded.",
+        ],
+        vehicleId: vehicle.id,
+        workshop: workshopName,
+      };
+      const installedReservedParts = current.reservedParts.length > 0
+        ? current.reservedParts.map((item) => item.vehicleId === vehicle.id ? { ...item, status: "Installed" as const } : item)
+        : [reserved];
+      const notificationId = `notif-${warrantyId}`;
+      const warrantyNotification: NotificationRecord = {
+        action: "reserved-part",
+        id: notificationId,
+        message: `${part.brand} ${part.name} Warranty+ is now active until ${nextWarranty.expiryDate}.`,
+        reservedPartId: reserved.id,
+        status: "Unread",
+        title: "Warranty+ activated",
+      };
+
+      return {
+        ...current,
+        notifications: current.notifications.some((item) => item.id === notificationId)
+          ? current.notifications
+          : [warrantyNotification, ...current.notifications],
+        orders: current.orders.map((order) => order.id === "order-08471" ? { ...order, status: "Completed" } : order),
+        reservedParts: installedReservedParts,
+        selectedReservedPartId: reserved.id,
+        selectedWarrantyId: warrantyId,
+        warranties: warrantyExists ? current.warranties : [nextWarranty, ...current.warranties],
+      };
+    });
+
+    void fetch("/api/warranty", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "complete_order_create_warranty", orderId: "order-08471", warrantyId: activatedWarrantyId }),
+    }).catch(() => undefined);
+
+    setNotice("Warranty+ activated automatically after completed repair");
+    setView("WarrantyDetail");
+  }
+
+  function submitWarrantyClaim(description: string, photos: string[], videos: string[]) {
+    if (!selectedWarranty) return;
+    const claimId = `CLM-${selectedWarranty.id.replace("WRNT-", "")}`;
+    const claim: WarrantyClaim = {
+      customerId,
+      description,
+      id: claimId,
+      inspectionStatus: "New",
+      photos,
+      status: "Pending Review",
+      submittedAt: "Today 11:26 AM",
+      videos,
+      warrantyId: selectedWarranty.id,
+    };
+
+    updateStore((current) => ({
+      ...current,
+      warrantyClaims: [claim, ...current.warrantyClaims.filter((item) => item.id !== claimId)],
+    }));
+
+    void fetch("/api/warranty", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "submit_claim", claim }),
+    }).catch(() => undefined);
+
+    setNotice("Warranty claim submitted for supplier review");
+    setView("WarrantyDetail");
+  }
+
+  function updateWarrantyClaim(claimId: string, status: WarrantyClaimStatus) {
+    updateStore((current) => ({
+      ...current,
+      warrantyClaims: current.warrantyClaims.map((claim) => claim.id === claimId
+        ? { ...claim, status, inspectionStatus: status === "Inspection Requested" ? "New" : claim.inspectionStatus, reviewedAt: "Today 12:08 PM" }
+        : claim),
+      warranties: status === "Approved"
+        ? current.warranties.map((warranty) => warranty.id === current.warrantyClaims.find((claim) => claim.id === claimId)?.warrantyId ? { ...warranty, status: "Claimed" } : warranty)
+        : current.warranties,
+    }));
+    void fetch("/api/warranty", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "supplier_decision", claimId, status }),
+    }).catch(() => undefined);
+    setNotice(status === "Inspection Requested" ? "Inspection job sent to workshop" : `Claim ${status.toLowerCase()}`);
+  }
+
+  function updateInspection(claimId: string, inspectionStatus: WarrantyClaim["inspectionStatus"]) {
+    updateStore((current) => ({
+      ...current,
+      warrantyClaims: current.warrantyClaims.map((claim) => claim.id === claimId
+        ? {
+          ...claim,
+          inspectionStatus,
+          report: inspectionStatus === "Report uploaded" || inspectionStatus === "Replacement recommended"
+            ? "Brake pad surface inspected. Wear pattern matches covered part failure."
+            : claim.report,
+        }
+        : claim),
+    }));
+    void fetch("/api/warranty", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "workshop_update", claimId, status: inspectionStatus }),
+    }).catch(() => undefined);
+    setNotice(`Inspection ${inspectionStatus?.toLowerCase()}`);
   }
 
   async function runAiDiagnosis() {
@@ -473,6 +699,7 @@ export default function Home() {
               selectVehicle={selectVehicle}
               setView={setView}
               vehicles={store.vehicles}
+              warranties={store.warranties}
             />
           )}
           {view === "AddVehicle" && <AddVehiclePage addVehicle={addVehicle} setView={setView} />}
@@ -481,8 +708,10 @@ export default function Home() {
               orders={store.orders.filter((order) => order.vehicleId === selectedVehicle.id)}
               reservedParts={relatedReservedParts}
               selectReservedPart={selectReservedPart}
+              selectWarranty={selectWarranty}
               setView={setView}
               vehicle={selectedVehicle}
+              warranties={vehicleWarranties}
             />
           )}
           {view === "Parts" && <PartsTab selectPart={selectPart} />}
@@ -497,6 +726,7 @@ export default function Home() {
           {view === "PartReservationSummary" && (
             <PartReservationSummaryPage
               part={selectedPart}
+              reservePart={reservePart}
               reservedPart={selectedReservedPart}
               setView={setView}
               vehicle={store.vehicles.find((item) => item.id === selectedReservedPart?.vehicleId) ?? selectedVehicle}
@@ -513,11 +743,13 @@ export default function Home() {
           )}
           {view === "OrderDetail" && (
             <OrderDetailPage
+              completeRepairAndCreateWarranty={completeRepairAndCreateWarranty}
               order={selectedOrder}
               reservedParts={store.reservedParts}
               selectReservedPart={selectReservedPart}
               setView={setView}
               vehicle={selectedVehicle}
+              warrantyCount={store.warranties.length}
             />
           )}
           {view === "Notifications" && (
@@ -529,6 +761,7 @@ export default function Home() {
           )}
           {view === "QuoteReview" && (
             <QuoteReviewPage
+              approveQuote={approveQuote}
               part={selectedPart}
               reservePart={reservePart}
               reservedPart={selectedReservedPart}
@@ -565,9 +798,11 @@ export default function Home() {
           )}
           {view === "ServiceRecord" && (
             <ServiceRecordPage
+              completeRepairAndCreateWarranty={completeRepairAndCreateWarranty}
               reservedParts={store.reservedParts.filter((item) => item.vehicleId === selectedVehicle.id)}
               setView={setView}
               vehicle={selectedVehicle}
+              warranties={vehicleWarranties}
             />
           )}
           {view === "SupportCenter" && (
@@ -575,6 +810,54 @@ export default function Home() {
               setSupportNotice={setSupportNotice}
               setView={setView}
               supportNotice={supportNotice}
+            />
+          )}
+          {view === "WarrantyList" && (
+            <WarrantyListPage
+              completeRepairAndCreateWarranty={completeRepairAndCreateWarranty}
+              selectWarranty={selectWarranty}
+              setView={setView}
+              vehicle={selectedVehicle}
+              warranties={vehicleWarranties}
+            />
+          )}
+          {view === "WarrantyDetail" && (
+            <WarrantyDetailPage
+              claims={store.warrantyClaims.filter((claim) => claim.warrantyId === selectedWarranty?.id)}
+              selectWarranty={selectWarranty}
+              setView={setView}
+              vehicle={selectedVehicle}
+              warranty={selectedWarranty}
+            />
+          )}
+          {view === "ClaimWarranty" && (
+            <ClaimWarrantyPage
+              setView={setView}
+              submitWarrantyClaim={submitWarrantyClaim}
+              warranty={selectedWarranty}
+            />
+          )}
+          {view === "SupplierWarrantyDashboard" && (
+            <SupplierWarrantyDashboard
+              claims={store.warrantyClaims}
+              setView={setView}
+              updateWarrantyClaim={updateWarrantyClaim}
+              warranties={store.warranties}
+            />
+          )}
+          {view === "WorkshopWarrantyDashboard" && (
+            <WorkshopWarrantyDashboard
+              claims={store.warrantyClaims}
+              setView={setView}
+              updateInspection={updateInspection}
+              warranties={store.warranties}
+            />
+          )}
+          {view === "AdminWarrantyAnalytics" && (
+            <AdminWarrantyAnalytics
+              claims={store.warrantyClaims}
+              setView={setView}
+              warranties={store.warranties}
             />
           )}
           {view === "Me" && (
@@ -611,12 +894,30 @@ function viewToTab(view: AppView): CustomerTab {
   if (view === "WorkshopDetail") return "Workshops";
   if (view === "SparePartDetail" || view === "PartReservationSummary") return "Parts";
   if (view === "Orders" || view === "OrderDetail" || view === "QuoteReview" || view === "Payment" || view === "PaymentSuccess" || view === "Invoice") return "Orders";
-  if (view === "MyVehicles" || view === "AddVehicle" || view === "VehicleDetail" || view === "ServiceRecord" || view === "SupportCenter") return "Me";
+  if (
+    view === "MyVehicles"
+    || view === "AddVehicle"
+    || view === "VehicleDetail"
+    || view === "ServiceRecord"
+    || view === "SupportCenter"
+    || view === "WarrantyList"
+    || view === "WarrantyDetail"
+    || view === "ClaimWarranty"
+    || view === "SupplierWarrantyDashboard"
+    || view === "WorkshopWarrantyDashboard"
+    || view === "AdminWarrantyAnalytics"
+  ) return "Me";
   return "Home";
 }
 
 function partById(partId: string) {
   return spareParts.find((part) => part.id === partId) ?? spareParts[0];
+}
+
+function warrantyDaysRemaining(warranty: WarrantyRecord) {
+  const expiry = new Date(warranty.expiryDate);
+  const today = new Date("2026-07-19T00:00:00+08:00");
+  return Math.max(0, Math.ceil((expiry.getTime() - today.getTime()) / 86400000));
 }
 
 function BackButton({ label, onClick }: { label: string; onClick: () => void }) {
@@ -809,7 +1110,7 @@ function WorkshopDetailPage({ setView }: { setView: (view: AppView) => void }) {
         <article><span>Working hours</span><strong>8:30 AM - 7:00 PM</strong></article>
         <article><span>Services</span><strong>Brakes, tyres, oil, diagnostics</strong></article>
         <article><span>Technicians</span><strong>Ahmad F., Lim W., Ravi K.</strong></article>
-        <article><span>Reviews</span><strong>"Fast diagnosis and clear quote."</strong></article>
+        <article><span>Reviews</span><strong>Fast diagnosis and clear quote.</strong></article>
       </div>
       <button className="wide-action" onClick={() => setView("QuoteReview")} type="button">Book with this workshop</button>
     </>
@@ -821,11 +1122,13 @@ function MyVehiclesPage({
   selectVehicle,
   setView,
   vehicles,
+  warranties,
 }: {
   relatedReservedParts: ReservedPart[];
   selectVehicle: (vehicleId: string, nextView: AppView) => void;
   setView: (view: AppView) => void;
   vehicles: VehicleRecord[];
+  warranties: WarrantyRecord[];
 }) {
   return (
     <>
@@ -845,6 +1148,7 @@ function MyVehiclesPage({
       </div>
       <div className="button-stack">
         <button className="wide-action" type="button" onClick={() => setView("AddVehicle")}>Add Vehicle</button>
+        <button className="secondary-wide" type="button" onClick={() => setView("WarrantyList")}>Warranty+ ({warranties.length})</button>
         <button className="secondary-wide" type="button" onClick={() => setView("ServiceRecord")}>View service records</button>
         <button className="secondary-wide" type="button" onClick={() => setView(relatedReservedParts.length > 0 ? "Orders" : "Parts")}>View reserved parts / orders for this vehicle</button>
       </div>
@@ -901,14 +1205,18 @@ function VehicleDetailPage({
   orders,
   reservedParts,
   selectReservedPart,
+  selectWarranty,
   setView,
   vehicle,
+  warranties,
 }: {
   orders: OrderRecord[];
   reservedParts: ReservedPart[];
   selectReservedPart: (reservedPartId: string, nextView: AppView) => void;
+  selectWarranty: (warrantyId: string, nextView: AppView) => void;
   setView: (view: AppView) => void;
   vehicle: VehicleRecord;
+  warranties: WarrantyRecord[];
 }) {
   return (
     <>
@@ -946,10 +1254,22 @@ function VehicleDetailPage({
         <h2>Service records</h2>
         <article><strong>{vehicle.lastServiceDate}</strong><small>{vehicle.notes}</small></article>
       </section>
+      <section className="mini-list">
+        <h2>Warranty+</h2>
+        {warranties.length === 0 && <article><strong>No active Warranty+ yet</strong><small>Complete a ManHub repair to generate one automatically.</small></article>}
+        {warranties.map((warranty) => (
+          <article key={warranty.id}>
+            <strong>{warranty.partBrand} {warranty.partName}</strong>
+            <small>{warranty.status} - {warrantyDaysRemaining(warranty)} days remaining</small>
+            <button className="text-link inline-link" type="button" onClick={() => selectWarranty(warranty.id, "WarrantyDetail")}>Open warranty</button>
+          </article>
+        ))}
+      </section>
       <div className="button-stack">
         <button className="wide-action" type="button" onClick={() => setView("Diagnosis")}>Book service for this vehicle</button>
         <button className="secondary-wide" type="button" onClick={() => setView("Orders")}>View orders</button>
         <button className="secondary-wide" type="button" onClick={() => setView("ServiceRecord")}>View service records</button>
+        <button className="secondary-wide" type="button" onClick={() => setView("WarrantyList")}>View Warranty+</button>
       </div>
     </>
   );
@@ -1019,11 +1339,13 @@ function SparePartDetailPage({
 
 function PartReservationSummaryPage({
   part,
+  reservePart,
   reservedPart,
   setView,
   vehicle,
 }: {
   part: SparePart;
+  reservePart: (partId: string, mode?: "reserve" | "quote") => void;
   reservedPart?: ReservedPart;
   setView: (view: AppView) => void;
   vehicle: VehicleRecord;
@@ -1056,8 +1378,9 @@ function PartReservationSummaryPage({
         <p><span>Deposit</span><strong>RM {reservedPart.depositAmount}</strong></p>
       </div>
       <div className="button-stack">
-        <button className="wide-action" type="button" onClick={() => setView("OrderDetail")}>View order</button>
-        <button className="secondary-wide" type="button" onClick={() => setView("Payment")}>Continue to payment</button>
+        <button className="wide-action" type="button" onClick={() => reservePart(part.id, "quote")}>Add to quote</button>
+        <button className="secondary-wide" type="button" onClick={() => setView("OrderDetail")}>View order</button>
+        <button className="secondary-wide" type="button" onClick={() => setView("WorkshopDetail")}>Contact workshop</button>
         <button className="secondary-wide" type="button" onClick={() => setView("Parts")}>Back to Parts</button>
       </div>
     </>
@@ -1147,18 +1470,25 @@ function NotificationsPage({
 }
 
 function OrderDetailPage({
+  completeRepairAndCreateWarranty,
   order,
   reservedParts,
   selectReservedPart,
   setView,
   vehicle,
+  warrantyCount,
 }: {
+  completeRepairAndCreateWarranty: () => void;
   order: OrderRecord;
   reservedParts: ReservedPart[];
   selectReservedPart: (reservedPartId: string, nextView: AppView) => void;
   setView: (view: AppView) => void;
   vehicle: VehicleRecord;
+  warrantyCount: number;
 }) {
+  const timeline = ["Booking confirmed", "Diagnosis confirmed", "Quote approved", "Deposit paid", "Repair in progress", "Ready for pickup", "Completed"];
+  const currentIndex = Math.max(0, timeline.indexOf(order.status));
+
   return (
     <>
       <BackButton label="Orders" onClick={() => setView("Orders")} />
@@ -1190,22 +1520,41 @@ function OrderDetailPage({
           );
         })}
       </section>
+      <section className="timeline-card">
+        <h2>Timeline</h2>
+        {timeline.map((item, index) => (
+          <p className={index <= currentIndex ? "done" : ""} key={item}><span />{item}</p>
+        ))}
+      </section>
+      {warrantyCount > 0 && (
+        <article className="record-card">
+          <span>Warranty+ active</span>
+          <strong>Digital warranty generated from this completed ManHub order.</strong>
+          <p>Only orders completed inside ManHub receive Warranty+ coverage.</p>
+        </article>
+      )}
       <div className="button-stack">
         <button className="wide-action" type="button" onClick={() => setView("QuoteReview")}>View quote</button>
-        <button className="secondary-wide" type="button" onClick={() => setView("Invoice")}>View receipt / invoice</button>
+        {order.status !== "Completed" && <button className="secondary-wide" type="button" onClick={completeRepairAndCreateWarranty}>Complete repair and activate Warranty+</button>}
+        <button className="secondary-wide" type="button" onClick={() => setView("Payment")}>Pay deposit if unpaid</button>
+        <button className="secondary-wide" type="button" onClick={() => setView("WorkshopDetail")}>Contact workshop</button>
+        <button className="secondary-wide" type="button" onClick={() => setView("Invoice")}>View invoice</button>
         <button className="secondary-wide" type="button" onClick={() => setView("ServiceRecord")}>View service record</button>
+        {warrantyCount > 0 && <button className="secondary-wide" type="button" onClick={() => setView("WarrantyList")}>View Warranty+</button>}
       </div>
     </>
   );
 }
 
 function QuoteReviewPage({
+  approveQuote,
   part,
   reservePart,
   reservedPart,
   setView,
   vehicle,
 }: {
+  approveQuote: () => void;
   part: SparePart;
   reservePart: (partId: string, mode?: "reserve" | "quote") => void;
   reservedPart?: ReservedPart;
@@ -1226,8 +1575,9 @@ function QuoteReviewPage({
         <div className="total-row"><span>Total</span><strong>RM {total}</strong></div>
       </div>
       <div className="button-stack">
-        <button className="wide-action" type="button" onClick={() => reservePart(activePart.id, "quote")}>Add to quote</button>
-        <button className="secondary-wide" type="button" onClick={() => setView("Payment")}>Continue to payment</button>
+        <button className="wide-action" type="button" onClick={approveQuote}>Approve quote</button>
+        <button className="secondary-wide" type="button" onClick={() => reservePart(activePart.id, "quote")}>Add part to quote</button>
+        <button className="secondary-wide" type="button" onClick={() => setView("WorkshopDetail")}>Ask technician</button>
         <button className="secondary-wide" type="button" onClick={() => setView("Workshops")}>Choose another workshop</button>
       </div>
     </>
@@ -1345,19 +1695,24 @@ function InvoicePage({
         <button className="wide-action" type="button" onClick={() => setNotice("Receipt saved to customer records")}>Download receipt</button>
         <button className="secondary-wide" type="button" onClick={() => setNotice("Receipt ready to share")}>Share receipt</button>
         <button className="secondary-wide" type="button" onClick={() => setView("ServiceRecord")}>View service record</button>
+        <button className="secondary-wide" type="button" onClick={() => setView("WarrantyList")}>View Warranty+</button>
       </div>
     </>
   );
 }
 
 function ServiceRecordPage({
+  completeRepairAndCreateWarranty,
   reservedParts,
   setView,
   vehicle,
+  warranties,
 }: {
+  completeRepairAndCreateWarranty: () => void;
   reservedParts: ReservedPart[];
   setView: (view: AppView) => void;
   vehicle: VehicleRecord;
+  warranties: WarrantyRecord[];
 }) {
   return (
     <>
@@ -1372,7 +1727,316 @@ function ServiceRecordPage({
           return <article key={reserved.id}><strong>{part.brand} {part.name}</strong><small>{reserved.status} - Job #{reserved.jobNo}</small></article>;
         })}
       </section>
+      <section className="mini-list">
+        <h2>Warranty coverage</h2>
+        {warranties.length === 0 && <article><strong>Warranty+ not active yet</strong><small>It appears automatically after the repair order is completed.</small></article>}
+        {warranties.map((warranty) => <article key={warranty.id}><strong>{warranty.partBrand} {warranty.partName}</strong><small>{warranty.status} - expires {warranty.expiryDate}</small></article>)}
+      </section>
+      <div className="button-stack">
+        {warranties.length === 0 && <button className="wide-action" type="button" onClick={completeRepairAndCreateWarranty}>Complete repair and activate Warranty+</button>}
+        <button className="secondary-wide" type="button" onClick={() => setView("WarrantyList")}>View Warranty+</button>
+        <button className="secondary-wide" type="button" onClick={() => setView("Diagnosis")}>Book next service</button>
+      </div>
     </>
+  );
+}
+
+function WarrantyListPage({
+  completeRepairAndCreateWarranty,
+  selectWarranty,
+  setView,
+  vehicle,
+  warranties,
+}: {
+  completeRepairAndCreateWarranty: () => void;
+  selectWarranty: (warrantyId: string, nextView: AppView) => void;
+  setView: (view: AppView) => void;
+  vehicle: VehicleRecord;
+  warranties: WarrantyRecord[];
+}) {
+  return (
+    <section className="warranty-shell">
+      <BackButton label="My vehicle" onClick={() => setView("VehicleDetail")} />
+      <header className="warranty-hero">
+        <span>ManHub Warranty+</span>
+        <h1>{vehicle.make} {vehicle.model}</h1>
+        <p>Digital warranties are created only after a ManHub order is completed.</p>
+      </header>
+      <div className="warranty-grid">
+        {warranties.length === 0 && (
+          <article className="glass-card">
+            <span>Not active yet</span>
+            <strong>Complete Job #{jobNo} to activate Warranty+</strong>
+            <p>Outside-ManHub purchases do not receive a digital warranty certificate.</p>
+            <button type="button" onClick={completeRepairAndCreateWarranty}>Complete repair now</button>
+          </article>
+        )}
+        {warranties.map((warranty) => (
+          <button className="warranty-card" key={warranty.id} onClick={() => selectWarranty(warranty.id, "WarrantyDetail")} type="button">
+            <span>{warranty.status}</span>
+            <strong>{warranty.partBrand} {warranty.partName}</strong>
+            <small>{warranty.workshop}</small>
+            <small>{warranty.supplier}</small>
+            <b>{warrantyDaysRemaining(warranty)} days remaining</b>
+          </button>
+        ))}
+      </div>
+      <div className="button-stack">
+        <button className="secondary-wide dark-button" type="button" onClick={() => setView("ServiceRecord")}>Repair history</button>
+        <button className="secondary-wide dark-button" type="button" onClick={() => setView("AdminWarrantyAnalytics")}>Investor analytics</button>
+      </div>
+    </section>
+  );
+}
+
+function WarrantyDetailPage({
+  claims,
+  setView,
+  vehicle,
+  warranty,
+}: {
+  claims: WarrantyClaim[];
+  selectWarranty: (warrantyId: string, nextView: AppView) => void;
+  setView: (view: AppView) => void;
+  vehicle: VehicleRecord;
+  warranty?: WarrantyRecord;
+}) {
+  if (!warranty) {
+    return (
+      <section className="warranty-shell">
+        <BackButton label="Warranty" onClick={() => setView("WarrantyList")} />
+        <article className="glass-card">
+          <span>Warranty+ empty</span>
+          <strong>No certificate has been generated yet.</strong>
+          <p>Complete the current ManHub repair to create the digital warranty.</p>
+          <button type="button" onClick={() => setView("OrderDetail")}>Open order</button>
+        </article>
+      </section>
+    );
+  }
+
+  return (
+    <section className="warranty-shell">
+      <BackButton label="Warranty" onClick={() => setView("WarrantyList")} />
+      <header className="warranty-hero">
+        <span>{warranty.id}</span>
+        <h1>{warranty.partBrand} {warranty.partName}</h1>
+        <p>{warranty.status} - {warrantyDaysRemaining(warranty)} days remaining</p>
+      </header>
+      <div className="warranty-meta">
+        <p><span>Vehicle</span><strong>{vehicle.make} {vehicle.model} - {vehicle.plate}</strong></p>
+        <p><span>Customer</span><strong>{warranty.customer}</strong></p>
+        <p><span>Workshop</span><strong>{warranty.workshop}</strong></p>
+        <p><span>Supplier</span><strong>{warranty.supplier}</strong></p>
+        <p><span>Invoice</span><strong>{warranty.invoiceNumber}</strong></p>
+        <p><span>Repair date</span><strong>{warranty.repairDate}</strong></p>
+        <p><span>Warranty period</span><strong>{warranty.startDate} to {warranty.expiryDate}</strong></p>
+        <p><span>Duration</span><strong>{warranty.durationMonths} months</strong></p>
+        <p><span>Mileage limit</span><strong>{warranty.mileageLimit ?? "No mileage limit"}</strong></p>
+      </div>
+      <section className="glass-section">
+        <h2>Digital invoice</h2>
+        <p>{warranty.invoiceNumber} - linked to Job #{jobNo} and part #{warranty.partId}</p>
+        <button type="button" onClick={() => setView("Invoice")}>Open invoice</button>
+      </section>
+      <section className="glass-section">
+        <h2>Repair history</h2>
+        {warranty.repairHistory.map((item) => <p key={item}>{item}</p>)}
+      </section>
+      <section className="glass-section">
+        <h2>Warranty terms</h2>
+        {warranty.terms.map((item) => <p key={item}>{item}</p>)}
+      </section>
+      {claims.map((claim) => (
+        <article className="claim-status-card" key={claim.id}>
+          <span>{claim.status}</span>
+          <strong>{claim.id}</strong>
+          <p>{claim.description}</p>
+          {claim.inspectionStatus && <small>Inspection: {claim.inspectionStatus}</small>}
+          {claim.report && <small>{claim.report}</small>}
+        </article>
+      ))}
+      <div className="button-stack">
+        <button className="wide-action" type="button" onClick={() => setView("ClaimWarranty")}>Claim warranty</button>
+        <button className="secondary-wide dark-button" type="button" onClick={() => setView("ServiceRecord")}>Repair history</button>
+      </div>
+    </section>
+  );
+}
+
+function ClaimWarrantyPage({
+  setView,
+  submitWarrantyClaim,
+  warranty,
+}: {
+  setView: (view: AppView) => void;
+  submitWarrantyClaim: (description: string, photos: string[], videos: string[]) => void;
+  warranty?: WarrantyRecord;
+}) {
+  const [description, setDescription] = useState("Brake squeal returned after installation. Please review under Warranty+.");
+  const [photos, setPhotos] = useState<string[]>([]);
+  const [videos, setVideos] = useState<string[]>([]);
+
+  return (
+    <section className="warranty-shell">
+      <BackButton label="Warranty" onClick={() => setView("WarrantyDetail")} />
+      <header className="warranty-hero">
+        <span>Claim Warranty</span>
+        <h1>{warranty ? `${warranty.partBrand} ${warranty.partName}` : "Warranty claim"}</h1>
+        <p>Submit evidence for supplier review and workshop inspection.</p>
+      </header>
+      <article className="claim-form">
+        <label>
+          Describe the problem
+          <textarea value={description} onChange={(event) => setDescription(event.target.value)} />
+        </label>
+        <div className="media-actions">
+          <button className={photos.length > 0 ? "done" : ""} type="button" onClick={() => setPhotos(["front-wheel-photo.jpg", "brake-pad-closeup.jpg"])}>{photos.length > 0 ? "2 photos uploaded" : "Upload photos"}</button>
+          <button className={videos.length > 0 ? "done" : ""} type="button" onClick={() => setVideos(["brake-noise-video.mp4"])}>{videos.length > 0 ? "Video uploaded" : "Upload video"}</button>
+        </div>
+        <button className="wide-action" type="button" onClick={() => submitWarrantyClaim(description, photos, videos)}>Submit claim</button>
+      </article>
+    </section>
+  );
+}
+
+function SupplierWarrantyDashboard({
+  claims,
+  setView,
+  updateWarrantyClaim,
+  warranties,
+}: {
+  claims: WarrantyClaim[];
+  setView: (view: AppView) => void;
+  updateWarrantyClaim: (claimId: string, status: WarrantyClaimStatus) => void;
+  warranties: WarrantyRecord[];
+}) {
+  const pendingClaims = claims.filter((claim) => claim.status === "Pending Review");
+  const approvedClaims = claims.filter((claim) => claim.status === "Approved");
+  const rejectedClaims = claims.filter((claim) => claim.status === "Rejected");
+  return (
+    <section className="warranty-shell dashboard-shell">
+      <BackButton label="Me" onClick={() => setView("Me")} />
+      <header className="warranty-hero">
+        <span>Supplier Portal</span>
+        <h1>Warranty Management</h1>
+        <p>PartsHub can manage only warranties and claims linked to its supplied parts.</p>
+      </header>
+      <div className="metric-grid">
+        <article><strong>{warranties.filter((item) => item.status === "Active").length}</strong><span>Active warranties</span></article>
+        <article><strong>{pendingClaims.length}</strong><span>Pending claims</span></article>
+        <article><strong>{approvedClaims.length}</strong><span>Approved</span></article>
+        <article><strong>{rejectedClaims.length}</strong><span>Rejected</span></article>
+      </div>
+      <section className="glass-section">
+        <h2>Pending claims</h2>
+        {pendingClaims.length === 0 && <p>No pending supplier review. Submit a customer claim to create one.</p>}
+        {pendingClaims.map((claim) => {
+          const warranty = warranties.find((item) => item.id === claim.warrantyId);
+          return (
+            <article className="dashboard-job" key={claim.id}>
+              <strong>{claim.id} - {warranty?.partBrand} {warranty?.partName}</strong>
+              <small>{claim.description}</small>
+              <div className="inline-actions">
+                <button type="button" onClick={() => updateWarrantyClaim(claim.id, "Approved")}>Approve</button>
+                <button type="button" onClick={() => updateWarrantyClaim(claim.id, "Rejected")}>Reject</button>
+                <button type="button" onClick={() => updateWarrantyClaim(claim.id, "Inspection Requested")}>Request inspection</button>
+              </div>
+            </article>
+          );
+        })}
+      </section>
+      <button className="secondary-wide dark-button" type="button" onClick={() => setView("WorkshopWarrantyDashboard")}>Open workshop inspections</button>
+    </section>
+  );
+}
+
+function WorkshopWarrantyDashboard({
+  claims,
+  setView,
+  updateInspection,
+  warranties,
+}: {
+  claims: WarrantyClaim[];
+  setView: (view: AppView) => void;
+  updateInspection: (claimId: string, status: WarrantyClaim["inspectionStatus"]) => void;
+  warranties: WarrantyRecord[];
+}) {
+  const inspectionClaims = claims.filter((claim) => claim.status === "Inspection Requested");
+  return (
+    <section className="warranty-shell dashboard-shell">
+      <BackButton label="Me" onClick={() => setView("Me")} />
+      <header className="warranty-hero">
+        <span>Workshop Portal</span>
+        <h1>Warranty inspections</h1>
+        <p>AutoFix receives inspection jobs only after supplier requests review.</p>
+      </header>
+      <section className="glass-section">
+        <h2>Inspection jobs</h2>
+        {inspectionClaims.length === 0 && <p>No inspection jobs yet. Ask supplier to request inspection from a pending claim.</p>}
+        {inspectionClaims.map((claim) => {
+          const warranty = warranties.find((item) => item.id === claim.warrantyId);
+          return (
+            <article className="dashboard-job" key={claim.id}>
+              <strong>{claim.id} - {warranty?.partBrand} {warranty?.partName}</strong>
+              <small>{claim.inspectionStatus ?? "New"} - {warranty?.workshop}</small>
+              {claim.report && <small>{claim.report}</small>}
+              <div className="inline-actions">
+                <button type="button" onClick={() => updateInspection(claim.id, "Accepted")}>Accept inspection</button>
+                <button type="button" onClick={() => updateInspection(claim.id, "Scheduled")}>Schedule</button>
+                <button type="button" onClick={() => updateInspection(claim.id, "Report uploaded")}>Upload report</button>
+                <button type="button" onClick={() => updateInspection(claim.id, "Replacement recommended")}>Recommend replacement</button>
+              </div>
+            </article>
+          );
+        })}
+      </section>
+      <button className="secondary-wide dark-button" type="button" onClick={() => setView("SupplierWarrantyDashboard")}>Back to supplier review</button>
+    </section>
+  );
+}
+
+function AdminWarrantyAnalytics({
+  claims,
+  setView,
+  warranties,
+}: {
+  claims: WarrantyClaim[];
+  setView: (view: AppView) => void;
+  warranties: WarrantyRecord[];
+}) {
+  const approved = claims.filter((claim) => claim.status === "Approved").length;
+  const reviewed = claims.filter((claim) => claim.status === "Approved" || claim.status === "Rejected").length;
+  const approvalRate = reviewed === 0 ? "0%" : `${Math.round((approved / reviewed) * 100)}%`;
+  const topPart = warranties[0] ? `${warranties[0].partBrand} ${warranties[0].partName}` : "No claimed parts yet";
+
+  return (
+    <section className="warranty-shell dashboard-shell">
+      <BackButton label="Me" onClick={() => setView("Me")} />
+      <header className="warranty-hero">
+        <span>Admin Portal</span>
+        <h1>Warranty Analytics</h1>
+        <p>Platform view across customers, suppliers, and workshops.</p>
+      </header>
+      <div className="metric-grid">
+        <article><strong>{warranties.filter((item) => item.status === "Active").length}</strong><span>Total active warranty</span></article>
+        <article><strong>{claims.filter((claim) => claim.status === "Pending Review").length}</strong><span>Pending claims</span></article>
+        <article><strong>{approvalRate}</strong><span>Approval rate</span></article>
+        <article><strong>1.8 days</strong><span>Avg processing</span></article>
+      </div>
+      <section className="glass-section">
+        <h2>Top claimed parts</h2>
+        <p>{topPart}</p>
+        <h2>Top workshops</h2>
+        <p>{workshopName}</p>
+        <h2>Top suppliers</h2>
+        <p>{warranties[0]?.supplier ?? "PartsHub Trading Sdn Bhd"}</p>
+      </section>
+      <div className="button-stack">
+        <button className="wide-action" type="button" onClick={() => setView("SupplierWarrantyDashboard")}>Open supplier queue</button>
+        <button className="secondary-wide dark-button" type="button" onClick={() => setView("WarrantyList")}>Back to customer warranty</button>
+      </div>
+    </section>
   );
 }
 
@@ -1390,6 +2054,7 @@ function SupportCenterPage({
     { label: "My quote", detail: `Open Quote #${quoteNo}`, action: () => setView("QuoteReview") },
     { label: "Payment / refund", detail: "Open payment or receipt", action: () => setView("Payment") },
     { label: "Parts reservation", detail: "Review reserved Bendix brake pad", action: () => setView("PartReservationSummary") },
+    { label: "Warranty+", detail: "Open digital warranty and claim options", action: () => setView("WarrantyList") },
     { label: "Workshop issue", detail: "Message AutoFix Pro", action: () => setSupportNotice("Workshop issue note added to Job #MF-08471.") },
     { label: "General question", detail: "Ask ManHub support", action: () => setSupportNotice("General question saved. ManHub support will reply in-app.") },
   ];
@@ -1428,9 +2093,13 @@ function MeTab({
   const menu = [
     { label: "My vehicles", action: () => setView("MyVehicles") },
     { label: "Digital service records", action: () => setView("ServiceRecord") },
+    { label: "Warranty+", action: () => setView("WarrantyList") },
     { label: "Notifications", action: () => setView("Notifications") },
     { label: "Payment methods", action: () => setView("Payment") },
     { label: "Help & support", action: () => setView("SupportCenter") },
+    { label: "Supplier warranty", action: () => setView("SupplierWarrantyDashboard") },
+    { label: "Workshop inspections", action: () => setView("WorkshopWarrantyDashboard") },
+    { label: "Warranty analytics", action: () => setView("AdminWarrantyAnalytics") },
   ];
 
   return (

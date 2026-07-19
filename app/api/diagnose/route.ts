@@ -116,7 +116,16 @@ function getModel() {
     : "gpt-4.1-mini";
 }
 
-function extractOutputText(payload: any) {
+type OpenAiResponsePayload = {
+  output?: Array<{
+    content?: Array<{
+      text?: unknown;
+    }>;
+  }>;
+  output_text?: unknown;
+};
+
+function extractOutputText(payload: OpenAiResponsePayload) {
   if (typeof payload.output_text === "string" && payload.output_text.trim()) {
     return payload.output_text;
   }

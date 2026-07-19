@@ -1641,6 +1641,283 @@ button {
   background: #6fa5ca;
 }
 
+.timeline-card {
+  border: 1px solid var(--line);
+  border-radius: 13px;
+  background: #fff;
+  padding: 13px;
+  margin: 12px 0;
+}
+
+.timeline-card h2 {
+  margin: 0 0 10px;
+  font-size: 14px;
+  font-weight: 900;
+}
+
+.timeline-card p {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin: 0 0 8px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.timeline-card p:last-child {
+  margin-bottom: 0;
+}
+
+.timeline-card p span {
+  width: 11px;
+  height: 11px;
+  border: 2px solid #d7e0ea;
+  border-radius: 50%;
+}
+
+.timeline-card p.done {
+  color: var(--ink);
+}
+
+.timeline-card p.done span {
+  border-color: var(--green);
+  background: var(--green);
+}
+
+.warranty-shell {
+  min-height: 100%;
+  margin: -24px -18px -18px;
+  padding: 24px 18px 22px;
+  color: #ecf4ff;
+  background:
+    radial-gradient(circle at 18% 0%, rgba(47, 117, 228, 0.28), transparent 36%),
+    linear-gradient(160deg, #07111f 0%, #111c2d 48%, #182235 100%);
+}
+
+.warranty-shell .back-button {
+  background: rgba(255, 255, 255, 0.1);
+  color: #cfe1ff;
+}
+
+.warranty-hero {
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.08);
+  box-shadow: 0 16px 42px rgba(0, 0, 0, 0.28);
+  padding: 18px;
+  margin-bottom: 14px;
+}
+
+.warranty-hero span,
+.warranty-hero h1,
+.warranty-hero p {
+  display: block;
+}
+
+.warranty-hero span {
+  color: #76d6b2;
+  font-size: 11px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.warranty-hero h1 {
+  margin: 7px 0;
+  color: #fff;
+}
+
+.warranty-hero p {
+  margin: 0;
+  color: #b8c6d8;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.warranty-grid,
+.metric-grid {
+  display: grid;
+  gap: 10px;
+}
+
+.warranty-card,
+.glass-card,
+.glass-section,
+.claim-form,
+.claim-status-card,
+.metric-grid article {
+  border: 1px solid rgba(255, 255, 255, 0.13);
+  border-radius: 15px;
+  background: rgba(255, 255, 255, 0.08);
+  color: #ecf4ff;
+  box-shadow: 0 14px 36px rgba(0, 0, 0, 0.22);
+  backdrop-filter: blur(14px);
+}
+
+.warranty-card {
+  display: grid;
+  gap: 5px;
+  width: 100%;
+  padding: 14px;
+  text-align: left;
+}
+
+.warranty-card span,
+.glass-card span,
+.claim-status-card span {
+  width: fit-content;
+  border-radius: 999px;
+  background: rgba(37, 168, 117, 0.18);
+  color: #76d6b2;
+  padding: 5px 8px;
+  font-size: 10px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.warranty-card strong,
+.glass-card strong,
+.claim-status-card strong,
+.dashboard-job strong {
+  color: #fff;
+  font-size: 14px;
+}
+
+.warranty-card small,
+.glass-card p,
+.claim-status-card p,
+.claim-status-card small,
+.dashboard-job small,
+.glass-section p {
+  color: #b8c6d8;
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.warranty-card b {
+  color: #ffd36c;
+  font-size: 20px;
+}
+
+.glass-card,
+.glass-section,
+.claim-form,
+.claim-status-card {
+  padding: 14px;
+  margin-bottom: 11px;
+}
+
+.glass-card button,
+.glass-section button {
+  margin-top: 10px;
+  border-radius: 9px;
+  background: #2f75e4;
+  color: #fff;
+  padding: 8px 10px;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.warranty-meta {
+  display: grid;
+  gap: 9px;
+  margin-bottom: 12px;
+}
+
+.warranty-meta p {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  border: 1px solid rgba(255, 255, 255, 0.11);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.07);
+  padding: 11px;
+}
+
+.warranty-meta span {
+  color: #8fa4bd;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.warranty-meta strong {
+  color: #fff;
+  font-size: 13px;
+  line-height: 1.25;
+}
+
+.glass-section h2 {
+  margin: 0 0 8px;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 900;
+}
+
+.claim-form label {
+  display: block;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.claim-form textarea {
+  width: 100%;
+  min-height: 118px;
+  resize: none;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 12px;
+  outline: 0;
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+  padding: 11px;
+  margin-top: 8px;
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.dark-button {
+  border-color: rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.1);
+  color: #dbe8ff;
+}
+
+.metric-grid {
+  grid-template-columns: repeat(2, 1fr);
+  margin-bottom: 12px;
+}
+
+.metric-grid article {
+  padding: 13px;
+}
+
+.metric-grid strong,
+.metric-grid span {
+  display: block;
+}
+
+.metric-grid strong {
+  color: #fff;
+  font-size: 22px;
+}
+
+.metric-grid span {
+  color: #b8c6d8;
+  font-size: 11px;
+  line-height: 1.25;
+}
+
+.dashboard-job {
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+  padding-top: 11px;
+  margin-top: 11px;
+}
+
+.dashboard-job:first-of-type {
+  border-top: 0;
+  padding-top: 0;
+}
+
 @media (max-width: 480px) {
   .app-page {
     display: block;
