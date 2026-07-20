@@ -1,0 +1,26 @@
+{
+  "name": "@manhub/admin-dashboard",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 0.0.0.0",
+    "build": "vite build",
+    "preview": "vite preview --host 0.0.0.0"
+  },
+  "dependencies": {
+    "@manhub/auth": "0.1.0",
+    "@manhub/backend": "0.1.0",
+    "@manhub/platform-config": "0.1.0",
+    "@manhub/ui": "0.1.0",
+    "@supabase/supabase-js": "^2.110.7",
+    "react": "19.2.6",
+    "react-dom": "19.2.6",
+    "react-router-dom": "^7.18.1"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "6.0.2",
+    "typescript": "5.9.3",
+    "vite": "8.0.13"
+  }
+}
