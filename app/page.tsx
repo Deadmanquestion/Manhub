@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useMemo, useState } from "react";
 
 type CustomerTab = "Home" | "Workshops" | "Parts" | "Orders" | "Me";
@@ -661,8 +662,8 @@ export default function Home() {
       <section className="phone-app" aria-label="ManHub customer app">
         <div className="status-bar">
           <span>9:41</span>
-          <button className="status-notification" onClick={() => setView("Notifications")} type="button">
-            Notifications {unreadCount > 0 ? unreadCount : ""}
+          <button className={`status-notification ${unreadCount > 0 ? "has-alert" : ""}`} aria-label="Notifications" onClick={() => setView("Notifications")} type="button">
+            <span className="bell-icon" />
           </button>
         </div>
 
@@ -920,20 +921,6 @@ function warrantyDaysRemaining(warranty: WarrantyRecord) {
   return Math.max(0, Math.ceil((expiry.getTime() - today.getTime()) / 86400000));
 }
 
-function orderProgress(order: OrderRecord) {
-  const steps = ["Booking confirmed", "Diagnosis confirmed", "Quote approved", "Deposit paid", "Repair in progress", "Ready for pickup", "Completed"];
-  const currentIndex = Math.max(0, steps.indexOf(order.status));
-  return Math.round(((currentIndex + 1) / steps.length) * 100);
-}
-
-function estimatedCompletion(order: OrderRecord) {
-  if (order.status === "Completed") return "Completed";
-  if (order.status === "Ready for pickup") return "Ready now";
-  if (order.status === "Repair in progress") return "Est. 1 hr remaining";
-  if (order.status === "Deposit paid" || order.status === "Quote approved") return "Today, 5:30 PM";
-  return "After technician quote";
-}
-
 function BackButton({ label, onClick }: { label: string; onClick: () => void }) {
   return (
     <button className="back-button" onClick={onClick} type="button">
@@ -948,48 +935,42 @@ function StatusPill({ label }: { label: string }) {
 }
 
 function HomeTab({ order, setView, vehicle }: { order: OrderRecord; setView: (view: AppView) => void; vehicle: VehicleRecord }) {
-  const progress = orderProgress(order);
-
   return (
-    <>
+    <section className="home-dashboard">
       <h1>Hi Daniel</h1>
-      <article className="vehicle-card">
+      <button className="vehicle-card home-vehicle-card" onClick={() => setView("VehicleDetail")} type="button">
         <div>
           <strong>{vehicle.make} {vehicle.model}</strong>
-          <span>{vehicle.plate} - {vehicle.year}</span>
-        </div>
-        <div>
+          <span>{vehicle.plate} &middot; {vehicle.year}</span>
           <small>Mileage</small>
           <b>{vehicle.mileage}</b>
         </div>
-      </article>
-      <button className="home-action-card diagnosis-action-card" onClick={() => setView("Diagnosis")} type="button">
-        <span className="cta-icon" />
-        <span className="home-action-copy">
-          <strong>AI Diagnosis</strong>
-          <small>Describe your car problem</small>
-          <em>Upload photos or record engine noise</em>
-        </span>
-        <span className="card-chevron">&gt;</span>
+        <Image alt="" className="home-car-image" height={180} priority src="/assets/vios-home-car.png" width={330} />
+        <span className="home-chevron">&gt;</span>
       </button>
-      <button className="home-action-card job-progress-card" onClick={() => setView("OrderDetail")} type="button">
-        <span className="job-progress-copy">
+      <button className="home-diagnosis-card" onClick={() => setView("Diagnosis")} type="button">
+        <span className="cta-icon" />
+        <span>
+          <strong>Describe your car problem</strong>
+          <small>Upload photo, record noise, get AI pre-diagnosis</small>
+        </span>
+        <span className="home-chevron">&gt;</span>
+      </button>
+      <button className="home-job-card" onClick={() => setView("OrderDetail")} type="button">
+        <span className="job-icon" />
+        <span>
           <small>Job Progress</small>
-          <strong>Job #{order.jobNo}</strong>
-          <em>{order.status}</em>
+          <strong>Job Progress</strong>
+          <em>{order.diagnosis} &middot; {order.status}</em>
         </span>
-        <span className="job-progress-meter" aria-label={`Job progress ${progress}%`}>
-          <span style={{ width: `${progress}%` }} />
-        </span>
-        <span className="job-progress-time">{estimatedCompletion(order)}</span>
-        <span className="card-chevron">&gt;</span>
+        <span className="home-chevron">&gt;</span>
       </button>
       <div className="quick-actions">
-        <button type="button" onClick={() => setView("MyVehicles")}><span className="quick-icon record" />My vehicles</button>
-        <button type="button" onClick={() => setView("Parts")}><span className="quick-icon wheel" />Spare parts</button>
-        <button type="button" onClick={() => setView("Orders")}><span className="quick-icon search" />Orders</button>
+        <button type="button" onClick={() => setView("MyVehicles")}><span className="quick-icon car" /><strong>My vehicles</strong><span className="tile-chevron">&gt;</span></button>
+        <button type="button" onClick={() => setView("Parts")}><span className="quick-icon wheel" /><strong>Spare parts</strong><span className="tile-chevron">&gt;</span></button>
+        <button type="button" onClick={() => setView("Orders")}><span className="quick-icon document" /><strong>Orders</strong><span className="tile-chevron">&gt;</span></button>
       </div>
-    </>
+    </section>
   );
 }
 

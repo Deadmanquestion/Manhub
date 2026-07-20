@@ -93,9 +93,10 @@ button {
 .status-bar {
   display: flex;
   justify-content: space-between;
-  padding: 18px 20px 4px;
+  align-items: center;
+  padding: 20px 26px 4px;
   color: var(--ink);
-  font-size: 12px;
+  font-size: 22px;
   font-weight: 900;
 }
 
@@ -105,12 +106,59 @@ button {
 }
 
 .status-notification {
+  position: relative;
+  width: 36px;
+  height: 36px;
   border-radius: 999px;
-  background: #eaf2ff;
-  color: #286ac2;
-  padding: 4px 8px;
-  font-size: 10px;
-  font-weight: 900;
+  background: transparent;
+  color: var(--ink);
+}
+
+.bell-icon {
+  position: absolute;
+  left: 9px;
+  top: 8px;
+  width: 17px;
+  height: 18px;
+  border: 3px solid currentColor;
+  border-radius: 9px 9px 5px 5px;
+  border-top-width: 2px;
+}
+
+.bell-icon::before {
+  content: "";
+  position: absolute;
+  left: 4px;
+  top: -8px;
+  width: 6px;
+  height: 7px;
+  border: 3px solid currentColor;
+  border-bottom: 0;
+  border-radius: 8px 8px 0 0;
+}
+
+.bell-icon::after {
+  content: "";
+  position: absolute;
+  left: 5px;
+  bottom: -7px;
+  width: 6px;
+  height: 3px;
+  border-radius: 999px;
+  background: currentColor;
+}
+
+.status-notification.has-alert::after,
+.status-notification::after {
+  content: "";
+  position: absolute;
+  right: 5px;
+  top: 5px;
+  width: 11px;
+  height: 11px;
+  border: 2px solid #fff;
+  border-radius: 50%;
+  background: #ff4646;
 }
 
 .app-content {
@@ -184,6 +232,251 @@ button {
 .vehicle-card b {
   font-size: 17px;
   line-height: 1.1;
+}
+
+.home-dashboard {
+  display: grid;
+  gap: 18px;
+  padding: 16px 6px 8px;
+}
+
+.home-dashboard h1 {
+  margin: 0 0 4px;
+  color: #0d1724;
+  font-size: 38px;
+  line-height: 1.05;
+  font-weight: 900;
+}
+
+.home-dashboard button {
+  width: 100%;
+  text-align: left;
+}
+
+.home-vehicle-card {
+  position: relative;
+  min-height: 150px;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  overflow: hidden;
+  border: 0;
+  border-radius: 19px;
+  background: linear-gradient(135deg, #102840 0%, #08192b 100%);
+  box-shadow: 0 14px 28px rgba(20, 45, 82, 0.18);
+  padding: 26px 20px;
+  transition: transform 160ms ease, box-shadow 160ms ease;
+}
+
+.home-vehicle-card:hover,
+.home-diagnosis-card:hover,
+.home-job-card:hover,
+.quick-actions button:hover {
+  transform: translateY(-1px);
+}
+
+.home-vehicle-card:active,
+.home-diagnosis-card:active,
+.home-job-card:active,
+.quick-actions button:active {
+  transform: translateY(1px) scale(0.992);
+}
+
+.home-vehicle-card strong {
+  position: relative;
+  z-index: 2;
+  font-size: 26px;
+  line-height: 1.1;
+}
+
+.home-vehicle-card span {
+  position: relative;
+  z-index: 2;
+  margin-top: 12px;
+  color: rgba(255, 255, 255, 0.66);
+  font-size: 17px;
+}
+
+.home-vehicle-card small {
+  position: relative;
+  z-index: 2;
+  margin-top: 19px;
+  color: rgba(255, 255, 255, 0.68);
+  font-size: 16px;
+}
+
+.home-vehicle-card b {
+  position: relative;
+  z-index: 2;
+  margin-top: 2px;
+  font-size: 23px;
+}
+
+.home-car-image {
+  position: absolute;
+  right: 72px;
+  top: 48px;
+  z-index: 1;
+  width: 150px;
+  height: auto;
+  filter: drop-shadow(0 14px 18px rgba(0, 0, 0, 0.32));
+}
+
+.home-chevron {
+  display: grid;
+  place-items: center;
+  justify-self: end;
+  color: inherit;
+  font-size: 42px;
+  font-weight: 300;
+  line-height: 1;
+}
+
+.home-vehicle-card .home-chevron {
+  position: relative;
+  z-index: 2;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.home-diagnosis-card,
+.home-job-card {
+  display: grid;
+  align-items: center;
+  transition: transform 160ms ease, box-shadow 160ms ease;
+}
+
+.home-diagnosis-card {
+  grid-template-columns: 58px 1fr auto;
+  gap: 18px;
+  min-height: 88px;
+  border: 0;
+  border-radius: 17px;
+  background: linear-gradient(135deg, #2f7af0 0%, #2473e9 100%);
+  box-shadow: 0 13px 24px rgba(47, 117, 228, 0.26);
+  color: #fff;
+  padding: 18px 18px;
+}
+
+.home-diagnosis-card .cta-icon {
+  width: 58px;
+  height: 58px;
+  border-radius: 17px;
+  background: rgba(255, 255, 255, 0.86);
+  box-shadow: inset 0 -10px 18px rgba(47, 117, 228, 0.08);
+}
+
+.home-diagnosis-card .cta-icon::before {
+  left: 19px;
+  top: 17px;
+  width: 18px;
+  height: 22px;
+  border: 3px solid #07111f;
+  border-radius: 4px;
+  background: #f3b43c;
+}
+
+.home-diagnosis-card .cta-icon::after {
+  left: 25px;
+  top: 14px;
+  width: 8px;
+  height: 6px;
+  border: 3px solid #07111f;
+  border-bottom: 0;
+  border-radius: 6px 6px 0 0;
+  background: transparent;
+}
+
+.home-diagnosis-card strong,
+.home-diagnosis-card small {
+  display: block;
+}
+
+.home-diagnosis-card strong {
+  font-size: 22px;
+  line-height: 1.12;
+}
+
+.home-diagnosis-card small {
+  margin-top: 6px;
+  color: rgba(255, 255, 255, 0.86);
+  font-size: 15px;
+  line-height: 1.25;
+}
+
+.home-diagnosis-card .home-chevron {
+  color: rgba(255, 255, 255, 0.95);
+}
+
+.home-job-card {
+  grid-template-columns: 62px 1fr auto;
+  gap: 17px;
+  min-height: 113px;
+  border: 1px solid #ffd88f;
+  border-radius: 18px;
+  background: linear-gradient(135deg, #fffaf0 0%, #fff4dc 100%);
+  box-shadow: 0 11px 24px rgba(185, 135, 16, 0.11);
+  color: #0d1724;
+  padding: 19px 19px;
+}
+
+.job-icon {
+  position: relative;
+  display: block;
+  width: 62px;
+  height: 62px;
+  border: 1px solid #ffd78e;
+  border-radius: 20px;
+  background: #fff1d3;
+}
+
+.job-icon::before {
+  content: "";
+  position: absolute;
+  inset: 16px;
+  border-radius: 9px;
+  background:
+    linear-gradient(45deg, transparent 42%, #fff 43% 55%, transparent 56%),
+    linear-gradient(-45deg, transparent 42%, #fff 43% 55%, transparent 56%),
+    #ffb70f;
+}
+
+.job-icon::after {
+  content: "";
+  position: absolute;
+  left: 20px;
+  top: 20px;
+  width: 22px;
+  height: 22px;
+  border-radius: 7px;
+  box-shadow: 0 0 0 10px rgba(255, 183, 15, 0.1);
+}
+
+.home-job-card small,
+.home-job-card strong,
+.home-job-card em {
+  display: block;
+}
+
+.home-job-card small {
+  color: #d99204;
+  font-size: 15px;
+  font-weight: 900;
+}
+
+.home-job-card strong {
+  margin-top: 7px;
+  font-size: 22px;
+  line-height: 1.08;
+}
+
+.home-job-card em {
+  margin-top: 6px;
+  color: #636b75;
+  font-size: 14px;
+  font-style: normal;
+  line-height: 1.25;
+}
+
+.home-job-card .home-chevron {
+  color: #07111f;
 }
 
 .home-action-card {
@@ -295,70 +588,6 @@ button {
   inset: 7px 5px auto;
   height: 2px;
   background: #7c5520;
-}
-
-.job-progress-card {
-  grid-template-columns: 1fr auto;
-  gap: 9px 12px;
-  background: #fff;
-  color: var(--ink);
-  padding: 15px;
-  margin-bottom: 12px;
-}
-
-.job-progress-copy {
-  min-width: 0;
-}
-
-.job-progress-copy small {
-  color: var(--blue);
-  font-size: 11px;
-  font-weight: 900;
-  text-transform: uppercase;
-}
-
-.job-progress-copy strong {
-  margin-top: 4px;
-  font-size: 17px;
-  line-height: 1.1;
-}
-
-.job-progress-copy em {
-  margin-top: 4px;
-  color: var(--muted);
-  font-size: 12px;
-  font-style: normal;
-  font-weight: 900;
-}
-
-.job-progress-card .card-chevron {
-  grid-column: 2;
-  grid-row: 1 / span 3;
-  background: var(--blue-soft);
-  color: var(--blue);
-}
-
-.job-progress-meter {
-  grid-column: 1 / 2;
-  width: 100%;
-  height: 8px;
-  overflow: hidden;
-  border-radius: 999px;
-  background: #e8eef6;
-}
-
-.job-progress-meter span {
-  display: block;
-  height: 100%;
-  border-radius: inherit;
-  background: linear-gradient(90deg, var(--green), var(--blue));
-}
-
-.job-progress-time {
-  grid-column: 1 / 2;
-  color: var(--muted);
-  font-size: 12px;
-  font-weight: 900;
 }
 
 .inline-actions {
@@ -628,62 +857,129 @@ button {
 .quick-actions {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 10px;
+  gap: 11px;
+  margin-top: 5px;
 }
 
 .quick-actions button {
+  position: relative;
   display: grid;
   justify-items: center;
-  align-content: center;
-  gap: 8px;
-  min-height: 76px;
+  align-content: start;
+  gap: 16px;
+  min-height: 125px;
   border: 1px solid var(--line);
-  border-radius: 13px;
+  border-radius: 17px;
   background: #fff;
+  box-shadow: 0 9px 24px rgba(18, 39, 70, 0.08);
   color: var(--ink);
-  font-size: 12px;
+  padding: 27px 10px 17px;
+  transition: transform 160ms ease, box-shadow 160ms ease, border-color 160ms ease;
+}
+
+.quick-actions button:hover {
+  border-color: #cfd9e4;
+  box-shadow: 0 13px 28px rgba(18, 39, 70, 0.12);
+}
+
+.quick-actions strong {
+  display: block;
+  max-width: 88px;
+  color: #07111f;
+  font-size: 18px;
   font-weight: 900;
+  line-height: 1.05;
+  text-align: center;
 }
 
 .quick-icon {
-  width: 24px;
-  height: 24px;
-}
-
-.quick-icon.search {
-  border: 3px solid #d7dfe9;
-  border-radius: 50%;
-}
-
-.quick-icon.search::after {
-  content: "";
-  position: absolute;
-  right: -5px;
-  bottom: -3px;
-  width: 10px;
-  height: 3px;
-  background: #a5b1c2;
-  transform: rotate(45deg);
-  border-radius: 999px;
+  width: 42px;
+  height: 36px;
+  color: #07111f;
 }
 
 .quick-icon.wheel {
-  border: 4px solid #202b39;
+  width: 42px;
+  height: 42px;
+  border: 9px solid #0e2035;
   border-radius: 50%;
 }
 
 .quick-icon.wheel::before {
   content: "";
   position: absolute;
-  inset: 6px;
+  inset: 8px;
   border-radius: 50%;
-  background: #202b39;
+  background:
+    linear-gradient(#fff 0 0) center / 3px 18px no-repeat,
+    linear-gradient(90deg, #fff 0 0) center / 18px 3px no-repeat,
+    #0e2035;
 }
 
-.quick-icon.record {
-  border: 2px solid #b8c0cc;
-  border-radius: 2px;
-  background: linear-gradient(#ffe9b5 0 18%, #fff 18% 100%);
+.quick-icon.car::before {
+  content: "";
+  position: absolute;
+  left: 6px;
+  top: 13px;
+  width: 30px;
+  height: 14px;
+  border: 3px solid currentColor;
+  border-radius: 12px 12px 6px 6px;
+}
+
+.quick-icon.car::after {
+  content: "";
+  position: absolute;
+  left: 12px;
+  top: 7px;
+  width: 18px;
+  height: 12px;
+  border: 3px solid currentColor;
+  border-bottom: 0;
+  border-radius: 12px 12px 0 0;
+  box-shadow:
+    -8px 22px 0 -4px currentColor,
+    20px 22px 0 -4px currentColor;
+}
+
+.quick-icon.document {
+  width: 32px;
+  height: 40px;
+  border: 3px solid currentColor;
+  border-radius: 3px;
+}
+
+.quick-icon.document::before {
+  content: "";
+  position: absolute;
+  right: -3px;
+  top: -3px;
+  width: 12px;
+  height: 12px;
+  border-left: 3px solid currentColor;
+  border-bottom: 3px solid currentColor;
+  background: #fff;
+}
+
+.quick-icon.document::after {
+  content: "";
+  position: absolute;
+  left: 7px;
+  top: 15px;
+  width: 14px;
+  height: 3px;
+  background: currentColor;
+  box-shadow: 0 9px 0 currentColor;
+}
+
+.tile-chevron {
+  position: absolute;
+  right: 23px;
+  bottom: 28px;
+  color: #96a3b0;
+  font-size: 31px;
+  font-weight: 300;
+  line-height: 1;
 }
 
 .reminders {
