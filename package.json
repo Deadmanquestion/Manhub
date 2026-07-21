@@ -19,6 +19,7 @@
     "lint": "eslint . --ignore-pattern dist --ignore-pattern .next",
     "db:generate": "drizzle-kit generate",
     "dev:customer": "npm run dev --workspace @manhub/customer-app",
+    "dev:auth": "npm run dev --workspace @manhub/auth-app",
     "dev:supplier": "npm run dev --workspace @manhub/supplier-portal",
     "dev:workshop": "npm run dev --workspace @manhub/workshop-portal",
     "dev:admin": "npm run dev --workspace @manhub/admin-dashboard",

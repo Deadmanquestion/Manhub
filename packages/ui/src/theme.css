@@ -185,6 +185,22 @@ body {
   margin-bottom: 14px;
 }
 
+.mh-form-stack {
+  display: grid;
+  gap: 14px;
+}
+
+.mh-auth-panel {
+  display: grid;
+  gap: 16px;
+  max-width: 680px;
+}
+
+.mh-muted-note {
+  color: var(--mh-muted);
+  margin: 14px 0 0;
+}
+
 .mh-table-wrap {
   overflow-x: auto;
   border: 1px solid var(--mh-line);

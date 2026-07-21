@@ -43,12 +43,18 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=...
 
 ## Role Routing
 
-After login, the shared auth layer reads `user_metadata.role` or `user_metadata.app_role`.
+After login, the shared auth layer reads the user's role from `public.profiles`.
 
 - `customer` routes to the Customer App
 - `supplier` routes to the Supplier Portal
 - `workshop` routes to the Workshop Portal
 - `admin` routes to the Admin Dashboard
+
+There is one login app:
+
+- `apps/auth`: ManHub Sign-On for `auth.manhub.my`
+
+Customers can self-register from this page. Supplier, workshop, and admin accounts are not exposed in self-registration; admin creates or approves those profiles.
 
 ## RBAC
 
@@ -63,6 +69,7 @@ The migration `202607200001_manhub_multi_portal_rbac.sql` adds the missing multi
 
 ```bash
 npm run dev:customer
+npm run dev:auth
 npm run dev:supplier
 npm run dev:workshop
 npm run dev:admin

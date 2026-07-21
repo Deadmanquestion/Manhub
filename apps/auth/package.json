@@ -1,17 +1,16 @@
 {
-  "name": "@manhub/supplier-portal",
+  "name": "@manhub/auth-app",
   "version": "0.1.0",
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vite --host 0.0.0.0 --port 4101",
+    "dev": "vite --host 0.0.0.0 --port 4104",
     "build": "vite build",
-    "preview": "vite preview --host 0.0.0.0 --port 4101"
+    "preview": "vite preview --host 0.0.0.0 --port 4104"
   },
   "dependencies": {
     "@manhub/auth": "0.1.0",
     "@manhub/backend": "0.1.0",
-    "@manhub/platform-config": "0.1.0",
     "@manhub/ui": "0.1.0",
     "@supabase/supabase-js": "^2.110.7",
     "react": "19.2.6",
