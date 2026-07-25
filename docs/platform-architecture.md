@@ -1,15 +1,22 @@
 # ManHub Multi-Portal Architecture
 
-ManHub is now organized as four independently deployable React frontends that share one Supabase backend.
+ManHub is now organized as independent deployable React frontends that share one Supabase backend.
 
 ## Frontends
 
-- `apps/customer`: Customer Mobile App for `app.manhub.my`
+- `app`: Landing Website for `manhub.my`
+- `apps/auth`: Single Login for `auth.manhub.my`
 - `apps/supplier`: Supplier Portal for `supplier.manhub.my`
 - `apps/workshop`: Workshop Portal for `workshop.manhub.my`
 - `apps/admin`: Admin Dashboard for `admin.manhub.my`
 
 Each app owns its routing and can be built or deployed separately.
+
+Paused surface:
+
+- `apps/customer`: Customer Mobile App for `app.manhub.my`
+
+The Customer App is intentionally frozen while the platform architecture is completed. Do not add new customer features until the landing website, SSO, role detection, and web portals are stable.
 
 ## Shared Packages
 
@@ -50,9 +57,7 @@ After login, the shared auth layer reads the user's role from `public.profiles`.
 - `workshop` routes to the Workshop Portal
 - `admin` routes to the Admin Dashboard
 
-There is one login app:
-
-- `apps/auth`: ManHub Sign-On for `auth.manhub.my`
+There is one login app: `apps/auth`.
 
 Customers can self-register from this page. Supplier, workshop, and admin accounts are not exposed in self-registration; admin creates or approves those profiles.
 
@@ -68,7 +73,7 @@ The migration `202607200001_manhub_multi_portal_rbac.sql` adds the missing multi
 ## Commands
 
 ```bash
-npm run dev:customer
+npm run dev:landing
 npm run dev:auth
 npm run dev:supplier
 npm run dev:workshop
