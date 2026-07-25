@@ -236,14 +236,14 @@ button {
 
 .home-dashboard {
   display: grid;
-  gap: 18px;
-  padding: 16px 6px 8px;
+  gap: 20px;
+  padding: 12px 6px 8px;
 }
 
 .home-dashboard h1 {
-  margin: 0 0 4px;
+  margin: 0 0 -2px;
   color: #0d1724;
-  font-size: 38px;
+  font-size: 34px;
   line-height: 1.05;
   font-weight: 900;
 }
@@ -255,14 +255,14 @@ button {
 
 .home-vehicle-card {
   position: relative;
-  min-height: 150px;
+  min-height: 108px;
   grid-template-columns: minmax(0, 1fr) auto auto;
   overflow: hidden;
   border: 0;
-  border-radius: 19px;
+  border-radius: 18px;
   background: linear-gradient(135deg, #102840 0%, #08192b 100%);
-  box-shadow: 0 14px 28px rgba(20, 45, 82, 0.18);
-  padding: 26px 20px;
+  box-shadow: 0 12px 24px rgba(20, 45, 82, 0.16);
+  padding: 18px 17px;
   transition: transform 160ms ease, box-shadow 160ms ease;
 }
 
@@ -283,41 +283,41 @@ button {
 .home-vehicle-card strong {
   position: relative;
   z-index: 2;
-  font-size: 26px;
+  font-size: 21px;
   line-height: 1.1;
 }
 
 .home-vehicle-card span {
   position: relative;
   z-index: 2;
-  margin-top: 12px;
+  margin-top: 7px;
   color: rgba(255, 255, 255, 0.66);
-  font-size: 17px;
+  font-size: 13px;
 }
 
 .home-vehicle-card small {
   position: relative;
   z-index: 2;
-  margin-top: 19px;
+  margin-top: 13px;
   color: rgba(255, 255, 255, 0.68);
-  font-size: 16px;
+  font-size: 12px;
 }
 
 .home-vehicle-card b {
   position: relative;
   z-index: 2;
   margin-top: 2px;
-  font-size: 23px;
+  font-size: 18px;
 }
 
 .home-car-image {
   position: absolute;
-  right: 72px;
-  top: 48px;
+  right: 54px;
+  top: 34px;
   z-index: 1;
-  width: 150px;
+  width: 122px;
   height: auto;
-  filter: drop-shadow(0 14px 18px rgba(0, 0, 0, 0.32));
+  filter: drop-shadow(0 11px 14px rgba(0, 0, 0, 0.3));
 }
 
 .home-chevron {
@@ -325,7 +325,7 @@ button {
   place-items: center;
   justify-self: end;
   color: inherit;
-  font-size: 42px;
+  font-size: 32px;
   font-weight: 300;
   line-height: 1;
 }
@@ -344,61 +344,70 @@ button {
 }
 
 .home-diagnosis-card {
-  grid-template-columns: 58px 1fr auto;
-  gap: 18px;
-  min-height: 88px;
+  grid-template-columns: 46px 1fr auto;
+  gap: 13px;
+  min-height: 62px;
   border: 0;
-  border-radius: 17px;
+  border-radius: 16px;
   background: linear-gradient(135deg, #2f7af0 0%, #2473e9 100%);
-  box-shadow: 0 13px 24px rgba(47, 117, 228, 0.26);
+  box-shadow: 0 10px 20px rgba(47, 117, 228, 0.22);
   color: #fff;
-  padding: 18px 18px;
+  padding: 12px 14px;
 }
 
 .home-diagnosis-card .cta-icon {
-  width: 58px;
-  height: 58px;
-  border-radius: 17px;
+  width: 46px;
+  height: 46px;
+  border-radius: 14px;
   background: rgba(255, 255, 255, 0.86);
-  box-shadow: inset 0 -10px 18px rgba(47, 117, 228, 0.08);
+  box-shadow: inset 0 -8px 14px rgba(47, 117, 228, 0.08);
 }
 
 .home-diagnosis-card .cta-icon::before {
-  left: 19px;
-  top: 17px;
-  width: 18px;
-  height: 22px;
-  border: 3px solid #07111f;
+  left: 15px;
+  top: 14px;
+  width: 15px;
+  height: 18px;
+  border: 2px solid #07111f;
   border-radius: 4px;
   background: #f3b43c;
 }
 
 .home-diagnosis-card .cta-icon::after {
-  left: 25px;
-  top: 14px;
-  width: 8px;
+  left: 20px;
+  top: 11px;
+  width: 7px;
   height: 6px;
-  border: 3px solid #07111f;
+  border: 2px solid #07111f;
   border-bottom: 0;
   border-radius: 6px 6px 0 0;
   background: transparent;
 }
 
 .home-diagnosis-card strong,
-.home-diagnosis-card small {
+.home-diagnosis-card small,
+.home-diagnosis-card em {
   display: block;
 }
 
 .home-diagnosis-card strong {
-  font-size: 22px;
+  font-size: 17px;
   line-height: 1.12;
 }
 
 .home-diagnosis-card small {
-  margin-top: 6px;
+  margin-top: 3px;
   color: rgba(255, 255, 255, 0.86);
-  font-size: 15px;
+  font-size: 12px;
   line-height: 1.25;
+}
+
+.home-diagnosis-card em {
+  margin-top: 2px;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 11px;
+  font-style: normal;
+  line-height: 1.2;
 }
 
 .home-diagnosis-card .home-chevron {
@@ -406,32 +415,32 @@ button {
 }
 
 .home-job-card {
-  grid-template-columns: 62px 1fr auto;
-  gap: 17px;
-  min-height: 113px;
+  grid-template-columns: 48px 1fr auto;
+  gap: 13px;
+  min-height: 78px;
   border: 1px solid #ffd88f;
-  border-radius: 18px;
+  border-radius: 16px;
   background: linear-gradient(135deg, #fffaf0 0%, #fff4dc 100%);
-  box-shadow: 0 11px 24px rgba(185, 135, 16, 0.11);
+  box-shadow: 0 9px 19px rgba(185, 135, 16, 0.1);
   color: #0d1724;
-  padding: 19px 19px;
+  padding: 12px 14px;
 }
 
 .job-icon {
   position: relative;
   display: block;
-  width: 62px;
-  height: 62px;
+  width: 48px;
+  height: 48px;
   border: 1px solid #ffd78e;
-  border-radius: 20px;
+  border-radius: 15px;
   background: #fff1d3;
 }
 
 .job-icon::before {
   content: "";
   position: absolute;
-  inset: 16px;
-  border-radius: 9px;
+  inset: 13px;
+  border-radius: 7px;
   background:
     linear-gradient(45deg, transparent 42%, #fff 43% 55%, transparent 56%),
     linear-gradient(-45deg, transparent 42%, #fff 43% 55%, transparent 56%),
@@ -441,12 +450,12 @@ button {
 .job-icon::after {
   content: "";
   position: absolute;
-  left: 20px;
-  top: 20px;
-  width: 22px;
-  height: 22px;
-  border-radius: 7px;
-  box-shadow: 0 0 0 10px rgba(255, 183, 15, 0.1);
+  left: 15px;
+  top: 15px;
+  width: 18px;
+  height: 18px;
+  border-radius: 6px;
+  box-shadow: 0 0 0 8px rgba(255, 183, 15, 0.1);
 }
 
 .home-job-card small,
@@ -457,22 +466,39 @@ button {
 
 .home-job-card small {
   color: #d99204;
-  font-size: 15px;
+  font-size: 11px;
   font-weight: 900;
 }
 
 .home-job-card strong {
-  margin-top: 7px;
-  font-size: 22px;
+  margin-top: 3px;
+  font-size: 17px;
   line-height: 1.08;
 }
 
 .home-job-card em {
-  margin-top: 6px;
+  margin-top: 3px;
   color: #636b75;
-  font-size: 14px;
+  font-size: 11px;
   font-style: normal;
   line-height: 1.25;
+}
+
+.job-progress-bar {
+  display: block;
+  height: 4px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(185, 135, 16, 0.15);
+  margin-top: 7px;
+}
+
+.job-progress-bar b {
+  display: block;
+  width: 58%;
+  height: 100%;
+  border-radius: inherit;
+  background: #f2aa18;
 }
 
 .home-job-card .home-chevron {
@@ -857,8 +883,8 @@ button {
 .quick-actions {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 11px;
-  margin-top: 5px;
+  gap: 13px;
+  margin-top: 2px;
 }
 
 .quick-actions button {
@@ -866,14 +892,14 @@ button {
   display: grid;
   justify-items: center;
   align-content: start;
-  gap: 16px;
-  min-height: 125px;
+  gap: 9px;
+  min-height: 84px;
   border: 1px solid var(--line);
-  border-radius: 17px;
+  border-radius: 15px;
   background: #fff;
-  box-shadow: 0 9px 24px rgba(18, 39, 70, 0.08);
+  box-shadow: 0 8px 18px rgba(18, 39, 70, 0.07);
   color: var(--ink);
-  padding: 27px 10px 17px;
+  padding: 15px 9px 11px;
   transition: transform 160ms ease, box-shadow 160ms ease, border-color 160ms ease;
 }
 
@@ -886,98 +912,98 @@ button {
   display: block;
   max-width: 88px;
   color: #07111f;
-  font-size: 18px;
+  font-size: 13px;
   font-weight: 900;
   line-height: 1.05;
   text-align: center;
 }
 
 .quick-icon {
-  width: 42px;
-  height: 36px;
+  width: 32px;
+  height: 28px;
   color: #07111f;
 }
 
 .quick-icon.wheel {
-  width: 42px;
-  height: 42px;
-  border: 9px solid #0e2035;
+  width: 32px;
+  height: 32px;
+  border: 7px solid #0e2035;
   border-radius: 50%;
 }
 
 .quick-icon.wheel::before {
   content: "";
   position: absolute;
-  inset: 8px;
+  inset: 6px;
   border-radius: 50%;
   background:
-    linear-gradient(#fff 0 0) center / 3px 18px no-repeat,
-    linear-gradient(90deg, #fff 0 0) center / 18px 3px no-repeat,
+    linear-gradient(#fff 0 0) center / 2px 14px no-repeat,
+    linear-gradient(90deg, #fff 0 0) center / 14px 2px no-repeat,
     #0e2035;
 }
 
 .quick-icon.car::before {
   content: "";
   position: absolute;
-  left: 6px;
-  top: 13px;
-  width: 30px;
-  height: 14px;
-  border: 3px solid currentColor;
+  left: 5px;
+  top: 10px;
+  width: 23px;
+  height: 11px;
+  border: 2px solid currentColor;
   border-radius: 12px 12px 6px 6px;
 }
 
 .quick-icon.car::after {
   content: "";
   position: absolute;
-  left: 12px;
-  top: 7px;
-  width: 18px;
-  height: 12px;
-  border: 3px solid currentColor;
+  left: 10px;
+  top: 5px;
+  width: 13px;
+  height: 9px;
+  border: 2px solid currentColor;
   border-bottom: 0;
   border-radius: 12px 12px 0 0;
   box-shadow:
-    -8px 22px 0 -4px currentColor,
-    20px 22px 0 -4px currentColor;
+    -7px 17px 0 -4px currentColor,
+    16px 17px 0 -4px currentColor;
 }
 
 .quick-icon.document {
-  width: 32px;
-  height: 40px;
-  border: 3px solid currentColor;
+  width: 24px;
+  height: 30px;
+  border: 2px solid currentColor;
   border-radius: 3px;
 }
 
 .quick-icon.document::before {
   content: "";
   position: absolute;
-  right: -3px;
-  top: -3px;
-  width: 12px;
-  height: 12px;
-  border-left: 3px solid currentColor;
-  border-bottom: 3px solid currentColor;
+  right: -2px;
+  top: -2px;
+  width: 9px;
+  height: 9px;
+  border-left: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
   background: #fff;
 }
 
 .quick-icon.document::after {
   content: "";
   position: absolute;
-  left: 7px;
-  top: 15px;
-  width: 14px;
-  height: 3px;
+  left: 5px;
+  top: 11px;
+  width: 11px;
+  height: 2px;
   background: currentColor;
-  box-shadow: 0 9px 0 currentColor;
+  box-shadow: 0 7px 0 currentColor;
 }
 
 .tile-chevron {
   position: absolute;
-  right: 23px;
-  bottom: 28px;
+  right: 13px;
+  bottom: 16px;
   color: #96a3b0;
-  font-size: 31px;
+  font-size: 22px;
   font-weight: 300;
   line-height: 1;
 }

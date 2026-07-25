@@ -951,17 +951,19 @@ function HomeTab({ order, setView, vehicle }: { order: OrderRecord; setView: (vi
       <button className="home-diagnosis-card" onClick={() => setView("Diagnosis")} type="button">
         <span className="cta-icon" />
         <span>
-          <strong>Describe your car problem</strong>
-          <small>Upload photo, record noise, get AI pre-diagnosis</small>
+          <strong>AI Diagnosis</strong>
+          <small>Describe your car problem</small>
+          <em>Upload photos or record engine noise</em>
         </span>
         <span className="home-chevron">&gt;</span>
       </button>
       <button className="home-job-card" onClick={() => setView("OrderDetail")} type="button">
         <span className="job-icon" />
         <span>
-          <small>Job Progress</small>
-          <strong>Job Progress</strong>
-          <em>{order.diagnosis} &middot; {order.status}</em>
+          <small>Job #{order.jobNo}</small>
+          <strong>{order.status}</strong>
+          <em>{order.diagnosis} &middot; Est. 1 hr 20 min</em>
+          <i className="job-progress-bar"><b /></i>
         </span>
         <span className="home-chevron">&gt;</span>
       </button>
