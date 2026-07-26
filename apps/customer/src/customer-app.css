@@ -1980,6 +1980,44 @@ button {
   line-height: 1.35;
 }
 
+.logout-section {
+  margin-top: 16px;
+  padding-bottom: 8px;
+}
+
+.logout-section button {
+  width: 100%;
+  min-height: 46px;
+  border: 1px solid #efb6b6;
+  border-radius: 12px;
+  background: #fff;
+  color: #b42318;
+  font-weight: 900;
+  transition: background 160ms ease, border-color 160ms ease, transform 160ms ease;
+}
+
+.logout-section button:hover {
+  border-color: #dc7777;
+  background: #fff4f3;
+}
+
+.logout-section button:active {
+  transform: scale(0.99);
+}
+
+.logout-section button:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
+.logout-section p {
+  margin: 8px 2px 0;
+  color: #b42318;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
 .bottom-tabs {
   display: grid;
   grid-template-columns: repeat(5, 1fr);

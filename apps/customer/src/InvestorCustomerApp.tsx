@@ -308,7 +308,7 @@ const initialStore: MockStore = {
   warranties: [],
 };
 
-export default function InvestorCustomerApp() {
+export default function InvestorCustomerApp({ onSignOut }: { onSignOut?: () => Promise<void> }) {
   const [store, setStore] = useState<MockStore>(initialStore);
   const [view, setView] = useState<AppView>("Home");
   const [activeFilter, setActiveFilter] = useState("Nearest");
@@ -322,6 +322,8 @@ export default function InvestorCustomerApp() {
   const [supportNotice, setSupportNotice] = useState("");
   const [paymentMethod, setPaymentMethod] = useState("Touch 'n Go eWallet");
   const [profilePanel, setProfilePanel] = useState("My vehicles");
+  const [signOutError, setSignOutError] = useState("");
+  const [signingOut, setSigningOut] = useState(false);
 
   const selectedVehicle = store.vehicles.find((item) => item.id === store.selectedVehicleId) ?? store.vehicles[0];
   const selectedPart = spareParts.find((item) => item.id === store.selectedPartId) ?? spareParts[0];
@@ -335,6 +337,18 @@ export default function InvestorCustomerApp() {
 
   function updateStore(updater: (current: MockStore) => MockStore) {
     setStore(updater);
+  }
+
+  async function handleSignOut() {
+    if (!onSignOut || signingOut) return;
+    setSignOutError("");
+    setSigningOut(true);
+    try {
+      await onSignOut();
+    } catch {
+      setSignOutError("We could not log you out. Please check your connection and try again.");
+      setSigningOut(false);
+    }
   }
 
   function selectVehicle(vehicleId: string, nextView: AppView) {
@@ -861,9 +875,12 @@ export default function InvestorCustomerApp() {
           )}
           {view === "Me" && (
             <MeTab
+              onSignOut={handleSignOut}
               profilePanel={profilePanel}
               setProfilePanel={setProfilePanel}
               setView={setView}
+              signOutError={signOutError}
+              signingOut={signingOut}
               unreadCount={unreadCount}
               vehicleCount={store.vehicles.length}
             />
@@ -2082,15 +2099,21 @@ function SupportCenterPage({
 }
 
 function MeTab({
+  onSignOut,
   profilePanel,
   setProfilePanel,
   setView,
+  signOutError,
+  signingOut,
   unreadCount,
   vehicleCount,
 }: {
+  onSignOut: () => Promise<void>;
   profilePanel: string;
   setProfilePanel: (panel: string) => void;
   setView: (view: AppView) => void;
+  signOutError: string;
+  signingOut: boolean;
   unreadCount: number;
   vehicleCount: number;
 }) {
@@ -2122,6 +2145,12 @@ function MeTab({
         ))}
       </div>
       <article className="detail-panel"><strong>{profilePanel}</strong><span>Open a customer record to continue.</span></article>
+      <section className="logout-section">
+        <button disabled={signingOut} onClick={() => void onSignOut()} type="button">
+          {signingOut ? "Logging out..." : "Log out"}
+        </button>
+        {signOutError && <p role="alert">{signOutError}</p>}
+      </section>
     </>
   );
 }

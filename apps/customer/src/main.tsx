@@ -2,14 +2,14 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";
 import { EmptyState, MobileShell } from "@manhub/ui";
-import { createManHubSupabaseClient } from "@manhub/backend";
-import { usePortalAuth } from "@manhub/auth";
+import { createManHubSupabaseClient, getLoginUrl } from "@manhub/backend";
+import { signOut, usePortalAuth } from "@manhub/auth";
 import { useMemo } from "react";
 import InvestorCustomerApp from "./InvestorCustomerApp";
 
 function CustomerApp() {
   if (import.meta.env.DEV && new URLSearchParams(window.location.search).has("preview")) {
-    return <InvestorCustomerApp />;
+    return <InvestorCustomerApp onSignOut={async () => undefined} />;
   }
 
   return <ProtectedCustomerApp />;
@@ -23,7 +23,14 @@ function ProtectedCustomerApp() {
   if (auth.loading || auth.redirecting) return <MobileShell><EmptyState text={auth.redirecting ? "Redirecting to secure sign-in..." : "Checking customer session..."} /></MobileShell>;
   if (!auth.allowed) return <MobileShell><EmptyState text="Customer role required. Redirecting to Unauthorized." /></MobileShell>;
 
-  return <InvestorCustomerApp />;
+  return (
+    <InvestorCustomerApp
+      onSignOut={async () => {
+        await signOut(supabase);
+        window.location.replace(getLoginUrl());
+      }}
+    />
+  );
 }
 
 createRoot(document.getElementById("root")!).render(<StrictMode><BrowserRouter><CustomerApp /></BrowserRouter></StrictMode>);
