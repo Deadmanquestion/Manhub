@@ -5,12 +5,12 @@ import { Button, Card, EmptyState, MobileShell, PageHeader } from "@manhub/ui";
 import { createManHubSupabaseClient, fetchRows } from "@manhub/backend";
 import { customerRoutes } from "@manhub/platform-config";
 import { usePortalAuth } from "@manhub/auth";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 type Row = Record<string, unknown>;
 
 function CustomerApp() {
-  const supabase = createManHubSupabaseClient();
+  const supabase = useMemo(() => createManHubSupabaseClient(), []);
   const auth = usePortalAuth(supabase, "customer");
   const [rows, setRows] = useState<Row[]>([]);
 

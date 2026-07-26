@@ -3,13 +3,17 @@ import type { SupabaseClient, User } from "@supabase/supabase-js";
 import {
   canShareManHubSession,
   canOpenPortal,
+  createManFixSessionHandoffUrl,
   createManHubSupabaseClient,
   getAuthAppUrl,
   getLoginUrl,
   getPortalDestination,
+  getPortalRoleForUrl,
   getSessionProfile,
   getUnauthorizedUrl,
   isProfileEnabled,
+  readManFixSessionHandoff,
+  removeManFixSessionHandoff,
   routeAfterLogin,
   type ManHubProfile,
   type ManHubRole,
@@ -39,6 +43,29 @@ export function usePortalAuth(supabase: SupabaseClient | null, portalRole: ManHu
     if (!supabase) {
       setState({ allowed: false, loading: false, profile: null, redirecting: false, role: null, user: null });
       return;
+    }
+
+    const handoff = readManFixSessionHandoff(window.location.href);
+    if (handoff) {
+      const cleanUrl = removeManFixSessionHandoff(window.location.href);
+      window.history.replaceState(window.history.state, "", cleanUrl);
+
+      if (getPortalRoleForUrl(cleanUrl) !== portalRole) {
+        setState({ allowed: false, loading: false, profile: null, redirecting: true, role: null, user: null });
+        window.location.replace(getUnauthorizedUrl("wrong-role"));
+        return;
+      }
+
+      const { error } = await supabase.auth.setSession({
+        access_token: handoff.accessToken,
+        refresh_token: handoff.refreshToken,
+      });
+
+      if (error) {
+        setState({ allowed: false, loading: false, profile: null, redirecting: true, role: null, user: null });
+        window.location.replace(getLoginUrl(cleanUrl));
+        return;
+      }
     }
 
     const { data: sessionData } = await supabase.auth.getSession();
@@ -103,12 +130,10 @@ export function SingleSignOnPage() {
     void routeAfterLogin(supabase, nextUrl).then(async (destination) => {
       const { data } = await supabase.auth.getUser();
       if (data.user) {
-        if (canShareManHubSession(window.location.href, destination)) {
-          window.location.replace(destination);
-          return;
-        }
-        setStatus("ManFix portal domains are still being connected. Please use the official ManFix address when it is ready.");
+        await openPortal(supabase, destination);
       }
+    }).catch((error) => {
+      setStatus(error instanceof Error ? error.message : "Unable to open your ManFix portal.");
     });
   }, [nextUrl, supabase]);
 
@@ -121,11 +146,8 @@ export function SingleSignOnPage() {
       if (mode === "login") {
         await signInWithPassword(supabase, email, password);
         const destination = await routeAfterLogin(supabase, nextUrl);
-        if (!canShareManHubSession(window.location.href, destination)) {
-          setStatus("Sign-in succeeded. ManFix portal domains must be connected before opening your dashboard.");
-          return;
-        }
-        window.location.replace(destination);
+        setStatus("Sign-in succeeded. Opening your ManFix dashboard...");
+        await openPortal(supabase, destination);
         return;
       }
 
@@ -133,11 +155,8 @@ export function SingleSignOnPage() {
       setStatus("Customer account created. If email confirmation is enabled, confirm your email before signing in.");
       if (signedIn) {
         const destination = await routeAfterLogin(supabase, nextUrl);
-        if (!canShareManHubSession(window.location.href, destination)) {
-          setStatus("Account created. ManFix portal domains must be connected before opening your dashboard.");
-          return;
-        }
-        window.location.replace(destination);
+        setStatus("Account created. Opening your ManFix dashboard...");
+        await openPortal(supabase, destination);
       }
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Unable to complete sign-on.");
@@ -179,9 +198,10 @@ export function UnauthorizedPage() {
     void getSessionProfile(supabase).then(setProfile);
   }, [supabase]);
 
-  const goHome = () => {
+  const goHome = async () => {
     if (profile?.role && isProfileEnabled(profile)) {
-      window.location.assign(getPortalDestination(profile.role));
+      if (!supabase) return;
+      await openPortal(supabase, getPortalDestination(profile.role));
       return;
     }
     window.location.assign(getLoginUrl());
@@ -194,7 +214,7 @@ export function UnauthorizedPage() {
         <h2>This portal is not available for your account.</h2>
         <p>ManFix checks your role from the profiles table and only opens the dashboard assigned to your account.</p>
         <div className="mh-actions">
-          <Button onClick={goHome}>{profile?.role ? "Go to my portal" : "Back to sign in"}</Button>
+          <Button onClick={() => void goHome()}>{profile?.role ? "Go to my portal" : "Back to sign in"}</Button>
           {supabase && <Button tone="ghost" onClick={() => void signOut(supabase).then(() => window.location.assign(getLoginUrl()))}>Sign out</Button>}
         </div>
       </Card>
@@ -223,6 +243,28 @@ export async function registerCustomer(supabase: SupabaseClient, email: string, 
 export async function signOut(supabase: SupabaseClient) {
   const { error } = await supabase.auth.signOut();
   if (error) throw error;
+}
+
+async function openPortal(supabase: SupabaseClient, destination: string) {
+  if (canShareManHubSession(window.location.href, destination)) {
+    window.location.replace(destination);
+    return;
+  }
+
+  if (!getPortalRoleForUrl(destination)) {
+    throw new Error("Your assigned ManFix portal is not available yet.");
+  }
+
+  const { data, error } = await supabase.auth.getSession();
+  if (error || !data.session) {
+    throw error ?? new Error("Your sign-in session could not be transferred.");
+  }
+
+  window.location.replace(createManFixSessionHandoffUrl(
+    destination,
+    data.session.access_token,
+    data.session.refresh_token,
+  ));
 }
 
 function AuthShell({ children }: { children: ReactNode }) {

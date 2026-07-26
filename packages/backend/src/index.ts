@@ -157,8 +157,15 @@ const localPortalUrlByRole: Record<ManHubRole, string> = {
   workshop: "http://localhost:4102",
 };
 
+const renderPortalUrlByRole: Partial<Record<ManHubRole, string>> = {
+  customer: "https://manhub-customer.onrender.com",
+  workshop: "https://manhub-workshop.onrender.com",
+};
+
 const MANFIX_AUTH_COOKIE_NAME = "manfix-auth";
 const MANFIX_PRODUCTION_DOMAIN = "manfix.my";
+const MANFIX_HANDOFF_ACCESS_TOKEN = "manfix_access_token";
+const MANFIX_HANDOFF_REFRESH_TOKEN = "manfix_refresh_token";
 
 export function isManHubProductionHost(hostname: string) {
   const normalizedHostname = hostname.toLowerCase();
@@ -176,6 +183,46 @@ export function canShareManHubSession(sourceUrl: string, destinationUrl: string)
   } catch {
     return false;
   }
+}
+
+export function createManFixSessionHandoffUrl(
+  destinationUrl: string,
+  accessToken: string,
+  refreshToken: string,
+) {
+  if (!getPortalRoleForUrl(destinationUrl)) {
+    throw new Error("The requested ManFix portal is not trusted.");
+  }
+
+  const url = new URL(destinationUrl);
+  const fragment = new URLSearchParams(url.hash.slice(1));
+  fragment.set(MANFIX_HANDOFF_ACCESS_TOKEN, accessToken);
+  fragment.set(MANFIX_HANDOFF_REFRESH_TOKEN, refreshToken);
+  url.hash = fragment.toString();
+  return url.toString();
+}
+
+export function readManFixSessionHandoff(value: string) {
+  try {
+    const url = new URL(value);
+    const fragment = new URLSearchParams(url.hash.slice(1));
+    const accessToken = fragment.get(MANFIX_HANDOFF_ACCESS_TOKEN);
+    const refreshToken = fragment.get(MANFIX_HANDOFF_REFRESH_TOKEN);
+
+    if (!accessToken || !refreshToken) return null;
+    return { accessToken, refreshToken };
+  } catch {
+    return null;
+  }
+}
+
+export function removeManFixSessionHandoff(value: string) {
+  const url = new URL(value);
+  const fragment = new URLSearchParams(url.hash.slice(1));
+  fragment.delete(MANFIX_HANDOFF_ACCESS_TOKEN);
+  fragment.delete(MANFIX_HANDOFF_REFRESH_TOKEN);
+  url.hash = fragment.toString();
+  return url.toString();
 }
 
 export function createManHubSupabaseClient() {
@@ -233,7 +280,7 @@ export async function routeAfterLogin(supabase: SupabaseClient, nextUrl?: string
 
   if (nextUrl) {
     const requestedRole = getPortalRoleForUrl(nextUrl);
-    if (!requestedRole || requestedRole === role) {
+    if (requestedRole === role) {
       return nextUrl;
     }
     return getUnauthorizedUrl("wrong-role");
@@ -284,14 +331,22 @@ export function getPortalRoleForUrl(value: string): ManHubRole | null {
   try {
     const fallbackOrigin = typeof window === "undefined" ? "http://localhost" : window.location.origin;
     const url = new URL(value, fallbackOrigin);
-    const host = url.hostname.toLowerCase();
-    const port = url.port;
-    const firstPath = url.pathname.split("/").filter(Boolean)[0]?.toLowerCase();
+    const authOrigin = new URL(getAuthAppUrl(), fallbackOrigin).origin;
 
-    if (firstPath === "admin" || host.startsWith("admin.") || port === "4103") return "admin";
-    if (firstPath === "supplier" || host.startsWith("supplier.") || port === "4101") return "supplier";
-    if (firstPath === "workshop" || host.startsWith("workshop.") || port === "4102") return "workshop";
-    if (firstPath === "app" || host.startsWith("app.") || port === "4100") return "customer";
+    for (const role of Object.keys(portalHomeByRole) as ManHubRole[]) {
+      const configuredUrl = getPortalDestination(role);
+      const candidates = [
+        localPortalUrlByRole[role],
+        `https://${portalHostByRole[role]}`,
+        ...(renderPortalUrlByRole[role] ? [renderPortalUrlByRole[role]] : []),
+        ...(new URL(configuredUrl, fallbackOrigin).origin === authOrigin ? [] : [configuredUrl]),
+      ];
+
+      if (candidates.some((candidate) => new URL(candidate, fallbackOrigin).origin === url.origin)) {
+        return role;
+      }
+    }
+
     return null;
   } catch {
     return null;
