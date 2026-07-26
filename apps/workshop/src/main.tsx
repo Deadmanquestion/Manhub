@@ -24,8 +24,8 @@ function WorkshopApp() {
   }, []);
 
   if (!supabase) return <PortalShell eyebrow="Workshop" routes={workshopRoutes} title="ManHub"><EmptyState text="Add Supabase environment variables to run this portal." /></PortalShell>;
-  if (auth.loading) return <PortalShell eyebrow="Workshop" routes={workshopRoutes} title="ManHub"><EmptyState text="Loading workshop session..." /></PortalShell>;
-  if (!auth.allowed) return <PortalShell eyebrow="Workshop" routes={workshopRoutes} title="ManHub"><EmptyState text="Workshop role required. Sign in with role=workshop to open this portal." /></PortalShell>;
+  if (auth.loading || auth.redirecting) return <PortalShell eyebrow="Workshop" routes={[]} title="ManHub"><EmptyState text={auth.redirecting ? "Redirecting to secure sign-in..." : "Checking workshop session..."} /></PortalShell>;
+  if (!auth.allowed) return <PortalShell eyebrow="Workshop" routes={[]} title="ManHub"><EmptyState text="Workshop role required. Redirecting to Unauthorized." /></PortalShell>;
 
   return (
     <PortalShell eyebrow="Workshop Portal" routes={workshopRoutes} title="ManHub">

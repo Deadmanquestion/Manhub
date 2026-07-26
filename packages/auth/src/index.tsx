@@ -40,6 +40,14 @@ export function usePortalAuth(supabase: SupabaseClient | null, portalRole: ManHu
       return;
     }
 
+    const { data: sessionData } = await supabase.auth.getSession();
+
+    if (!sessionData.session) {
+      setState({ allowed: false, loading: false, profile: null, redirecting: true, role: null, user: null });
+      window.location.replace(getLoginUrl(window.location.href));
+      return;
+    }
+
     const [{ data }, profile] = await Promise.all([
       supabase.auth.getUser(),
       getSessionProfile(supabase),
@@ -82,6 +90,7 @@ export function usePortalAuth(supabase: SupabaseClient | null, portalRole: ManHu
 
 export function SingleSignOnPage() {
   const supabase = useMemo(() => createManHubSupabaseClient(), []);
+  const nextUrl = useMemo(() => new URLSearchParams(window.location.search).get("next"), []);
   const [email, setEmail] = useState("");
   const [fullName, setFullName] = useState("");
   const [mode, setMode] = useState<"login" | "customer-register">("login");
@@ -90,13 +99,13 @@ export function SingleSignOnPage() {
 
   useEffect(() => {
     if (!supabase) return;
-    void routeAfterLogin(supabase).then(async (destination) => {
+    void routeAfterLogin(supabase, nextUrl).then(async (destination) => {
       const { data } = await supabase.auth.getUser();
       if (data.user) {
         window.location.replace(destination);
       }
     });
-  }, [supabase]);
+  }, [nextUrl, supabase]);
 
   if (!supabase) {
     return <AuthShell><EmptyState text="Connect the shared Supabase project to enable ManHub sign-on." /></AuthShell>;
@@ -106,13 +115,13 @@ export function SingleSignOnPage() {
     try {
       if (mode === "login") {
         await signInWithPassword(supabase, email, password);
-        window.location.replace(await routeAfterLogin(supabase));
+        window.location.replace(await routeAfterLogin(supabase, nextUrl));
         return;
       }
 
       await registerCustomer(supabase, email, password, fullName);
       setStatus("Customer account created. If email confirmation is enabled, confirm your email before signing in.");
-      window.location.replace(await routeAfterLogin(supabase));
+      window.location.replace(await routeAfterLogin(supabase, nextUrl));
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Unable to complete sign-on.");
     }

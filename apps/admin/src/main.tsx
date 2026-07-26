@@ -24,8 +24,8 @@ function AdminApp() {
   }, []);
 
   if (!supabase) return <PortalShell eyebrow="Admin" routes={adminRoutes} title="ManHub"><EmptyState text="Add Supabase environment variables to run this dashboard." /></PortalShell>;
-  if (auth.loading) return <PortalShell eyebrow="Admin" routes={adminRoutes} title="ManHub"><EmptyState text="Loading admin session..." /></PortalShell>;
-  if (!auth.allowed) return <PortalShell eyebrow="Admin" routes={adminRoutes} title="ManHub"><EmptyState text="Admin role required. Sign in with role=admin to open this dashboard." /></PortalShell>;
+  if (auth.loading || auth.redirecting) return <PortalShell eyebrow="Admin" routes={[]} title="ManHub"><EmptyState text={auth.redirecting ? "Redirecting to secure sign-in..." : "Checking admin session..."} /></PortalShell>;
+  if (!auth.allowed) return <PortalShell eyebrow="Admin" routes={[]} title="ManHub"><EmptyState text="Admin role required. Redirecting to Unauthorized." /></PortalShell>;
 
   return (
     <PortalShell eyebrow="Admin Dashboard" routes={adminRoutes} title="ManHub">

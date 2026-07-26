@@ -24,8 +24,8 @@ function CustomerApp() {
   }, [auth.allowed, load]);
 
   if (!supabase) return <MobileShell><EmptyState text="Connect the shared Supabase project to run the Customer App." /></MobileShell>;
-  if (auth.loading) return <MobileShell><EmptyState text="Loading customer session..." /></MobileShell>;
-  if (!auth.allowed) return <MobileShell><EmptyState text="Customer role required. After login, role=customer routes here." /></MobileShell>;
+  if (auth.loading || auth.redirecting) return <MobileShell><EmptyState text={auth.redirecting ? "Redirecting to secure sign-in..." : "Checking customer session..."} /></MobileShell>;
+  if (!auth.allowed) return <MobileShell><EmptyState text="Customer role required. Redirecting to Unauthorized." /></MobileShell>;
 
   return (
     <MobileShell>

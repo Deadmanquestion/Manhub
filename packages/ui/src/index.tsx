@@ -64,8 +64,18 @@ export function StatGrid({ items }: { items: Array<[string, string | number]> })
   return <div className="mh-stat-grid">{items.map(([label, value]) => <StatCard key={label} label={label} value={value} />)}</div>;
 }
 
-export function Button({ children, onClick, tone = "primary" }: { children: ReactNode; onClick?: () => void; tone?: "primary" | "ghost" | "danger" }) {
-  return <button className={`mh-button ${tone}`} onClick={onClick} type="button">{children}</button>;
+export function Button({
+  children,
+  onClick,
+  tone = "primary",
+  type = "button",
+}: {
+  children: ReactNode;
+  onClick?: () => void;
+  tone?: "primary" | "ghost" | "danger";
+  type?: "button" | "submit" | "reset";
+}) {
+  return <button className={`mh-button ${tone}`} onClick={onClick} type={type}>{children}</button>;
 }
 
 export function DataTable({ headers, rows }: { headers: string[]; rows: ReactNode[][] }) {
