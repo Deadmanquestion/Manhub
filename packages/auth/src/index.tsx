@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import type { SupabaseClient, User } from "@supabase/supabase-js";
 import {
+  canShareManHubSession,
   canOpenPortal,
   createManHubSupabaseClient,
   getAuthAppUrl,
@@ -102,7 +103,11 @@ export function SingleSignOnPage() {
     void routeAfterLogin(supabase, nextUrl).then(async (destination) => {
       const { data } = await supabase.auth.getUser();
       if (data.user) {
-        window.location.replace(destination);
+        if (canShareManHubSession(window.location.href, destination)) {
+          window.location.replace(destination);
+          return;
+        }
+        setStatus("ManHub portal domains are still being connected. Please use the official manhub.my address when it is ready.");
       }
     });
   }, [nextUrl, supabase]);
@@ -115,14 +120,24 @@ export function SingleSignOnPage() {
     try {
       if (mode === "login") {
         await signInWithPassword(supabase, email, password);
-        window.location.replace(await routeAfterLogin(supabase, nextUrl));
+        const destination = await routeAfterLogin(supabase, nextUrl);
+        if (!canShareManHubSession(window.location.href, destination)) {
+          setStatus("Sign-in succeeded. ManHub portal domains must be connected before opening your dashboard.");
+          return;
+        }
+        window.location.replace(destination);
         return;
       }
 
       const signedIn = await registerCustomer(supabase, email, password, fullName);
       setStatus("Customer account created. If email confirmation is enabled, confirm your email before signing in.");
       if (signedIn) {
-        window.location.replace(await routeAfterLogin(supabase, nextUrl));
+        const destination = await routeAfterLogin(supabase, nextUrl);
+        if (!canShareManHubSession(window.location.href, destination)) {
+          setStatus("Account created. ManHub portal domains must be connected before opening your dashboard.");
+          return;
+        }
+        window.location.replace(destination);
       }
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Unable to complete sign-on.");
