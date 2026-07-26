@@ -23,6 +23,118 @@ export type MetricQuery = {
   filter?: Record<string, string | number | boolean>;
 };
 
+export type SupplierProduct = {
+  active: boolean;
+  brand: string;
+  category: string;
+  cost_price: number;
+  created_at: string;
+  description: string | null;
+  id: string;
+  image_url: string | null;
+  incoming_stock: number;
+  low_stock_threshold: number;
+  name: string;
+  selling_price: number;
+  sku: string | null;
+  stock: number;
+  supplier_id: string;
+  updated_at: string;
+  warranty_duration_months: number;
+};
+
+export type SupplierProductInput = {
+  active: boolean;
+  brand: string;
+  category: string;
+  cost_price: number;
+  description: string | null;
+  image_url?: string | null;
+  incoming_stock: number;
+  low_stock_threshold: number;
+  name: string;
+  selling_price: number;
+  sku: string | null;
+  stock: number;
+  warranty_duration_months: number;
+};
+
+export type SupplierOrder = {
+  amount: number;
+  cost_total: number;
+  created_at: string;
+  customer: string;
+  id: string;
+  invoice_number: string;
+  product_id: string | null;
+  product_name: string;
+  quantity: number;
+  status: "New" | "Confirmed" | "Dispatched" | "Delivered" | "Cancelled";
+  supplier_id: string;
+  workshop: string;
+};
+
+export type SupplierStockHistory = {
+  change_type: "Sale" | "Incoming" | "Adjustment";
+  created_at: string;
+  id: string;
+  note: string | null;
+  product_id: string | null;
+  product_name: string;
+  quantity: number;
+  supplier_id: string;
+};
+
+export type SupplierWallet = {
+  available_balance: number;
+  currency: string;
+  pending_balance: number;
+  supplier_id: string;
+  updated_at: string;
+};
+
+export type SupplierWithdrawal = {
+  account_number: string;
+  amount: number;
+  bank: string;
+  created_at: string;
+  id: string;
+  reviewed_at: string | null;
+  status: "Pending" | "Approved" | "Rejected" | "Paid";
+  supplier_id: string;
+};
+
+export type SupplierInvoice = {
+  commission_amount: number;
+  id: string;
+  invoice_number: string;
+  issued_at: string;
+  order_id: string | null;
+  paid_amount: number;
+  parts_subtotal: number;
+  pdf_url: string | null;
+  status: "Pending" | "Paid" | "Refunded" | "Escrow";
+  supplier_id: string;
+  total: number;
+};
+
+export type SupplierWarrantyClaim = {
+  description: string;
+  id: string;
+  photos: string[];
+  reviewed_at: string | null;
+  status: "Pending Review" | "Approved" | "Rejected" | "Inspection Requested";
+  submitted_at: string;
+  supplier_id: string | null;
+  videos: string[];
+  warranty_id: string;
+};
+
+export type ProductCategory = {
+  id: string;
+  name: string;
+};
+
 export const portalHomeByRole: Record<ManHubRole, string> = {
   admin: "/admin",
   customer: "/",
@@ -82,9 +194,19 @@ export async function getSessionProfile(supabase: SupabaseClient): Promise<ManHu
   return data as ManHubProfile;
 }
 
-export async function routeAfterLogin(supabase: SupabaseClient) {
+export async function routeAfterLogin(supabase: SupabaseClient, nextUrl?: string | null) {
   const role = await getSessionRole(supabase);
-  return role ? getPortalDestination(role) : getUnauthorizedUrl();
+  if (!role) return getUnauthorizedUrl("missing-profile");
+
+  if (nextUrl) {
+    const requestedRole = getPortalRoleForUrl(nextUrl);
+    if (!requestedRole || requestedRole === role) {
+      return nextUrl;
+    }
+    return getUnauthorizedUrl("wrong-role");
+  }
+
+  return getPortalDestination(role);
 }
 
 export function canOpenPortal(role: ManHubRole | null, portalRole: ManHubRole) {
@@ -123,6 +245,24 @@ export function getPortalDestination(role: ManHubRole) {
   return configured[role] ?? localPortalUrlByRole[role];
 }
 
+export function getPortalRoleForUrl(value: string): ManHubRole | null {
+  try {
+    const fallbackOrigin = typeof window === "undefined" ? "http://localhost" : window.location.origin;
+    const url = new URL(value, fallbackOrigin);
+    const host = url.hostname.toLowerCase();
+    const port = url.port;
+    const firstPath = url.pathname.split("/").filter(Boolean)[0]?.toLowerCase();
+
+    if (firstPath === "admin" || host.startsWith("admin.") || port === "4103") return "admin";
+    if (firstPath === "supplier" || host.startsWith("supplier.") || port === "4101") return "supplier";
+    if (firstPath === "workshop" || host.startsWith("workshop.") || port === "4102") return "workshop";
+    if (firstPath === "app" || host.startsWith("app.") || port === "4100") return "customer";
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 export async function upsertCustomerProfile(supabase: SupabaseClient, fullName: string) {
   const { data } = await supabase.auth.getUser();
   if (!data.user) throw new Error("Customer account was created. Please confirm your email before signing in.");
@@ -157,6 +297,129 @@ export async function insertRow<T extends Record<string, unknown>>(supabase: Sup
 
 export async function deleteRow(supabase: SupabaseClient, table: string, id: string) {
   const { error } = await supabase.from(table).delete().eq("id", id);
+  if (error) throw error;
+}
+
+export async function listSupplierProducts(supabase: SupabaseClient) {
+  return fetchRows<SupplierProduct>(supabase, "supplier_products");
+}
+
+export async function saveSupplierProduct(supabase: SupabaseClient, values: SupplierProductInput, id?: string) {
+  if (id) {
+    const { data, error } = await supabase
+      .from("supplier_products")
+      .update(values)
+      .eq("id", id)
+      .select()
+      .single();
+    if (error) throw error;
+    return data as SupplierProduct;
+  }
+
+  const { data, error } = await supabase
+    .from("supplier_products")
+    .insert(values)
+    .select()
+    .single();
+  if (error) throw error;
+  return data as SupplierProduct;
+}
+
+export async function deleteSupplierProduct(supabase: SupabaseClient, id: string) {
+  await deleteRow(supabase, "supplier_products", id);
+}
+
+export async function uploadSupplierProductImage(supabase: SupabaseClient, productId: string, file: File) {
+  const { data: userData, error: userError } = await supabase.auth.getUser();
+  if (userError || !userData.user) throw new Error("Sign in is required before uploading product images.");
+
+  const extension = file.name.split(".").pop()?.replace(/[^a-zA-Z0-9]/g, "").toLowerCase() || "jpg";
+  const path = `${userData.user.id}/${productId}/${Date.now()}.${extension}`;
+  const { error } = await supabase.storage
+    .from("supplier-product-images")
+    .upload(path, file, { contentType: file.type || "image/jpeg", upsert: true });
+  if (error) throw error;
+
+  const { data } = supabase.storage.from("supplier-product-images").getPublicUrl(path);
+  const imageUrl = data.publicUrl;
+  const { error: updateError } = await supabase.from("supplier_products").update({ image_url: imageUrl }).eq("id", productId);
+  if (updateError) throw updateError;
+  return imageUrl;
+}
+
+export async function listProductCategories(supabase: SupabaseClient) {
+  return fetchRows<ProductCategory>(supabase, "product_categories");
+}
+
+export async function listSupplierOrders(supabase: SupabaseClient) {
+  return fetchRows<SupplierOrder>(supabase, "supplier_orders");
+}
+
+export async function setSupplierOrderStatus(supabase: SupabaseClient, orderId: string, status: SupplierOrder["status"]) {
+  const { error } = await supabase.rpc("manhub_supplier_update_order_status", {
+    next_status: status,
+    target_order_id: orderId,
+  });
+  if (error) throw error;
+}
+
+export async function listSupplierStockHistory(supabase: SupabaseClient) {
+  return fetchRows<SupplierStockHistory>(supabase, "supplier_stock_history");
+}
+
+export async function adjustSupplierStock(
+  supabase: SupabaseClient,
+  productId: string,
+  movementType: SupplierStockHistory["change_type"],
+  quantity: number,
+  note: string,
+) {
+  const { error } = await supabase.rpc("manhub_supplier_adjust_stock", {
+    movement_note: note || null,
+    movement_quantity: quantity,
+    movement_type: movementType,
+    target_product_id: productId,
+  });
+  if (error) throw error;
+}
+
+export async function getSupplierWallet(supabase: SupabaseClient) {
+  const { data, error } = await supabase.from("supplier_wallets").select("*").maybeSingle();
+  if (error) throw error;
+  return data as SupplierWallet | null;
+}
+
+export async function listSupplierWithdrawals(supabase: SupabaseClient) {
+  return fetchRows<SupplierWithdrawal>(supabase, "supplier_withdrawals");
+}
+
+export async function submitSupplierWithdrawal(supabase: SupabaseClient, amount: number, bank: string, accountNumber: string) {
+  const { data, error } = await supabase.rpc("manhub_supplier_submit_withdrawal", {
+    requested_account_number: accountNumber,
+    requested_amount: amount,
+    requested_bank: bank,
+  });
+  if (error) throw error;
+  return data as string;
+}
+
+export async function listSupplierInvoices(supabase: SupabaseClient) {
+  return fetchRows<SupplierInvoice>(supabase, "supplier_invoices");
+}
+
+export async function listSupplierWarrantyClaims(supabase: SupabaseClient) {
+  return fetchRows<SupplierWarrantyClaim>(supabase, "warranty_claims");
+}
+
+export async function reviewSupplierWarrantyClaim(
+  supabase: SupabaseClient,
+  claimId: string,
+  status: Exclude<SupplierWarrantyClaim["status"], "Pending Review">,
+) {
+  const { error } = await supabase.rpc("manhub_supplier_review_warranty_claim", {
+    next_status: status,
+    target_claim_id: claimId,
+  });
   if (error) throw error;
 }
 
