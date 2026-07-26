@@ -1,15 +1,15 @@
 const authUrl = process.env.NEXT_PUBLIC_MANFIX_AUTH_URL
   ?? process.env.NEXT_PUBLIC_MANHUB_AUTH_URL
-  ?? "https://manfix-auth.onrender.com/login";
+  ?? "https://manhub-auth.onrender.com/login";
 const supplierUrl = process.env.NEXT_PUBLIC_MANFIX_SUPPLIER_URL
   ?? process.env.NEXT_PUBLIC_MANHUB_SUPPLIER_URL
-  ?? "https://manfix-supplier.onrender.com";
+  ?? authUrl;
 const workshopUrl = process.env.NEXT_PUBLIC_MANFIX_WORKSHOP_URL
   ?? process.env.NEXT_PUBLIC_MANHUB_WORKSHOP_URL
-  ?? "https://manfix-workshop.onrender.com";
+  ?? "https://manhub-workshop.onrender.com";
 const adminUrl = process.env.NEXT_PUBLIC_MANFIX_ADMIN_URL
   ?? process.env.NEXT_PUBLIC_MANHUB_ADMIN_URL
-  ?? "https://manfix-admin.onrender.com";
+  ?? authUrl;
 
 const deliverables = [
   {
