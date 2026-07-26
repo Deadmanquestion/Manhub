@@ -1,15 +1,16 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import type { SupabaseClient, User } from "@supabase/supabase-js";
 import {
+  canShareManHubSession,
   canOpenPortal,
   createManHubSupabaseClient,
+  getAuthAppUrl,
   getLoginUrl,
   getPortalDestination,
   getSessionProfile,
   getUnauthorizedUrl,
   isProfileEnabled,
   routeAfterLogin,
-  upsertCustomerProfile,
   type ManHubProfile,
   type ManHubRole,
 } from "@manhub/backend";
@@ -102,7 +103,11 @@ export function SingleSignOnPage() {
     void routeAfterLogin(supabase, nextUrl).then(async (destination) => {
       const { data } = await supabase.auth.getUser();
       if (data.user) {
-        window.location.replace(destination);
+        if (canShareManHubSession(window.location.href, destination)) {
+          window.location.replace(destination);
+          return;
+        }
+        setStatus("ManHub portal domains are still being connected. Please use the official manhub.my address when it is ready.");
       }
     });
   }, [nextUrl, supabase]);
@@ -115,13 +120,25 @@ export function SingleSignOnPage() {
     try {
       if (mode === "login") {
         await signInWithPassword(supabase, email, password);
-        window.location.replace(await routeAfterLogin(supabase, nextUrl));
+        const destination = await routeAfterLogin(supabase, nextUrl);
+        if (!canShareManHubSession(window.location.href, destination)) {
+          setStatus("Sign-in succeeded. ManHub portal domains must be connected before opening your dashboard.");
+          return;
+        }
+        window.location.replace(destination);
         return;
       }
 
-      await registerCustomer(supabase, email, password, fullName);
+      const signedIn = await registerCustomer(supabase, email, password, fullName);
       setStatus("Customer account created. If email confirmation is enabled, confirm your email before signing in.");
-      window.location.replace(await routeAfterLogin(supabase, nextUrl));
+      if (signedIn) {
+        const destination = await routeAfterLogin(supabase, nextUrl);
+        if (!canShareManHubSession(window.location.href, destination)) {
+          setStatus("Account created. ManHub portal domains must be connected before opening your dashboard.");
+          return;
+        }
+        window.location.replace(destination);
+      }
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Unable to complete sign-on.");
     }
@@ -191,13 +208,16 @@ export async function signInWithPassword(supabase: SupabaseClient, email: string
 }
 
 export async function registerCustomer(supabase: SupabaseClient, email: string, password: string, fullName: string) {
-  const { error } = await supabase.auth.signUp({
+  const { data, error } = await supabase.auth.signUp({
     email,
     password,
-    options: { data: { full_name: fullName, requested_role: "customer" } },
+    options: {
+      data: { full_name: fullName, requested_role: "customer" },
+      emailRedirectTo: new URL("/login", getAuthAppUrl()).toString(),
+    },
   });
   if (error) throw error;
-  await upsertCustomerProfile(supabase, fullName);
+  return data.session !== null;
 }
 
 export async function signOut(supabase: SupabaseClient) {

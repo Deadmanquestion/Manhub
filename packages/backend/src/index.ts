@@ -1,4 +1,5 @@
-import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { createBrowserClient } from "@supabase/ssr";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
 export type ManHubRole = "customer" | "supplier" | "workshop" | "admin";
 
@@ -156,6 +157,27 @@ const localPortalUrlByRole: Record<ManHubRole, string> = {
   workshop: "http://localhost:4102",
 };
 
+const MANHUB_AUTH_COOKIE_NAME = "manhub-auth";
+const MANHUB_PRODUCTION_DOMAIN = "manhub.my";
+
+export function isManHubProductionHost(hostname: string) {
+  const normalizedHostname = hostname.toLowerCase();
+  return normalizedHostname === MANHUB_PRODUCTION_DOMAIN
+    || normalizedHostname.endsWith(`.${MANHUB_PRODUCTION_DOMAIN}`);
+}
+
+export function canShareManHubSession(sourceUrl: string, destinationUrl: string) {
+  try {
+    const source = new URL(sourceUrl);
+    const destination = new URL(destinationUrl);
+
+    return source.hostname === destination.hostname
+      || (isManHubProductionHost(source.hostname) && isManHubProductionHost(destination.hostname));
+  } catch {
+    return false;
+  }
+}
+
 export function createManHubSupabaseClient() {
   const url = import.meta.env.VITE_SUPABASE_URL ?? import.meta.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY
@@ -167,7 +189,18 @@ export function createManHubSupabaseClient() {
     return null;
   }
 
-  return createClient(url, key);
+  const hostname = typeof window === "undefined" ? "" : window.location.hostname;
+  const productionHost = isManHubProductionHost(hostname);
+
+  return createBrowserClient(url, key, {
+    cookieOptions: {
+      name: MANHUB_AUTH_COOKIE_NAME,
+      path: "/",
+      sameSite: "lax",
+      secure: productionHost || hostname !== "localhost",
+      ...(productionHost ? { domain: `.${MANHUB_PRODUCTION_DOMAIN}` } : {}),
+    },
+  });
 }
 
 export async function getSessionRole(supabase: SupabaseClient): Promise<ManHubRole | null> {
