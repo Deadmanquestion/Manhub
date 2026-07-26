@@ -3,13 +3,13 @@ import type { SupabaseClient, User } from "@supabase/supabase-js";
 import {
   canOpenPortal,
   createManHubSupabaseClient,
+  getAuthAppUrl,
   getLoginUrl,
   getPortalDestination,
   getSessionProfile,
   getUnauthorizedUrl,
   isProfileEnabled,
   routeAfterLogin,
-  upsertCustomerProfile,
   type ManHubProfile,
   type ManHubRole,
 } from "@manhub/backend";
@@ -119,9 +119,11 @@ export function SingleSignOnPage() {
         return;
       }
 
-      await registerCustomer(supabase, email, password, fullName);
+      const signedIn = await registerCustomer(supabase, email, password, fullName);
       setStatus("Customer account created. If email confirmation is enabled, confirm your email before signing in.");
-      window.location.replace(await routeAfterLogin(supabase, nextUrl));
+      if (signedIn) {
+        window.location.replace(await routeAfterLogin(supabase, nextUrl));
+      }
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Unable to complete sign-on.");
     }
@@ -191,13 +193,16 @@ export async function signInWithPassword(supabase: SupabaseClient, email: string
 }
 
 export async function registerCustomer(supabase: SupabaseClient, email: string, password: string, fullName: string) {
-  const { error } = await supabase.auth.signUp({
+  const { data, error } = await supabase.auth.signUp({
     email,
     password,
-    options: { data: { full_name: fullName, requested_role: "customer" } },
+    options: {
+      data: { full_name: fullName, requested_role: "customer" },
+      emailRedirectTo: new URL("/login", getAuthAppUrl()).toString(),
+    },
   });
   if (error) throw error;
-  await upsertCustomerProfile(supabase, fullName);
+  return data.session !== null;
 }
 
 export async function signOut(supabase: SupabaseClient) {
