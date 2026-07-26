@@ -13,7 +13,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "ManHub Platform",
+  title: "ManFix Platform",
   description:
     "A multi-portal automotive SaaS platform with one Supabase backend and role-based sign-on.",
   icons: {

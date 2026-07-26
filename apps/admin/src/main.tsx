@@ -23,12 +23,12 @@ function AdminApp() {
     }
   }, []);
 
-  if (!supabase) return <PortalShell eyebrow="Admin" routes={adminRoutes} title="ManHub"><EmptyState text="Add Supabase environment variables to run this dashboard." /></PortalShell>;
-  if (auth.loading || auth.redirecting) return <PortalShell eyebrow="Admin" routes={[]} title="ManHub"><EmptyState text={auth.redirecting ? "Redirecting to secure sign-in..." : "Checking admin session..."} /></PortalShell>;
-  if (!auth.allowed) return <PortalShell eyebrow="Admin" routes={[]} title="ManHub"><EmptyState text="Admin role required. Redirecting to Unauthorized." /></PortalShell>;
+  if (!supabase) return <PortalShell eyebrow="Admin" routes={adminRoutes} title="ManFix"><EmptyState text="Add Supabase environment variables to run this dashboard." /></PortalShell>;
+  if (auth.loading || auth.redirecting) return <PortalShell eyebrow="Admin" routes={[]} title="ManFix"><EmptyState text={auth.redirecting ? "Redirecting to secure sign-in..." : "Checking admin session..."} /></PortalShell>;
+  if (!auth.allowed) return <PortalShell eyebrow="Admin" routes={[]} title="ManFix"><EmptyState text="Admin role required. Redirecting to Unauthorized." /></PortalShell>;
 
   return (
-    <PortalShell eyebrow="Admin Dashboard" routes={adminRoutes} title="ManHub">
+    <PortalShell eyebrow="Admin Dashboard" routes={adminRoutes} title="ManFix">
       <PageHeader title="Platform Control"><Button tone="ghost" onClick={auth.refresh}>Refresh session</Button></PageHeader>
       <Card tone="blue"><strong>{notice}</strong></Card>
       <Routes>

@@ -23,12 +23,12 @@ function WorkshopApp() {
     }
   }, []);
 
-  if (!supabase) return <PortalShell eyebrow="Workshop" routes={workshopRoutes} title="ManHub"><EmptyState text="Add Supabase environment variables to run this portal." /></PortalShell>;
-  if (auth.loading || auth.redirecting) return <PortalShell eyebrow="Workshop" routes={[]} title="ManHub"><EmptyState text={auth.redirecting ? "Redirecting to secure sign-in..." : "Checking workshop session..."} /></PortalShell>;
-  if (!auth.allowed) return <PortalShell eyebrow="Workshop" routes={[]} title="ManHub"><EmptyState text="Workshop role required. Redirecting to Unauthorized." /></PortalShell>;
+  if (!supabase) return <PortalShell eyebrow="Workshop" routes={workshopRoutes} title="ManFix"><EmptyState text="Add Supabase environment variables to run this portal." /></PortalShell>;
+  if (auth.loading || auth.redirecting) return <PortalShell eyebrow="Workshop" routes={[]} title="ManFix"><EmptyState text={auth.redirecting ? "Redirecting to secure sign-in..." : "Checking workshop session..."} /></PortalShell>;
+  if (!auth.allowed) return <PortalShell eyebrow="Workshop" routes={[]} title="ManFix"><EmptyState text="Workshop role required. Redirecting to Unauthorized." /></PortalShell>;
 
   return (
-    <PortalShell eyebrow="Workshop Portal" routes={workshopRoutes} title="ManHub">
+    <PortalShell eyebrow="Workshop Portal" routes={workshopRoutes} title="ManFix">
       <PageHeader title="Workshop Portal"><Button tone="ghost" onClick={auth.refresh}>Refresh session</Button></PageHeader>
       <Card tone="blue"><strong>{notice}</strong></Card>
       <Routes>

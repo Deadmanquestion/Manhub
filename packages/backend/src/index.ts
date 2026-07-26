@@ -144,10 +144,10 @@ export const portalHomeByRole: Record<ManHubRole, string> = {
 };
 
 export const portalHostByRole: Record<ManHubRole, string> = {
-  admin: "admin.manhub.my",
-  customer: "app.manhub.my",
-  supplier: "supplier.manhub.my",
-  workshop: "workshop.manhub.my",
+  admin: "admin.manfix.my",
+  customer: "app.manfix.my",
+  supplier: "supplier.manfix.my",
+  workshop: "workshop.manfix.my",
 };
 
 const localPortalUrlByRole: Record<ManHubRole, string> = {
@@ -157,13 +157,13 @@ const localPortalUrlByRole: Record<ManHubRole, string> = {
   workshop: "http://localhost:4102",
 };
 
-const MANHUB_AUTH_COOKIE_NAME = "manhub-auth";
-const MANHUB_PRODUCTION_DOMAIN = "manhub.my";
+const MANFIX_AUTH_COOKIE_NAME = "manfix-auth";
+const MANFIX_PRODUCTION_DOMAIN = "manfix.my";
 
 export function isManHubProductionHost(hostname: string) {
   const normalizedHostname = hostname.toLowerCase();
-  return normalizedHostname === MANHUB_PRODUCTION_DOMAIN
-    || normalizedHostname.endsWith(`.${MANHUB_PRODUCTION_DOMAIN}`);
+  return normalizedHostname === MANFIX_PRODUCTION_DOMAIN
+    || normalizedHostname.endsWith(`.${MANFIX_PRODUCTION_DOMAIN}`);
 }
 
 export function canShareManHubSession(sourceUrl: string, destinationUrl: string) {
@@ -194,11 +194,11 @@ export function createManHubSupabaseClient() {
 
   return createBrowserClient(url, key, {
     cookieOptions: {
-      name: MANHUB_AUTH_COOKIE_NAME,
+      name: MANFIX_AUTH_COOKIE_NAME,
       path: "/",
       sameSite: "lax",
       secure: productionHost || hostname !== "localhost",
-      ...(productionHost ? { domain: `.${MANHUB_PRODUCTION_DOMAIN}` } : {}),
+      ...(productionHost ? { domain: `.${MANFIX_PRODUCTION_DOMAIN}` } : {}),
     },
   });
 }
@@ -252,7 +252,9 @@ export function isProfileEnabled(profile: ManHubProfile | null) {
 }
 
 export function getAuthAppUrl() {
-  return import.meta.env.VITE_MANHUB_AUTH_URL ?? "http://localhost:4104";
+  return import.meta.env.VITE_MANFIX_AUTH_URL
+    ?? import.meta.env.VITE_MANHUB_AUTH_URL
+    ?? "http://localhost:4104";
 }
 
 export function getUnauthorizedUrl(reason = "role") {
@@ -269,10 +271,10 @@ export function getLoginUrl(nextUrl?: string) {
 
 export function getPortalDestination(role: ManHubRole) {
   const configured = {
-    admin: import.meta.env.VITE_MANHUB_ADMIN_URL,
-    customer: import.meta.env.VITE_MANHUB_CUSTOMER_URL,
-    supplier: import.meta.env.VITE_MANHUB_SUPPLIER_URL,
-    workshop: import.meta.env.VITE_MANHUB_WORKSHOP_URL,
+    admin: import.meta.env.VITE_MANFIX_ADMIN_URL ?? import.meta.env.VITE_MANHUB_ADMIN_URL,
+    customer: import.meta.env.VITE_MANFIX_CUSTOMER_URL ?? import.meta.env.VITE_MANHUB_CUSTOMER_URL,
+    supplier: import.meta.env.VITE_MANFIX_SUPPLIER_URL ?? import.meta.env.VITE_MANHUB_SUPPLIER_URL,
+    workshop: import.meta.env.VITE_MANFIX_WORKSHOP_URL ?? import.meta.env.VITE_MANHUB_WORKSHOP_URL,
   } satisfies Partial<Record<ManHubRole, string | undefined>>;
 
   return configured[role] ?? localPortalUrlByRole[role];

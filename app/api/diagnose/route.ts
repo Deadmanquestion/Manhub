@@ -70,7 +70,7 @@ export async function POST(request: Request) {
           {
             role: "system",
             content:
-              "You are ManHub's automotive triage assistant. Return cautious customer-facing vehicle pre-diagnosis JSON only. Do not claim certainty. Always recommend technician confirmation before quote.",
+              "You are ManFix's automotive triage assistant. Return cautious customer-facing vehicle pre-diagnosis JSON only. Do not claim certainty. Always recommend technician confirmation before quote.",
           },
           {
             role: "user",
@@ -84,7 +84,7 @@ export async function POST(request: Request) {
         text: {
           format: {
             type: "json_schema",
-            name: "manhub_car_diagnosis",
+            name: "manfix_car_diagnosis",
             strict: true,
             schema: diagnosisSchema,
           },

@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: manhub
+    name: manfix
     runtime: node
     buildCommand: npm ci && npm run render:build
     startCommand: npm run render:start

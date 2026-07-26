@@ -1,13 +1,21 @@
-const authUrl = process.env.NEXT_PUBLIC_MANHUB_AUTH_URL ?? "https://auth.manhub.my/login";
-const supplierUrl = process.env.NEXT_PUBLIC_MANHUB_SUPPLIER_URL ?? "https://supplier.manhub.my";
-const workshopUrl = process.env.NEXT_PUBLIC_MANHUB_WORKSHOP_URL ?? "https://workshop.manhub.my";
-const adminUrl = process.env.NEXT_PUBLIC_MANHUB_ADMIN_URL ?? "https://admin.manhub.my";
+const authUrl = process.env.NEXT_PUBLIC_MANFIX_AUTH_URL
+  ?? process.env.NEXT_PUBLIC_MANHUB_AUTH_URL
+  ?? "https://manfix-auth.onrender.com/login";
+const supplierUrl = process.env.NEXT_PUBLIC_MANFIX_SUPPLIER_URL
+  ?? process.env.NEXT_PUBLIC_MANHUB_SUPPLIER_URL
+  ?? "https://manfix-supplier.onrender.com";
+const workshopUrl = process.env.NEXT_PUBLIC_MANFIX_WORKSHOP_URL
+  ?? process.env.NEXT_PUBLIC_MANHUB_WORKSHOP_URL
+  ?? "https://manfix-workshop.onrender.com";
+const adminUrl = process.env.NEXT_PUBLIC_MANFIX_ADMIN_URL
+  ?? process.env.NEXT_PUBLIC_MANHUB_ADMIN_URL
+  ?? "https://manfix-admin.onrender.com";
 
 const deliverables = [
   {
     eyebrow: "01",
     title: "Landing Website",
-    body: "Public ManHub site that explains the platform and sends every user to the single login.",
+    body: "Public ManFix site that explains the platform and sends every user to the single login.",
     status: "Active",
   },
   {
@@ -19,7 +27,7 @@ const deliverables = [
   {
     eyebrow: "03",
     title: "Role Detection",
-    body: "After login, ManHub reads public.profiles.role and redirects to the correct portal.",
+    body: "After login, ManFix reads public.profiles.role and redirects to the correct portal.",
     status: "Supabase",
   },
   {
@@ -56,10 +64,10 @@ const flow = ["Supabase Auth", "profiles.role", "Role guard", "Correct portal"];
 export default function LandingWebsite() {
   return (
     <main className="platform-page">
-      <nav className="platform-nav" aria-label="ManHub platform navigation">
-        <a className="brand" href="#top" aria-label="ManHub home">
-          <span>MH</span>
-          <strong>ManHub</strong>
+      <nav className="platform-nav" aria-label="ManFix platform navigation">
+        <a className="brand" href="#top" aria-label="ManFix home">
+          <span>MF</span>
+          <strong>ManFix</strong>
         </a>
         <div>
           <a href="#architecture">Architecture</a>
@@ -71,9 +79,9 @@ export default function LandingWebsite() {
       <section className="hero" id="top">
         <div className="hero-copy">
           <span className="eyebrow">Multi-portal automotive SaaS</span>
-          <h1>One backend. One login. Separate portals for every ManHub role.</h1>
+          <h1>One backend. One login. Separate portals for every ManFix role.</h1>
           <p>
-            ManHub is now structured as a platform first: public landing website, Supabase single sign-on,
+            ManFix is structured as a platform first: public landing website, Supabase single sign-on,
             automatic role detection, and independent web portals for suppliers, workshops, and admins.
           </p>
           <div className="hero-actions">
@@ -81,7 +89,7 @@ export default function LandingWebsite() {
             <a className="secondary-action" href="#portals">View Portals</a>
           </div>
         </div>
-        <aside className="system-panel" aria-label="ManHub architecture status">
+        <aside className="system-panel" aria-label="ManFix architecture status">
           <div className="panel-header">
             <span>Platform Status</span>
             <b>Architecture First</b>

@@ -71,7 +71,7 @@ function SupplierApp() {
   const supabase = useMemo(() => createManHubSupabaseClient(), []);
   const auth = usePortalAuth(supabase, "supplier");
   const [notice, setNotice] = useState<{ text: string; tone: NoticeTone }>({
-    text: "Supplier portal is connected to ManHub Supabase.",
+    text: "Supplier portal is connected to ManFix Supabase.",
     tone: "info",
   });
 
@@ -86,7 +86,7 @@ function SupplierApp() {
 
   if (!supabase) {
     return (
-      <PortalShell eyebrow="Supplier" routes={supplierRoutes} title="ManHub">
+      <PortalShell eyebrow="Supplier" routes={supplierRoutes} title="ManFix">
         <EmptyState text="Connect Supabase environment variables before opening the Supplier Portal." />
       </PortalShell>
     );
@@ -94,7 +94,7 @@ function SupplierApp() {
 
   if (auth.loading || auth.redirecting) {
     return (
-      <PortalShell eyebrow="Supplier" routes={[]} title="ManHub">
+      <PortalShell eyebrow="Supplier" routes={[]} title="ManFix">
         <EmptyState text={auth.redirecting ? "Redirecting to secure sign-in..." : "Checking supplier session..."} />
       </PortalShell>
     );
@@ -102,14 +102,14 @@ function SupplierApp() {
 
   if (!auth.allowed) {
     return (
-      <PortalShell eyebrow="Supplier" routes={[]} title="ManHub">
+      <PortalShell eyebrow="Supplier" routes={[]} title="ManFix">
         <EmptyState text="This portal is only available to approved supplier accounts." />
       </PortalShell>
     );
   }
 
   return (
-    <PortalShell eyebrow="Supplier Portal" routes={supplierRoutes} title="ManHub">
+    <PortalShell eyebrow="Supplier Portal" routes={supplierRoutes} title="ManFix">
       <PageHeader title="Supplier Portal">
         <Button tone="ghost" onClick={auth.refresh}>Refresh session</Button>
       </PageHeader>

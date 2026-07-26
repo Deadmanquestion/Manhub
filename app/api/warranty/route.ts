@@ -112,7 +112,7 @@ function buildWarrantyInsert(body: WarrantyPayload) {
     vehicle_id: "vios",
     vehicle_label: "Toyota Vios 1.5G - WXY 4321",
     warranty_terms: [
-      "Valid only for ManHub orders.",
+      "Valid only for ManFix orders.",
       "A certified workshop inspection is required before claim approval.",
       "Outside repair voids platform-backed coverage.",
     ],

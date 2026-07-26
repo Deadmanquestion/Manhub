@@ -96,7 +96,7 @@ export function SingleSignOnPage() {
   const [fullName, setFullName] = useState("");
   const [mode, setMode] = useState<"login" | "customer-register">("login");
   const [password, setPassword] = useState("");
-  const [status, setStatus] = useState("Use your ManHub account. The platform will open the correct portal automatically.");
+  const [status, setStatus] = useState("Use your ManFix account. The platform will open the correct portal automatically.");
 
   useEffect(() => {
     if (!supabase) return;
@@ -107,13 +107,13 @@ export function SingleSignOnPage() {
           window.location.replace(destination);
           return;
         }
-        setStatus("ManHub portal domains are still being connected. Please use the official manhub.my address when it is ready.");
+        setStatus("ManFix portal domains are still being connected. Please use the official ManFix address when it is ready.");
       }
     });
   }, [nextUrl, supabase]);
 
   if (!supabase) {
-    return <AuthShell><EmptyState text="Connect the shared Supabase project to enable ManHub sign-on." /></AuthShell>;
+    return <AuthShell><EmptyState text="Connect the shared Supabase project to enable ManFix sign-on." /></AuthShell>;
   }
 
   const submit = async () => {
@@ -122,7 +122,7 @@ export function SingleSignOnPage() {
         await signInWithPassword(supabase, email, password);
         const destination = await routeAfterLogin(supabase, nextUrl);
         if (!canShareManHubSession(window.location.href, destination)) {
-          setStatus("Sign-in succeeded. ManHub portal domains must be connected before opening your dashboard.");
+          setStatus("Sign-in succeeded. ManFix portal domains must be connected before opening your dashboard.");
           return;
         }
         window.location.replace(destination);
@@ -134,7 +134,7 @@ export function SingleSignOnPage() {
       if (signedIn) {
         const destination = await routeAfterLogin(supabase, nextUrl);
         if (!canShareManHubSession(window.location.href, destination)) {
-          setStatus("Account created. ManHub portal domains must be connected before opening your dashboard.");
+          setStatus("Account created. ManFix portal domains must be connected before opening your dashboard.");
           return;
         }
         window.location.replace(destination);
@@ -146,7 +146,7 @@ export function SingleSignOnPage() {
 
   return (
     <AuthShell>
-      <PageHeader title="ManHub Sign-On" />
+      <PageHeader title="ManFix Sign-On" />
       <Card tone="blue">
         <span className="mh-stat-label">Single Sign-On</span>
         <h2>{mode === "login" ? "Sign in once" : "Create customer account"}</h2>
@@ -164,7 +164,7 @@ export function SingleSignOnPage() {
             </Button>
           </div>
         </div>
-        <p className="mh-muted-note">Supplier, workshop, and admin accounts are created by ManHub Admin after approval.</p>
+        <p className="mh-muted-note">Supplier, workshop, and admin accounts are created by ManFix Admin after approval.</p>
       </Card>
     </AuthShell>
   );
@@ -192,7 +192,7 @@ export function UnauthorizedPage() {
       <PageHeader title="Unauthorized" />
       <Card tone="amber">
         <h2>This portal is not available for your account.</h2>
-        <p>ManHub checks your role from the profiles table and only opens the dashboard assigned to your account.</p>
+        <p>ManFix checks your role from the profiles table and only opens the dashboard assigned to your account.</p>
         <div className="mh-actions">
           <Button onClick={goHome}>{profile?.role ? "Go to my portal" : "Back to sign in"}</Button>
           {supabase && <Button tone="ghost" onClick={() => void signOut(supabase).then(() => window.location.assign(getLoginUrl()))}>Sign out</Button>}
@@ -227,7 +227,7 @@ export async function signOut(supabase: SupabaseClient) {
 
 function AuthShell({ children }: { children: ReactNode }) {
   return (
-    <PortalShell eyebrow="ManHub" routes={[]} title="SSO">
+    <PortalShell eyebrow="ManFix" routes={[]} title="SSO">
       <section className="mh-auth-panel">{children}</section>
     </PortalShell>
   );

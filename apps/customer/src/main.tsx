@@ -50,7 +50,7 @@ function Home({ load }: { load: (table: string) => Promise<void> }) {
       {customerRoutes.slice(1).map((route) => (
         <Card key={route.path} tone={route.path === "/diagnosis" ? "blue" : "default"}>
           <h2>{route.label}</h2>
-          <p>Customer-only workflow powered by the shared ManHub backend.</p>
+          <p>Customer-only workflow powered by the shared ManFix backend.</p>
           <Button onClick={() => load(route.path === "/parts" ? "supplier_products" : "warranties")}>Open</Button>
         </Card>
       ))}

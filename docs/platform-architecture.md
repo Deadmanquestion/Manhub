@@ -1,20 +1,20 @@
-# ManHub Multi-Portal Architecture
+# ManFix Multi-Portal Architecture
 
-ManHub is now organized as independent deployable React frontends that share one Supabase backend.
+ManFix is organized as independent deployable React frontends that share one Supabase backend.
 
 ## Frontends
 
-- `app`: Landing Website for `manhub.my`
-- `apps/auth`: Single Login for `auth.manhub.my`
-- `apps/supplier`: Supplier Portal for `supplier.manhub.my`
-- `apps/workshop`: Workshop Portal for `workshop.manhub.my`
-- `apps/admin`: Admin Dashboard for `admin.manhub.my`
+- `app`: Landing Website for `manfix.my`
+- `apps/auth`: Single Login for `auth.manfix.my`
+- `apps/supplier`: Supplier Portal for `supplier.manfix.my`
+- `apps/workshop`: Workshop Portal for `workshop.manfix.my`
+- `apps/admin`: Admin Dashboard for `admin.manfix.my`
 
 Each app owns its routing and can be built or deployed separately.
 
 Paused surface:
 
-- `apps/customer`: Customer Mobile App for `app.manhub.my`
+- `apps/customer`: Customer Mobile App for `app.manfix.my`
 
 The Customer App is intentionally frozen while the platform architecture is completed. Do not add new customer features until the landing website, SSO, role detection, and web portals are stable.
 
@@ -39,6 +39,11 @@ Vite portal environment variables:
 ```bash
 VITE_SUPABASE_URL=...
 VITE_SUPABASE_PUBLISHABLE_KEY=...
+VITE_MANFIX_AUTH_URL=https://auth.manfix.my
+VITE_MANFIX_CUSTOMER_URL=https://app.manfix.my
+VITE_MANFIX_SUPPLIER_URL=https://supplier.manfix.my
+VITE_MANFIX_WORKSHOP_URL=https://workshop.manfix.my
+VITE_MANFIX_ADMIN_URL=https://admin.manfix.my
 ```
 
 The existing Next customer preview can still use:
