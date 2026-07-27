@@ -7,6 +7,8 @@ const supplierUrl = process.env.NEXT_PUBLIC_MANFIX_SUPPLIER_URL
 const workshopUrl = process.env.NEXT_PUBLIC_MANFIX_WORKSHOP_URL
   ?? process.env.NEXT_PUBLIC_MANHUB_WORKSHOP_URL
   ?? "https://manhub-workshop.onrender.com";
+const technicianUrl = process.env.NEXT_PUBLIC_MANFIX_TECH_URL
+  ?? "https://manfix-tech.onrender.com";
 const adminUrl = process.env.NEXT_PUBLIC_MANFIX_ADMIN_URL
   ?? process.env.NEXT_PUBLIC_MANHUB_ADMIN_URL
   ?? authUrl;
@@ -46,10 +48,16 @@ const portals = [
     url: supplierUrl,
   },
   {
-    label: "Workshop Web Portal",
-    description: "Bookings, repair queue, customers, technicians, invoices, warranty inspections, and analytics.",
+    label: "Workshop Owner Dashboard",
+    description: "Workshop management, customers, technicians, invoices, warranty inspections, and analytics.",
     path: "apps/workshop",
     url: workshopUrl,
+  },
+  {
+    label: "Technician Operations",
+    description: "Incoming bookings, assigned repair orders, daily schedule, and live job progress.",
+    path: "apps/technician",
+    url: technicianUrl,
   },
   {
     label: "Admin Dashboard",

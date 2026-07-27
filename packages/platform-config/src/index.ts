@@ -33,6 +33,14 @@ export const workshopRoutes: PortalRoute[] = [
   { label: "Analytics", path: "/analytics" },
 ];
 
+export const technicianRoutes: PortalRoute[] = [
+  { label: "Today", path: "/" },
+  { label: "Incoming Orders", path: "/orders" },
+  { label: "Repair Jobs", path: "/jobs" },
+  { label: "Schedule", path: "/schedule" },
+  { label: "Profile", path: "/profile" },
+];
+
 export const adminRoutes: PortalRoute[] = [
   { label: "Overview", path: "/" },
   { label: "Users", path: "/users" },
