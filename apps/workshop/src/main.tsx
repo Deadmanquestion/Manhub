@@ -1,8 +1,22 @@
 import { StrictMode, useCallback, useEffect, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { BrowserRouter, Route, Routes } from "react-router-dom";
-import { usePortalAuth } from "@manhub/auth";
-import { createManHubSupabaseClient, fetchRows, insertRow, resolveMetric, updateStatus } from "@manhub/backend";
+import { signOut, usePortalAuth } from "@manhub/auth";
+import {
+  createManHubSupabaseClient,
+  fetchRows,
+  getLogoutUrl,
+  insertRow,
+  listRepairJobs,
+  listWorkshopBookings,
+  resolveMetric,
+  setWorkshopBookingStatus,
+  setWorkshopRepairStatus,
+  subscribeToWorkshopOperations,
+  updateStatus,
+  type RepairJob,
+  type WorkshopBooking,
+} from "@manhub/backend";
 import { workshopMetrics, workshopRoutes } from "@manhub/platform-config";
 import { Button, Card, DataTable, EmptyState, FormField, MiniChart, PageHeader, PortalShell, StatGrid } from "@manhub/ui";
 
@@ -13,6 +27,7 @@ function WorkshopApp() {
   const supabase = useMemo(() => createManHubSupabaseClient(), []);
   const auth = usePortalAuth(supabase, "workshop");
   const [notice, setNotice] = useState("Shared workshop operations connected.");
+  const [signingOut, setSigningOut] = useState(false);
 
   const run = useCallback(async (task: () => Promise<void>, success: string) => {
     try {
@@ -23,13 +38,32 @@ function WorkshopApp() {
     }
   }, []);
 
+  const handleSignOut = useCallback(async () => {
+    if (!supabase || signingOut) return;
+    setSigningOut(true);
+    try {
+      await signOut(supabase);
+      window.location.replace(getLogoutUrl());
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "Unable to log out.");
+      setSigningOut(false);
+    }
+  }, [signingOut, supabase]);
+
   if (!supabase) return <PortalShell eyebrow="Workshop" routes={workshopRoutes} title="ManFix"><EmptyState text="Add Supabase environment variables to run this portal." /></PortalShell>;
   if (auth.loading || auth.redirecting) return <PortalShell eyebrow="Workshop" routes={[]} title="ManFix"><EmptyState text={auth.redirecting ? "Redirecting to secure sign-in..." : "Checking workshop session..."} /></PortalShell>;
   if (!auth.allowed) return <PortalShell eyebrow="Workshop" routes={[]} title="ManFix"><EmptyState text="Workshop role required. Redirecting to Unauthorized." /></PortalShell>;
 
   return (
     <PortalShell eyebrow="Workshop Portal" routes={workshopRoutes} title="ManFix">
-      <PageHeader title="Workshop Portal"><Button tone="ghost" onClick={auth.refresh}>Refresh session</Button></PageHeader>
+      <PageHeader title="Workshop Portal">
+        <div className="mh-actions">
+          <Button tone="ghost" onClick={auth.refresh}>Refresh session</Button>
+          <Button tone="danger" onClick={() => void handleSignOut()}>
+            {signingOut ? "Logging out..." : "Log out"}
+          </Button>
+        </div>
+      </PageHeader>
       <Card tone="blue"><strong>{notice}</strong></Card>
       <Routes>
         <Route path="/" element={<Dashboard supabase={supabase} />} />
@@ -64,19 +98,66 @@ function Dashboard({ supabase }: { supabase: Client }) {
 }
 
 function Bookings({ run, supabase }: ActionProps) {
-  const [rows, setRows] = useRows(supabase, "service_bookings");
-  return <TableWithStatus rows={rows} columns={["vehicle_label", "symptom", "scheduled_at", "status"]} title="Bookings" actions={["Accepted", "Cancelled"]} update={(id, status) => run(async () => {
-    await updateStatus(supabase, "service_bookings", id, status);
-    setRows(await fetchRows<Row>(supabase, "service_bookings"));
-  }, `Booking ${status}.`)} />;
+  const [rows, refresh] = useWorkshopBookings(supabase);
+  return (
+    <Card>
+      <h2 className="mh-card-title">Bookings</h2>
+      <DataTable
+        headers={["Type", "Vehicle", "Request", "Scheduled", "Status", "Actions"]}
+        rows={rows.map((row) => [
+          labelize(row.booking_kind),
+          row.vehicle_label,
+          row.symptom,
+          formatDate(row.scheduled_at),
+          labelize(row.status),
+          row.status === "pending" ? (
+            <div className="mh-actions">
+              <Button onClick={() => void run(async () => {
+                await setWorkshopBookingStatus(supabase, row.booking_kind, row.id, "approved");
+                await refresh();
+              }, "Booking approved and repair job created.")}>Approve</Button>
+              <Button tone="danger" onClick={() => void run(async () => {
+                await setWorkshopBookingStatus(supabase, row.booking_kind, row.id, "cancelled");
+                await refresh();
+              }, "Booking cancelled and removed from the active queue.")}>Cancel</Button>
+            </div>
+          ) : "Recorded",
+        ])}
+      />
+    </Card>
+  );
 }
 
 function RepairQueue({ run, supabase }: ActionProps) {
-  const [rows, setRows] = useRows(supabase, "repair_jobs");
-  return <TableWithStatus rows={rows} columns={["customer_name", "vehicle_label", "diagnosis", "technician_name", "status"]} title="Repair Queue" actions={["In Progress", "Ready", "Completed"]} update={(id, status) => run(async () => {
-    await updateStatus(supabase, "repair_jobs", id, status);
-    setRows(await fetchRows<Row>(supabase, "repair_jobs"));
-  }, `Repair job marked ${status}.`)} />;
+  const [rows, refresh] = useRepairJobs(supabase);
+  return (
+    <Card>
+      <h2 className="mh-card-title">Repair Queue</h2>
+      <DataTable
+        headers={["Customer", "Vehicle", "Diagnosis", "Technician", "Status", "Actions"]}
+        rows={rows.map((row) => [
+          row.customer_name,
+          row.vehicle_label,
+          row.diagnosis,
+          row.technician_name ?? "Unassigned",
+          labelize(row.status),
+          <div className="mh-actions">
+            {row.status === "queued" && <Button onClick={() => void updateRepair("in_progress", row.id)}>Start</Button>}
+            {row.status === "in_progress" && <Button onClick={() => void updateRepair("ready", row.id)}>Mark ready</Button>}
+            {row.status === "ready" && <Button onClick={() => void updateRepair("completed", row.id)}>Complete</Button>}
+            {row.status === "completed" && "Completed"}
+          </div>,
+        ])}
+      />
+    </Card>
+  );
+
+  async function updateRepair(status: RepairJob["status"], id: string) {
+    await run(async () => {
+      await setWorkshopRepairStatus(supabase, id, status);
+      await refresh();
+    }, `Repair job marked ${labelize(status)}.`);
+  }
 }
 
 function Technicians({ run, supabase }: ActionProps) {
@@ -150,8 +231,48 @@ function useRows(supabase: Client, table: string) {
   return [rows, setRows] as const;
 }
 
+function useWorkshopBookings(supabase: Client) {
+  const [rows, setRows] = useState<WorkshopBooking[]>([]);
+  const refresh = useCallback(async () => {
+    setRows(await listWorkshopBookings(supabase));
+  }, [supabase]);
+
+  useEffect(() => {
+    void refresh().catch(() => setRows([]));
+    return subscribeToWorkshopOperations(supabase, () => {
+      void refresh().catch(() => setRows([]));
+    });
+  }, [refresh, supabase]);
+
+  return [rows, refresh] as const;
+}
+
+function useRepairJobs(supabase: Client) {
+  const [rows, setRows] = useState<RepairJob[]>([]);
+  const refresh = useCallback(async () => {
+    setRows(await listRepairJobs(supabase));
+  }, [supabase]);
+
+  useEffect(() => {
+    void refresh().catch(() => setRows([]));
+    return subscribeToWorkshopOperations(supabase, () => {
+      void refresh().catch(() => setRows([]));
+    });
+  }, [refresh, supabase]);
+
+  return [rows, refresh] as const;
+}
+
 function labelize(value: string) {
   return value.split("_").join(" ").replace(/\b\w/g, (letter: string) => letter.toUpperCase());
+}
+
+function formatDate(input: string) {
+  const date = new Date(input);
+  return Number.isNaN(date.getTime()) ? input : date.toLocaleString("en-MY", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  });
 }
 
 createRoot(document.getElementById("root")!).render(<StrictMode><BrowserRouter><WorkshopApp /></BrowserRouter></StrictMode>);

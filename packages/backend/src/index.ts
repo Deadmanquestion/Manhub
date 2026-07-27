@@ -16,6 +16,29 @@ export type PortalRoute = {
   path: string;
 };
 
+export type WorkshopBooking = {
+  booking_kind: "service" | "lift";
+  estimated_price: number;
+  id: string;
+  payment_status: string;
+  scheduled_at: string;
+  status: "pending" | "approved" | "rejected" | "cancelled" | "completed";
+  symptom: string;
+  vehicle_label: string;
+};
+
+export type RepairJob = {
+  booking_kind: "service" | "lift";
+  created_at: string;
+  customer_name: string;
+  diagnosis: string;
+  id: string;
+  scheduled_at: string;
+  status: "queued" | "in_progress" | "ready" | "completed";
+  technician_name: string | null;
+  vehicle_label: string;
+};
+
 export type MetricQuery = {
   label: string;
   table: string;
@@ -425,6 +448,81 @@ export async function insertRow<T extends Record<string, unknown>>(supabase: Sup
 export async function deleteRow(supabase: SupabaseClient, table: string, id: string) {
   const { error } = await supabase.from(table).delete().eq("id", id);
   if (error) throw error;
+}
+
+export async function listWorkshopBookings(supabase: SupabaseClient) {
+  const columns = "id,vehicle_label,symptom,scheduled_at,status,payment_status,estimated_price";
+  const [serviceResult, liftResult] = await Promise.all([
+    supabase.from("service_bookings").select(columns),
+    supabase.from("lift_bookings").select(columns),
+  ]);
+
+  const error = serviceResult.error ?? liftResult.error;
+  if (error) throw error;
+
+  const serviceRows = (serviceResult.data ?? []).map((row) => ({
+    ...row,
+    booking_kind: "service" as const,
+  }));
+  const liftRows = (liftResult.data ?? []).map((row) => ({
+    ...row,
+    booking_kind: "lift" as const,
+  }));
+
+  return [...serviceRows, ...liftRows]
+    .filter((row) => !["cancelled", "rejected"].includes(String(row.status)))
+    .sort((a, b) => String(a.scheduled_at).localeCompare(String(b.scheduled_at))) as WorkshopBooking[];
+}
+
+export async function setWorkshopBookingStatus(
+  supabase: SupabaseClient,
+  bookingKind: WorkshopBooking["booking_kind"],
+  bookingId: string,
+  status: "approved" | "cancelled" | "completed",
+) {
+  const { error } = await supabase.rpc("manfix_workshop_update_booking_status", {
+    booking_id: bookingId,
+    booking_kind: bookingKind,
+    next_status: status,
+  });
+  if (error) throw error;
+}
+
+export async function listRepairJobs(supabase: SupabaseClient) {
+  const { data, error } = await supabase
+    .from("repair_jobs")
+    .select("id,booking_kind,customer_name,vehicle_label,diagnosis,technician_name,scheduled_at,status,created_at")
+    .order("scheduled_at", { ascending: true });
+  if (error) throw error;
+  return (data ?? []) as RepairJob[];
+}
+
+export async function setWorkshopRepairStatus(
+  supabase: SupabaseClient,
+  repairJobId: string,
+  status: RepairJob["status"],
+) {
+  const { error } = await supabase.rpc("manfix_workshop_update_repair_status", {
+    next_status: status,
+    repair_job_id: repairJobId,
+  });
+  if (error) throw error;
+}
+
+export function subscribeToWorkshopOperations(
+  supabase: SupabaseClient,
+  onChange: () => void,
+) {
+  const channel = supabase
+    .channel(`workshop-operations-${Math.random().toString(36).slice(2)}`)
+    .on("postgres_changes", { event: "*", schema: "public", table: "service_bookings" }, onChange)
+    .on("postgres_changes", { event: "*", schema: "public", table: "lift_bookings" }, onChange)
+    .on("postgres_changes", { event: "*", schema: "public", table: "repair_jobs" }, onChange)
+    .subscribe();
+
+  return () => {
+    void supabase.removeChannel(channel);
+  };
 }
 
 export async function listSupplierProducts(supabase: SupabaseClient) {
