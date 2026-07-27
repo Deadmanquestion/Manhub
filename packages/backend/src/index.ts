@@ -192,25 +192,27 @@ export const portalHostByRole: Record<ManHubRole, string> = {
   admin: "admin.manfix.my",
   customer: "app.manfix.my",
   supplier: "supplier.manfix.my",
-  workshop: "tech.manfix.my",
+  workshop: "workshop.manfix.my",
 };
 
 const localPortalUrlByRole: Record<ManHubRole, string> = {
   admin: "http://localhost:4103",
   customer: "http://localhost:4100",
   supplier: "http://localhost:4101",
-  workshop: "http://localhost:4105",
+  workshop: "http://localhost:4102",
 };
 
 const renderPortalUrlByRole: Partial<Record<ManHubRole, string>> = {
   customer: "https://manhub-customer.onrender.com",
-  workshop: "https://manfix-tech.onrender.com",
+  workshop: "https://manhub-workshop.onrender.com",
 };
 
 const portalAliasesByRole: Partial<Record<ManHubRole, string[]>> = {
   workshop: [
-    "http://localhost:4102",
-    "https://manhub-workshop.onrender.com",
+    "http://localhost:4105",
+    "https://manfix-technician.onrender.com",
+    "https://manfix-tech.onrender.com",
+    "https://tech.manfix.my",
     "https://workshop.manfix.my",
   ],
 };
@@ -378,8 +380,7 @@ export function getPortalDestination(role: ManHubRole) {
     admin: import.meta.env.VITE_MANFIX_ADMIN_URL ?? import.meta.env.VITE_MANHUB_ADMIN_URL,
     customer: import.meta.env.VITE_MANFIX_CUSTOMER_URL ?? import.meta.env.VITE_MANHUB_CUSTOMER_URL,
     supplier: import.meta.env.VITE_MANFIX_SUPPLIER_URL ?? import.meta.env.VITE_MANHUB_SUPPLIER_URL,
-    workshop: import.meta.env.VITE_MANFIX_TECH_URL
-      ?? import.meta.env.VITE_MANFIX_WORKSHOP_URL
+    workshop: import.meta.env.VITE_MANFIX_WORKSHOP_URL
       ?? import.meta.env.VITE_MANHUB_WORKSHOP_URL,
   } satisfies Partial<Record<ManHubRole, string | undefined>>;
 
