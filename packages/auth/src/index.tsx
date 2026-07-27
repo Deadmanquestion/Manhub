@@ -222,6 +222,23 @@ export function UnauthorizedPage() {
   );
 }
 
+export function LogoutPage() {
+  const supabase = useMemo(() => createManHubSupabaseClient(), []);
+
+  useEffect(() => {
+    if (!supabase) {
+      window.location.replace(getLoginUrl());
+      return;
+    }
+
+    void signOut(supabase, "local")
+      .catch(() => undefined)
+      .finally(() => window.location.replace(getLoginUrl()));
+  }, [supabase]);
+
+  return <AuthShell><EmptyState text="Signing out securely..." /></AuthShell>;
+}
+
 export async function signInWithPassword(supabase: SupabaseClient, email: string, password: string) {
   const { error } = await supabase.auth.signInWithPassword({ email, password });
   if (error) throw error;
@@ -240,8 +257,8 @@ export async function registerCustomer(supabase: SupabaseClient, email: string, 
   return data.session !== null;
 }
 
-export async function signOut(supabase: SupabaseClient) {
-  const { error } = await supabase.auth.signOut();
+export async function signOut(supabase: SupabaseClient, scope: "global" | "local" = "global") {
+  const { error } = await supabase.auth.signOut({ scope });
   if (error) throw error;
 }
 

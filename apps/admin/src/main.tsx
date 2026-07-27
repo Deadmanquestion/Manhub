@@ -1,8 +1,8 @@
 import { StrictMode, useCallback, useEffect, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { BrowserRouter, Route, Routes } from "react-router-dom";
-import { usePortalAuth } from "@manhub/auth";
-import { createManHubSupabaseClient, fetchRows, insertRow, resolveMetric, updateStatus } from "@manhub/backend";
+import { signOut, usePortalAuth } from "@manhub/auth";
+import { createManHubSupabaseClient, fetchRows, getLogoutUrl, insertRow, resolveMetric, updateStatus } from "@manhub/backend";
 import { adminMetrics, adminRoutes } from "@manhub/platform-config";
 import { Button, Card, DataTable, EmptyState, FormField, MiniChart, PageHeader, PortalShell, StatGrid } from "@manhub/ui";
 
@@ -13,6 +13,7 @@ function AdminApp() {
   const supabase = useMemo(() => createManHubSupabaseClient(), []);
   const auth = usePortalAuth(supabase, "admin");
   const [notice, setNotice] = useState("Platform owner controls connected.");
+  const [signingOut, setSigningOut] = useState(false);
 
   const run = useCallback(async (task: () => Promise<void>, success: string) => {
     try {
@@ -23,13 +24,31 @@ function AdminApp() {
     }
   }, []);
 
+  const handleSignOut = useCallback(async () => {
+    if (!supabase || signingOut) return;
+
+    setSigningOut(true);
+    try {
+      await signOut(supabase);
+      window.location.replace(getLogoutUrl());
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "Unable to log out.");
+      setSigningOut(false);
+    }
+  }, [signingOut, supabase]);
+
   if (!supabase) return <PortalShell eyebrow="Admin" routes={adminRoutes} title="ManFix"><EmptyState text="Add Supabase environment variables to run this dashboard." /></PortalShell>;
   if (auth.loading || auth.redirecting) return <PortalShell eyebrow="Admin" routes={[]} title="ManFix"><EmptyState text={auth.redirecting ? "Redirecting to secure sign-in..." : "Checking admin session..."} /></PortalShell>;
   if (!auth.allowed) return <PortalShell eyebrow="Admin" routes={[]} title="ManFix"><EmptyState text="Admin role required. Redirecting to Unauthorized." /></PortalShell>;
 
   return (
     <PortalShell eyebrow="Admin Dashboard" routes={adminRoutes} title="ManFix">
-      <PageHeader title="Platform Control"><Button tone="ghost" onClick={auth.refresh}>Refresh session</Button></PageHeader>
+      <PageHeader title="Platform Control">
+        <div className="mh-actions">
+          <Button tone="ghost" onClick={auth.refresh}>Refresh session</Button>
+          <Button tone="danger" onClick={() => void handleSignOut()}>{signingOut ? "Logging out..." : "Log out"}</Button>
+        </div>
+      </PageHeader>
       <Card tone="blue"><strong>{notice}</strong></Card>
       <Routes>
         <Route path="/" element={<Overview supabase={supabase} />} />

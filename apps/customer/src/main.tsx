@@ -2,7 +2,7 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";
 import { EmptyState, MobileShell } from "@manhub/ui";
-import { createManHubSupabaseClient, getLoginUrl } from "@manhub/backend";
+import { createManHubSupabaseClient, getLogoutUrl } from "@manhub/backend";
 import { signOut, usePortalAuth } from "@manhub/auth";
 import { useMemo } from "react";
 import InvestorCustomerApp from "./InvestorCustomerApp";
@@ -27,7 +27,7 @@ function ProtectedCustomerApp() {
     <InvestorCustomerApp
       onSignOut={async () => {
         await signOut(supabase);
-        window.location.replace(getLoginUrl());
+        window.location.replace(getLogoutUrl());
       }}
     />
   );

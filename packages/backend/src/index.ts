@@ -316,6 +316,10 @@ export function getLoginUrl(nextUrl?: string) {
   return url.toString();
 }
 
+export function getLogoutUrl() {
+  return new URL("/logout", getAuthAppUrl()).toString();
+}
+
 export function getPortalDestination(role: ManHubRole) {
   const configured = {
     admin: import.meta.env.VITE_MANFIX_ADMIN_URL ?? import.meta.env.VITE_MANHUB_ADMIN_URL,
