@@ -23,7 +23,6 @@
     "dev:auth": "npm run dev --workspace @manhub/auth-app",
     "dev:supplier": "npm run dev --workspace @manhub/supplier-portal",
     "dev:workshop": "npm run dev --workspace @manhub/workshop-portal",
-    "dev:technician": "npm run dev --workspace @manhub/technician-portal",
     "dev:admin": "npm run dev --workspace @manhub/admin-dashboard",
     "build:platform": "npm run build --workspaces --if-present",
     "typecheck:platform": "tsc --noEmit -p tsconfig.platform.json"

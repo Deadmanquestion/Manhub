@@ -1,4 +1,0 @@
-{
-  "extends": "../../tsconfig.platform.json",
-  "include": ["src", "../../packages", "../../vite.shared.ts"]
-}

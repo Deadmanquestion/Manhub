@@ -55,8 +55,8 @@ const portals = [
   },
   {
     label: "Technician Operations",
-    description: "Incoming bookings, assigned repair orders, daily schedule, and live job progress.",
-    path: "apps/technician",
+    description: "The original Manfred Auto Hub experience for service bookings, workshop access, and order tracking.",
+    path: "Manfred-Auto-Hub/mobile-app",
     url: technicianUrl,
   },
   {
