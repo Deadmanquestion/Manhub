@@ -62,6 +62,8 @@ export type SupplierProductInput = {
 
 export type SupplierOrder = {
   amount: number;
+  commission_amount: number;
+  commission_rate: number;
   cost_total: number;
   created_at: string;
   customer: string;
@@ -70,20 +72,38 @@ export type SupplierOrder = {
   product_id: string | null;
   product_name: string;
   quantity: number;
+  settled_at: string | null;
   status: "New" | "Confirmed" | "Dispatched" | "Delivered" | "Cancelled";
+  supplier_net_amount: number;
   supplier_id: string;
   workshop: string;
 };
 
 export type SupplierStockHistory = {
-  change_type: "Sale" | "Incoming" | "Adjustment";
+  change_type: "Opening" | "Sale" | "Incoming" | "Adjustment";
   created_at: string;
   id: string;
   note: string | null;
+  order_id: string | null;
   product_id: string | null;
   product_name: string;
   quantity: number;
   supplier_id: string;
+};
+
+export type SupplierCommission = {
+  commission_amount: number;
+  commission_rate: number;
+  created_at: string;
+  gross_amount: number;
+  id: string;
+  invoice_number: string;
+  order_id: string;
+  settled_at: string | null;
+  status: "Pending" | "Settled" | "Reversed";
+  supplier_id: string;
+  supplier_name: string;
+  supplier_net_amount: number;
 };
 
 export type SupplierWallet = {
@@ -107,6 +127,7 @@ export type SupplierWithdrawal = {
 
 export type SupplierInvoice = {
   commission_amount: number;
+  commission_rate: number;
   id: string;
   invoice_number: string;
   issued_at: string;
@@ -116,6 +137,7 @@ export type SupplierInvoice = {
   pdf_url: string | null;
   status: "Pending" | "Paid" | "Refunded" | "Escrow";
   supplier_id: string;
+  supplier_net_amount: number;
   total: number;
 };
 
@@ -411,9 +433,10 @@ export async function listSupplierProducts(supabase: SupabaseClient) {
 
 export async function saveSupplierProduct(supabase: SupabaseClient, values: SupplierProductInput, id?: string) {
   if (id) {
+    const { incoming_stock: _incomingStock, stock: _stock, ...editableValues } = values;
     const { data, error } = await supabase
       .from("supplier_products")
-      .update(values)
+      .update(editableValues)
       .eq("id", id)
       .select()
       .single();
@@ -472,10 +495,14 @@ export async function listSupplierStockHistory(supabase: SupabaseClient) {
   return fetchRows<SupplierStockHistory>(supabase, "supplier_stock_history");
 }
 
+export async function listSupplierCommissions(supabase: SupabaseClient) {
+  return fetchRows<SupplierCommission>(supabase, "supplier_commissions");
+}
+
 export async function adjustSupplierStock(
   supabase: SupabaseClient,
   productId: string,
-  movementType: SupplierStockHistory["change_type"],
+  movementType: Extract<SupplierStockHistory["change_type"], "Incoming" | "Adjustment">,
   quantity: number,
   note: string,
 ) {

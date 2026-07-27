@@ -10,6 +10,7 @@ import {
   fetchRows,
   getSupplierWallet,
   listProductCategories,
+  listSupplierCommissions,
   listSupplierInvoices,
   listSupplierOrders,
   listSupplierProducts,
@@ -22,6 +23,7 @@ import {
   submitSupplierWithdrawal,
   uploadSupplierProductImage,
   type ProductCategory,
+  type SupplierCommission,
   type SupplierInvoice,
   type SupplierOrder,
   type SupplierProduct,
@@ -133,6 +135,7 @@ function SupplierApp() {
 function Dashboard({ supabase }: { supabase: Db }) {
   const products = useSupplierResource(() => listSupplierProducts(supabase), [supabase], [] as SupplierProduct[]);
   const orders = useSupplierResource(() => listSupplierOrders(supabase), [supabase], [] as SupplierOrder[]);
+  const commissions = useSupplierResource(() => listSupplierCommissions(supabase), [supabase], [] as SupplierCommission[]);
   const withdrawals = useSupplierResource(() => listSupplierWithdrawals(supabase), [supabase], [] as SupplierWithdrawal[]);
   const claims = useSupplierResource(() => listSupplierWarrantyClaims(supabase), [supabase], [] as SupplierWarrantyClaim[]);
   const wallet = useSupplierResource(() => getSupplierWallet(supabase), [supabase], null as SupplierWallet | null);
@@ -144,19 +147,26 @@ function Dashboard({ supabase }: { supabase: Db }) {
 
   const dashboard = useMemo(() => {
     const today = new Date().toISOString().slice(0, 10);
-    const revenueToday = orders.data.filter((order) => order.created_at.startsWith(today)).reduce((sum, order) => sum + Number(order.amount), 0);
-    const revenueMonth = orders.data.filter((order) => sameMonth(order.created_at)).reduce((sum, order) => sum + Number(order.amount), 0);
+    const deliveredOrders = orders.data.filter((order) => order.status === "Delivered");
+    const settledToday = commissions.data.filter((item) => item.created_at.startsWith(today));
+    const settledMonth = commissions.data.filter((item) => sameMonth(item.created_at));
+    const grossToday = settledToday.reduce((sum, item) => sum + Number(item.gross_amount), 0);
+    const grossMonth = settledMonth.reduce((sum, item) => sum + Number(item.gross_amount), 0);
+    const feesMonth = settledMonth.reduce((sum, item) => sum + Number(item.commission_amount), 0);
+    const netMonth = settledMonth.reduce((sum, item) => sum + Number(item.supplier_net_amount), 0);
     const pendingWithdrawal = withdrawals.data.filter((item) => item.status === "Pending").reduce((sum, item) => sum + Number(item.amount), 0);
     const lowStock = products.data.filter((product) => product.stock <= product.low_stock_threshold).length;
     const rating = profile.data ? Number(profile.data.rating).toFixed(1) : "No rating";
 
     return {
-      chart7: groupByRecentDays(orders.data, 7),
-      monthly: groupByMonth(orders.data),
-      topProducts: topProducts(orders.data),
+      chart7: groupByRecentDays(deliveredOrders, 7),
+      monthly: groupByMonth(deliveredOrders),
+      topProducts: topProducts(deliveredOrders),
       stats: [
-        ["Today's Revenue", money.format(revenueToday)],
-        ["Monthly Revenue", money.format(revenueMonth)],
+        ["Today's Gross Sales", money.format(grossToday)],
+        ["Monthly Gross Sales", money.format(grossMonth)],
+        ["ManFix Fees (20%)", money.format(feesMonth)],
+        ["Monthly Net Payout", money.format(netMonth)],
         ["Wallet Available", money.format(Number(wallet.data?.available_balance ?? 0))],
         ["Pending Withdrawal", money.format(pendingWithdrawal)],
         ["Orders Today", orders.data.filter((order) => order.created_at.startsWith(today)).length],
@@ -166,15 +176,15 @@ function Dashboard({ supabase }: { supabase: Db }) {
         ["Average Rating", rating],
       ] as Array<[string, string | number]>,
     };
-  }, [claims.data, orders.data, products.data, profile.data, wallet.data, withdrawals.data]);
+  }, [claims.data, commissions.data, orders.data, products.data, profile.data, wallet.data, withdrawals.data]);
 
   return (
     <>
-      <ResourceStatus resources={[products, orders, withdrawals, claims, wallet, invoices, profile]} />
+      <ResourceStatus resources={[products, orders, commissions, withdrawals, claims, wallet, invoices, profile]} />
       <StatGrid items={dashboard.stats} />
       <div className="mh-grid-3">
-        <ChartOrEmpty title="Revenue (7 days)" data={dashboard.chart7} />
-        <ChartOrEmpty title="Monthly Revenue" data={dashboard.monthly} />
+        <ChartOrEmpty title="Gross Sales (7 days)" data={dashboard.chart7} />
+        <ChartOrEmpty title="Monthly Gross Sales" data={dashboard.monthly} />
         <ChartOrEmpty title="Top Selling Products" data={dashboard.topProducts} />
       </div>
     </>
@@ -251,10 +261,11 @@ function ProductsPage({ run, supabase }: ActionProps) {
             <FormField label="Selling Price" type="number" value={String(form.selling_price)} onChange={(value) => setNumberField(setForm, "selling_price", value)} />
           </div>
           <div className="mh-form-row">
-            <FormField label="Stock" type="number" value={String(form.stock)} onChange={(value) => setNumberField(setForm, "stock", value)} />
+            {!editingId && <FormField label="Opening Stock" type="number" value={String(form.stock)} onChange={(value) => setNumberField(setForm, "stock", value)} />}
             <FormField label="Low Stock Alert" type="number" value={String(form.low_stock_threshold)} onChange={(value) => setNumberField(setForm, "low_stock_threshold", value)} />
             <FormField label="Warranty Months" type="number" value={String(form.warranty_duration_months)} onChange={(value) => setNumberField(setForm, "warranty_duration_months", value)} />
           </div>
+          {editingId && <p className="mh-empty">Use Inventory to change stock so every adjustment remains in the stock history.</p>}
           <TextAreaField label="Description" value={form.description ?? ""} onChange={(value) => setFormField(setForm, "description", value)} />
           <label className="mh-field">
             Product image
@@ -303,7 +314,7 @@ function InventoryPage({ run, supabase }: ActionProps) {
   const products = useSupplierResource(() => listSupplierProducts(supabase), [supabase], [] as SupplierProduct[]);
   const history = useSupplierResource(() => listSupplierStockHistory(supabase), [supabase], [] as SupplierStockHistory[]);
   const [productId, setProductId] = useState("");
-  const [movementType, setMovementType] = useState<SupplierStockHistory["change_type"]>("Incoming");
+  const [movementType, setMovementType] = useState<"Incoming" | "Adjustment">("Incoming");
   const [quantity, setQuantity] = useState("1");
   const [note, setNote] = useState("");
 
@@ -331,7 +342,8 @@ function InventoryPage({ run, supabase }: ActionProps) {
           />
         </Card>
         <Card>
-          <h2 className="mh-card-title">Stock Movement</h2>
+          <h2 className="mh-card-title">Add or Correct Stock</h2>
+          <p className="mh-empty">Delivered orders deduct stock automatically. Use this form only for received stock or a counted-stock correction.</p>
           <form className="mh-form-stack" onSubmit={(event) => {
             event.preventDefault();
             void run(async () => {
@@ -341,10 +353,18 @@ function InventoryPage({ run, supabase }: ActionProps) {
             }, "Stock movement recorded.");
           }}>
             <SelectField label="Product" value={productId} onChange={setProductId} options={products.data.map((product) => ({ label: product.name, value: product.id }))} />
-            <SelectField label="Movement" value={movementType} onChange={(value) => setMovementType(value as SupplierStockHistory["change_type"])} options={["Incoming", "Adjustment", "Sale"]} />
-            <FormField label="Quantity change" type="number" value={quantity} onChange={setQuantity} />
+            <SelectField
+              label="Movement"
+              value={movementType}
+              onChange={(value) => setMovementType(value as "Incoming" | "Adjustment")}
+              options={[
+                { label: "Add received stock", value: "Incoming" },
+                { label: "Correct counted stock", value: "Adjustment" },
+              ]}
+            />
+            <FormField label={movementType === "Incoming" ? "Units received" : "Quantity change (+ / -)"} type="number" value={quantity} onChange={setQuantity} />
             <TextAreaField label="Note" value={note} onChange={setNote} />
-            <Button type="submit">Record Movement</Button>
+            <Button type="submit">{movementType === "Incoming" ? "Add Stock" : "Save Adjustment"}</Button>
           </form>
         </Card>
       </div>
@@ -358,8 +378,8 @@ function InventoryPage({ run, supabase }: ActionProps) {
         <Card>
           <h2 className="mh-card-title">Stock History</h2>
           <DataTable
-            headers={["Product", "Movement", "Quantity", "Note", "Date"]}
-            rows={history.data.map((item) => [item.product_name, item.change_type, item.quantity, item.note ?? "-", formatDateTime(item.created_at)])}
+            headers={["Product", "Movement", "Quantity", "Order", "Note", "Date"]}
+            rows={history.data.map((item) => [item.product_name, item.change_type, item.quantity, item.order_id ?? "-", item.note ?? "-", formatDateTime(item.created_at)])}
           />
         </Card>
       </div>
@@ -370,30 +390,36 @@ function InventoryPage({ run, supabase }: ActionProps) {
 function OrdersPage({ run, supabase }: ActionProps) {
   const orders = useSupplierResource(() => listSupplierOrders(supabase), [supabase], [] as SupplierOrder[]);
   const invoices = useSupplierResource(() => listSupplierInvoices(supabase), [supabase], [] as SupplierInvoice[]);
+  const commissions = useSupplierResource(() => listSupplierCommissions(supabase), [supabase], [] as SupplierCommission[]);
   const [selectedInvoice, setSelectedInvoice] = useState<SupplierInvoice | null>(null);
 
   const invoiceFor = (order: SupplierOrder) => invoices.data.find((invoice) => invoice.order_id === order.id || invoice.invoice_number === order.invoice_number) ?? null;
 
   return (
     <div className="mh-form-stack">
-      <ResourceStatus resources={[orders, invoices]} />
+      <ResourceStatus resources={[orders, invoices, commissions]} />
+      <Card tone="blue">
+        <h2 className="mh-card-title">Transparent ManFix Settlement</h2>
+        <p>For every delivered parts order, ManFix records the gross sale, charges a 20% platform commission, and credits the remaining 80% to your supplier wallet.</p>
+      </Card>
       <Card>
         <h2 className="mh-card-title">Orders</h2>
         <DataTable
-          headers={["Order ID", "Workshop", "Customer", "Product", "Qty", "Status", "Invoice", "Actions"]}
+          headers={["Order ID", "Workshop", "Product", "Qty", "Gross Sale", "ManFix Fee", "Net Payout", "Status", "Actions"]}
           rows={orders.data.map((order) => [
             order.id,
             order.workshop,
-            order.customer,
             order.product_name,
             order.quantity,
+            money.format(Number(order.amount)),
+            order.status === "Delivered" ? money.format(Number(order.commission_amount)) : "Calculated on delivery",
+            order.status === "Delivered" ? money.format(Number(order.supplier_net_amount)) : "-",
             <StatusBadge tone={order.status === "Cancelled" ? "danger" : order.status === "Delivered" ? "success" : "warning"}>{order.status}</StatusBadge>,
-            order.invoice_number,
             <div className="mh-actions">
-              {(["Confirmed", "Dispatched", "Delivered", "Cancelled"] satisfies SupplierOrder["status"][]).map((status) => (
+              {nextOrderStatuses(order.status).map((status) => (
                 <Button key={status} tone={status === "Cancelled" ? "danger" : "ghost"} onClick={() => void run(async () => {
                   await setSupplierOrderStatus(supabase, order.id, status);
-                  await orders.reload();
+                  await Promise.all([orders.reload(), invoices.reload(), commissions.reload()]);
                 }, `Order ${order.id} marked ${status}.`)}>
                   {status}
                 </Button>
@@ -407,16 +433,32 @@ function OrdersPage({ run, supabase }: ActionProps) {
         <Card tone="blue">
           <h2 className="mh-card-title">Invoice {selectedInvoice.invoice_number}</h2>
           <div className="mh-detail-grid">
-            <Detail label="Parts subtotal" value={money.format(Number(selectedInvoice.parts_subtotal))} />
-            <Detail label="Commission" value={money.format(Number(selectedInvoice.commission_amount))} />
-            <Detail label="Total" value={money.format(Number(selectedInvoice.total))} />
-            <Detail label="Paid" value={money.format(Number(selectedInvoice.paid_amount))} />
+            <Detail label="Gross sale" value={money.format(Number(selectedInvoice.parts_subtotal))} />
+            <Detail label={`ManFix fee (${Number(selectedInvoice.commission_rate)}%)`} value={money.format(Number(selectedInvoice.commission_amount))} />
+            <Detail label="Your net payout" value={money.format(Number(selectedInvoice.supplier_net_amount))} />
+            <Detail label="Customer invoice total" value={money.format(Number(selectedInvoice.total))} />
             <Detail label="Status" value={selectedInvoice.status} />
             <Detail label="Issued" value={formatDateTime(selectedInvoice.issued_at)} />
           </div>
           {selectedInvoice.pdf_url && <a className="mh-link" href={selectedInvoice.pdf_url} rel="noreferrer" target="_blank">Open invoice file</a>}
         </Card>
       )}
+      <Card>
+        <h2 className="mh-card-title">Commission History</h2>
+        <DataTable
+          headers={["Order", "Invoice", "Gross Sale", "Rate", "ManFix Fee", "Your Payout", "Status", "Settled"]}
+          rows={commissions.data.map((item) => [
+            item.order_id,
+            item.invoice_number,
+            money.format(Number(item.gross_amount)),
+            `${Number(item.commission_rate)}%`,
+            money.format(Number(item.commission_amount)),
+            money.format(Number(item.supplier_net_amount)),
+            item.status,
+            item.settled_at ? formatDateTime(item.settled_at) : "-",
+          ])}
+        />
+      </Card>
     </div>
   );
 }
@@ -511,18 +553,24 @@ function AnalyticsPage({ supabase }: { supabase: Db }) {
   const products = useSupplierResource(() => listSupplierProducts(supabase), [supabase], [] as SupplierProduct[]);
   const orders = useSupplierResource(() => listSupplierOrders(supabase), [supabase], [] as SupplierOrder[]);
   const claims = useSupplierResource(() => listSupplierWarrantyClaims(supabase), [supabase], [] as SupplierWarrantyClaim[]);
+  const commissions = useSupplierResource(() => listSupplierCommissions(supabase), [supabase], [] as SupplierCommission[]);
 
   const analytics = useMemo(() => {
-    const revenue = orders.data.reduce((sum, order) => sum + Number(order.amount), 0);
-    const profit = orders.data.reduce((sum, order) => sum + (Number(order.amount) - Number(order.cost_total)), 0);
+    const grossSales = commissions.data.reduce((sum, item) => sum + Number(item.gross_amount), 0);
+    const manFixFees = commissions.data.reduce((sum, item) => sum + Number(item.commission_amount), 0);
+    const netRevenue = commissions.data.reduce((sum, item) => sum + Number(item.supplier_net_amount), 0);
+    const deliveredCost = orders.data.filter((order) => order.status === "Delivered").reduce((sum, order) => sum + Number(order.cost_total), 0);
+    const profit = netRevenue - deliveredCost;
     const workshops = groupByText(orders.data, (order) => order.workshop, (order) => Number(order.amount));
     const repeatCustomers = groupByText(orders.data, (order) => order.customer, () => 1).filter((item) => item.value > 1);
     return {
       monthlyRevenue: groupByMonth(orders.data),
       productRevenue: topProducts(orders.data),
       stats: [
-        ["Revenue", money.format(revenue)],
-        ["Profit", money.format(profit)],
+        ["Gross Sales", money.format(grossSales)],
+        ["ManFix Fees (20%)", money.format(manFixFees)],
+        ["Net Revenue", money.format(netRevenue)],
+        ["Profit After Fees", money.format(profit)],
         ["Top Products", products.data.length],
         ["Top Workshops", workshops.length],
         ["Repeat Customers", repeatCustomers.length],
@@ -531,11 +579,11 @@ function AnalyticsPage({ supabase }: { supabase: Db }) {
       workshops,
       repeatCustomers,
     };
-  }, [claims.data.length, orders.data, products.data.length]);
+  }, [claims.data.length, commissions.data, orders.data, products.data.length]);
 
   return (
     <>
-      <ResourceStatus resources={[products, orders, claims]} />
+      <ResourceStatus resources={[products, orders, claims, commissions]} />
       <StatGrid items={analytics.stats} />
       <div className="mh-grid-2">
         <ChartOrEmpty title="Revenue" data={analytics.monthlyRevenue} />
@@ -804,6 +852,13 @@ function formatDateTime(value: string) {
 
 function maskAccount(value: string) {
   return value.length <= 4 ? value : `**** ${value.slice(-4)}`;
+}
+
+function nextOrderStatuses(status: SupplierOrder["status"]): SupplierOrder["status"][] {
+  if (status === "New") return ["Confirmed", "Cancelled"];
+  if (status === "Confirmed") return ["Dispatched", "Cancelled"];
+  if (status === "Dispatched") return ["Delivered", "Cancelled"];
+  return [];
 }
 
 createRoot(document.getElementById("root")!).render(<StrictMode><BrowserRouter><SupplierApp /></BrowserRouter></StrictMode>);

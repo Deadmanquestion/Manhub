@@ -2,12 +2,13 @@ import { StrictMode, useCallback, useEffect, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { BrowserRouter, Route, Routes } from "react-router-dom";
 import { signOut, usePortalAuth } from "@manhub/auth";
-import { createManHubSupabaseClient, fetchRows, getLogoutUrl, insertRow, resolveMetric, updateStatus } from "@manhub/backend";
-import { adminMetrics, adminRoutes } from "@manhub/platform-config";
+import { createManHubSupabaseClient, fetchRows, getLogoutUrl, insertRow, updateStatus } from "@manhub/backend";
+import { adminRoutes } from "@manhub/platform-config";
 import { Button, Card, DataTable, EmptyState, FormField, MiniChart, PageHeader, PortalShell, StatGrid } from "@manhub/ui";
 
 type Row = { id?: string; [key: string]: unknown };
 type Client = NonNullable<ReturnType<typeof createManHubSupabaseClient>>;
+const money = new Intl.NumberFormat("en-MY", { currency: "MYR", style: "currency" });
 
 function AdminApp() {
   const supabase = useMemo(() => createManHubSupabaseClient(), []);
@@ -56,7 +57,7 @@ function AdminApp() {
         <Route path="/workshops" element={<StatusPage run={run} supabase={supabase} table="platform_workshops" title="Workshops" columns={["name", "city", "status", "rating"]} actions={["Verified", "Suspended"]} />} />
         <Route path="/suppliers" element={<StatusPage run={run} supabase={supabase} table="supplier_profiles" title="Suppliers" columns={["company_name", "status", "rating", "bank_name"]} actions={["Verified", "Suspended"]} />} />
         <Route path="/orders" element={<StatusPage run={run} supabase={supabase} table="supplier_orders" title="Orders" columns={["id", "workshop", "customer", "amount", "status"]} actions={["Confirmed", "Delivered", "Cancelled"]} />} />
-        <Route path="/payments" element={<StatusPage run={run} supabase={supabase} table="platform_payments" title="Payments" columns={["invoice_number", "amount", "commission_amount", "status", "method"]} actions={["Paid", "Refunded", "Escrow"]} />} />
+        <Route path="/payments" element={<CommissionPage supabase={supabase} />} />
         <Route path="/withdrawals" element={<StatusPage run={run} supabase={supabase} table="supplier_withdrawals" title="Withdrawals" columns={["amount", "bank", "account_number", "status"]} actions={["Approved", "Rejected"]} />} />
         <Route path="/warranty" element={<StatusPage run={run} supabase={supabase} table="warranty_claims" title="Warranty" columns={["warranty_id", "description", "status", "submitted_at"]} actions={["Approved", "Rejected", "Inspection Requested"]} />} />
         <Route path="/analytics" element={<Analytics supabase={supabase} />} />
@@ -67,26 +68,81 @@ function AdminApp() {
 }
 
 function Overview({ supabase }: { supabase: Client }) {
-  const [metrics, setMetrics] = useState<Array<[string, string | number]>>([]);
-  useEffect(() => {
-    void Promise.all(adminMetrics.map(async (metric) => [metric.label, await resolveMetric(supabase, metric)] as [string, number]))
-      .then((items) => setMetrics([["Total GMV", items[0]?.[1] ?? 0], ["Platform Revenue", items[1]?.[1] ?? 0], ["Commission Earned", items[1]?.[1] ?? 0], ["Today's Orders", 0], ["Monthly Orders", 0], ...items.slice(2)]))
-      .catch(() => setMetrics([]));
-  }, [supabase]);
+  const [payments] = useRows(supabase, "platform_payments");
+  const [profiles] = useRows(supabase, "profiles");
+  const [orders] = useRows(supabase, "supplier_orders");
+  const [withdrawals] = useRows(supabase, "supplier_withdrawals");
+  const [claims] = useRows(supabase, "warranty_claims");
+  const today = new Date().toISOString().slice(0, 10);
+  const paidPayments = payments.filter((payment) => payment.status === "Paid");
+  const gmv = sumRows(paidPayments, "amount");
+  const commission = sumRows(paidPayments, "commission_amount");
+  const active = (role: string) => profiles.filter((profile) => profile.role === role && ["Active", "Approved", "Verified"].includes(String(profile.status))).length;
+  const metrics: Array<[string, string | number]> = [
+    ["Total GMV", money.format(gmv)],
+    ["Platform Revenue", money.format(commission)],
+    ["Commission Earned", money.format(commission)],
+    ["Today's Orders", orders.filter((order) => String(order.created_at ?? "").startsWith(today)).length],
+    ["Monthly Orders", orders.filter((order) => sameMonth(String(order.created_at ?? ""))).length],
+    ["Active Customers", active("customer")],
+    ["Active Workshops", active("workshop")],
+    ["Active Suppliers", active("supplier")],
+    ["Warranty Claims", claims.length],
+    ["Withdrawal Requests", withdrawals.filter((item) => item.status === "Pending").length],
+  ];
   return (
     <>
-      <StatGrid items={metrics.length ? metrics : [["Total GMV", "RM 0"], ["Platform Revenue", "RM 0"], ["Commission Earned", "RM 0"], ["Today's Orders", 0], ["Monthly Orders", 0], ["Active Customers", 0], ["Active Workshops", 0], ["Active Suppliers", 0], ["Warranty Claims", 0], ["Withdrawal Requests", 0]]} />
+      <StatGrid items={metrics} />
       <div className="mh-grid-3">
-        <MiniChart title="Revenue" data={[42, 51, 62, 74, 86, 93].map((value, index) => ({ label: `M${index + 1}`, value }))} />
-        <MiniChart title="Conversion" data={[18, 24, 28, 33].map((value, index) => ({ label: `W${index + 1}`, value }))} />
-        <MiniChart title="AI Usage" data={[120, 146, 188, 213].map((value, index) => ({ label: `W${index + 1}`, value }))} />
+        <MiniChart title="GMV by Month" data={groupRowsByMonth(paidPayments, "amount")} />
+        <MiniChart title="Commission by Month" data={groupRowsByMonth(paidPayments, "commission_amount")} />
+        <MiniChart title="Supplier Net Payout by Month" data={groupRowsByMonth(paidPayments, "supplier_net_amount")} />
       </div>
     </>
   );
 }
 
 function Users({ run, supabase }: ActionProps) {
-  return <StatusPage run={run} supabase={supabase} table="app_users" title="Users" columns={["full_name", "email", "account_type", "status"]} actions={["Verified", "Suspended", "Banned"]} />;
+  return <StatusPage run={run} supabase={supabase} table="profiles" title="Users" columns={["full_name", "email", "role", "status"]} actions={["Verified", "Suspended", "Banned"]} />;
+}
+
+function CommissionPage({ supabase }: { supabase: Client }) {
+  const [commissions] = useRows(supabase, "supplier_commissions");
+  const gross = sumRows(commissions, "gross_amount");
+  const fees = sumRows(commissions, "commission_amount");
+  const payouts = sumRows(commissions, "supplier_net_amount");
+
+  return (
+    <div className="mh-form-stack">
+      <Card tone="blue">
+        <h2 className="mh-card-title">Supplier Commission</h2>
+        <p>ManFix charges suppliers 20% only when an order is delivered. The remaining 80% is credited to the supplier wallet automatically.</p>
+      </Card>
+      <StatGrid items={[
+        ["Supplier Gross Sales", money.format(gross)],
+        ["ManFix Commission (20%)", money.format(fees)],
+        ["Supplier Net Payouts", money.format(payouts)],
+        ["Settled Sales", commissions.filter((item) => item.status === "Settled").length],
+      ]} />
+      <Card>
+        <h2 className="mh-card-title">Commission Ledger</h2>
+        <DataTable
+          headers={["Supplier", "Order", "Invoice", "Gross Sale", "Rate", "ManFix Commission", "Supplier Payout", "Status", "Settled"]}
+          rows={commissions.map((item) => [
+            String(item.supplier_name ?? item.supplier_id ?? "-"),
+            String(item.order_id ?? "-"),
+            String(item.invoice_number ?? "-"),
+            money.format(Number(item.gross_amount ?? 0)),
+            `${Number(item.commission_rate ?? 20)}%`,
+            money.format(Number(item.commission_amount ?? 0)),
+            money.format(Number(item.supplier_net_amount ?? 0)),
+            String(item.status ?? "-"),
+            item.settled_at ? new Date(String(item.settled_at)).toLocaleString("en-MY") : "-",
+          ])}
+        />
+      </Card>
+    </div>
+  );
 }
 
 function StatusPage({ actions, columns, run, supabase, table, title }: ActionProps & { actions: string[]; columns: string[]; table: string; title: string }) {
@@ -112,12 +168,12 @@ function StatusPage({ actions, columns, run, supabase, table, title }: ActionPro
 function Analytics({ supabase }: { supabase: Client }) {
   return (
     <div className="mh-grid-2">
-      <TablePage supabase={supabase} table="platform_payments" title="Revenue and Growth" columns={["amount", "commission_amount", "status", "created_at"]} />
+      <TablePage supabase={supabase} table="supplier_commissions" title="Supplier Commission Revenue" columns={["supplier_name", "gross_amount", "commission_amount", "supplier_net_amount", "status", "created_at"]} />
       <TablePage supabase={supabase} table="ai_usage_events" title="AI Usage" columns={["user_id", "vehicle_label", "diagnosis", "created_at"]} />
       <TablePage supabase={supabase} table="warranty_claims" title="Warranty Claims" columns={["warranty_id", "status", "submitted_at", "reviewed_at"]} />
       <TablePage supabase={supabase} table="platform_workshops" title="Top Workshops" columns={["name", "city", "rating", "status"]} />
       <TablePage supabase={supabase} table="supplier_profiles" title="Top Suppliers" columns={["company_name", "rating", "status", "bank_name"]} />
-      <TablePage supabase={supabase} table="app_users" title="Retention" columns={["full_name", "account_type", "last_active_at", "status"]} />
+      <TablePage supabase={supabase} table="profiles" title="Platform Accounts" columns={["full_name", "role", "status", "created_at"]} />
     </div>
   );
 }
@@ -164,6 +220,28 @@ function useRows(supabase: Client, table: string) {
 
 function labelize(value: string) {
   return value.split("_").join(" ").replace(/\b\w/g, (letter: string) => letter.toUpperCase());
+}
+
+function sumRows(rows: Row[], column: string) {
+  return rows.reduce((sum, row) => sum + Number(row[column] ?? 0), 0);
+}
+
+function sameMonth(value: string) {
+  if (!value) return false;
+  const date = new Date(value);
+  const now = new Date();
+  return date.getFullYear() === now.getFullYear() && date.getMonth() === now.getMonth();
+}
+
+function groupRowsByMonth(rows: Row[], column: string) {
+  const grouped = new Map<string, number>();
+  rows.forEach((row) => {
+    const createdAt = String(row.created_at ?? "");
+    if (!createdAt) return;
+    const label = new Date(createdAt).toLocaleDateString("en-MY", { month: "short" });
+    grouped.set(label, (grouped.get(label) ?? 0) + Number(row[column] ?? 0));
+  });
+  return Array.from(grouped, ([label, value]) => ({ label, value })).slice(-6);
 }
 
 createRoot(document.getElementById("root")!).render(<StrictMode><BrowserRouter><AdminApp /></BrowserRouter></StrictMode>);
