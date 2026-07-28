@@ -21,7 +21,7 @@ type Client = NonNullable<ReturnType<typeof createManHubSupabaseClient>>;
 
 function TechnicianApp() {
   const supabase = useMemo(() => createManHubSupabaseClient(), []);
-  const auth = usePortalAuth(supabase, "workshop");
+  const auth = usePortalAuth(supabase, "technician");
   const [notice, setNotice] = useState("Technician operations are connected.");
   const [signingOut, setSigningOut] = useState(false);
 
@@ -50,10 +50,10 @@ function TechnicianApp() {
     return <PortalShell eyebrow="Technician" routes={technicianRoutes} title="ManFix"><EmptyState text="Add Supabase environment variables to run Technician Operations." /></PortalShell>;
   }
   if (auth.loading || auth.redirecting) {
-    return <PortalShell eyebrow="Technician" routes={[]} title="ManFix"><EmptyState text={auth.redirecting ? "Redirecting to secure sign-in..." : "Checking workshop access..."} /></PortalShell>;
+    return <PortalShell eyebrow="Technician" routes={[]} title="ManFix"><EmptyState text={auth.redirecting ? "Redirecting to secure sign-in..." : "Checking technician access..."} /></PortalShell>;
   }
   if (!auth.allowed) {
-    return <PortalShell eyebrow="Technician" routes={[]} title="ManFix"><EmptyState text="Approved workshop access is required." /></PortalShell>;
+    return <PortalShell eyebrow="Technician" routes={[]} title="ManFix"><EmptyState text="Approved technician access is required." /></PortalShell>;
   }
 
   return (
@@ -190,9 +190,9 @@ function Schedule({ supabase }: { supabase: Client }) {
 function Profile({ profile }: { profile: ManHubProfile | null }) {
   return (
     <Card>
-      <h2 className="mh-card-title">Workshop Access</h2>
+      <h2 className="mh-card-title">Technician Access</h2>
       <div className="mh-detail-grid">
-        <div className="mh-detail"><span>Name</span><strong>{profile?.full_name || "Workshop team"}</strong></div>
+        <div className="mh-detail"><span>Name</span><strong>{profile?.full_name || "Technician"}</strong></div>
         <div className="mh-detail"><span>Email</span><strong>{profile?.email || "-"}</strong></div>
         <div className="mh-detail"><span>Status</span><strong>{profile?.status || "-"}</strong></div>
       </div>

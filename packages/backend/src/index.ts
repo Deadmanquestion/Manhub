@@ -1,7 +1,7 @@
 import { createBrowserClient } from "@supabase/ssr";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-export type ManHubRole = "customer" | "supplier" | "workshop" | "admin";
+export type ManHubRole = "customer" | "supplier" | "workshop" | "technician" | "admin";
 
 export type ManHubProfile = {
   id: string;
@@ -181,10 +181,27 @@ export type ProductCategory = {
   name: string;
 };
 
+export type PartnerApplicationType = "supplier" | "workshop" | "technician";
+export type PartnerApplicationStatus = "Pending" | "Approved" | "Rejected";
+
+export type PartnerApplicationRecord = {
+  account_user_id: string | null;
+  admin_notes: string | null;
+  created_at: string;
+  email: string;
+  id: string;
+  reviewed_at: string | null;
+  reviewed_by: string | null;
+  status: PartnerApplicationStatus;
+  updated_at: string;
+  [key: string]: unknown;
+};
+
 export const portalHomeByRole: Record<ManHubRole, string> = {
   admin: "/admin",
   customer: "/",
   supplier: "/supplier",
+  technician: "/",
   workshop: "/workshop",
 };
 
@@ -192,6 +209,7 @@ export const portalHostByRole: Record<ManHubRole, string> = {
   admin: "admin.manfix.my",
   customer: "app.manfix.my",
   supplier: "supplier.manfix.my",
+  technician: "tech.manfix.my",
   workshop: "workshop.manfix.my",
 };
 
@@ -199,21 +217,23 @@ const localPortalUrlByRole: Record<ManHubRole, string> = {
   admin: "http://localhost:4103",
   customer: "http://localhost:4100",
   supplier: "http://localhost:4101",
+  technician: "http://localhost:4105",
   workshop: "http://localhost:4102",
 };
 
 const renderPortalUrlByRole: Partial<Record<ManHubRole, string>> = {
+  admin: "https://manfix-admin.onrender.com",
   customer: "https://manhub-customer.onrender.com",
+  supplier: "https://manhub-supplier.onrender.com",
+  technician: "https://manfix-technician.onrender.com",
   workshop: "https://manhub-workshop.onrender.com",
 };
 
 const portalAliasesByRole: Partial<Record<ManHubRole, string[]>> = {
-  workshop: [
-    "http://localhost:4105",
-    "https://manfix-technician.onrender.com",
+  technician: [
     "https://manfix-tech.onrender.com",
     "https://tech.manfix.my",
-    "https://workshop.manfix.my",
+    "https://technician.manfix.my",
   ],
 };
 
@@ -380,11 +400,17 @@ export function getPortalDestination(role: ManHubRole) {
     admin: import.meta.env.VITE_MANFIX_ADMIN_URL ?? import.meta.env.VITE_MANHUB_ADMIN_URL,
     customer: import.meta.env.VITE_MANFIX_CUSTOMER_URL ?? import.meta.env.VITE_MANHUB_CUSTOMER_URL,
     supplier: import.meta.env.VITE_MANFIX_SUPPLIER_URL ?? import.meta.env.VITE_MANHUB_SUPPLIER_URL,
+    technician: import.meta.env.VITE_MANFIX_TECHNICIAN_URL
+      ?? import.meta.env.VITE_MANHUB_TECHNICIAN_URL,
     workshop: import.meta.env.VITE_MANFIX_WORKSHOP_URL
       ?? import.meta.env.VITE_MANHUB_WORKSHOP_URL,
   } satisfies Partial<Record<ManHubRole, string | undefined>>;
 
-  return configured[role] ?? localPortalUrlByRole[role];
+  const localHost = typeof window !== "undefined"
+    && ["localhost", "127.0.0.1"].includes(window.location.hostname);
+  return configured[role]
+    ?? (localHost ? localPortalUrlByRole[role] : renderPortalUrlByRole[role])
+    ?? localPortalUrlByRole[role];
 }
 
 export function getPortalRoleForUrl(value: string): ManHubRole | null {
@@ -449,6 +475,119 @@ export async function insertRow<T extends Record<string, unknown>>(supabase: Sup
 export async function deleteRow(supabase: SupabaseClient, table: string, id: string) {
   const { error } = await supabase.from(table).delete().eq("id", id);
   if (error) throw error;
+}
+
+const partnerApplicationTable: Record<PartnerApplicationType, string> = {
+  supplier: "supplier_applications",
+  technician: "technician_applications",
+  workshop: "workshop_applications",
+};
+
+export function getPartnerApplicationTable(type: PartnerApplicationType) {
+  return partnerApplicationTable[type];
+}
+
+export async function submitPartnerApplication(
+  supabase: SupabaseClient,
+  type: PartnerApplicationType,
+  values: Record<string, unknown>,
+) {
+  const { error } = await supabase
+    .from(getPartnerApplicationTable(type))
+    .insert(values);
+
+  if (error?.code === "23505") {
+    throw new Error("An application for this email is already pending review.");
+  }
+  if (error) throw error;
+}
+
+export async function uploadPartnerApplicationFiles(
+  supabase: SupabaseClient,
+  type: PartnerApplicationType,
+  applicationId: string,
+  slot: string,
+  files: File[],
+) {
+  const uploadedPaths: string[] = [];
+
+  for (const [index, file] of files.entries()) {
+    const extension = file.name.split(".").pop()?.replace(/[^a-zA-Z0-9]/g, "").toLowerCase() || "bin";
+    const path = `${type}/${applicationId}/${slot}-${Date.now()}-${index}.${extension}`;
+    const { error } = await supabase.storage
+      .from("partner-application-documents")
+      .upload(path, file, {
+        contentType: file.type || "application/octet-stream",
+        upsert: false,
+      });
+    if (error) throw error;
+    uploadedPaths.push(path);
+  }
+
+  return uploadedPaths;
+}
+
+export async function listPartnerApplications(
+  supabase: SupabaseClient,
+  type: PartnerApplicationType,
+) {
+  const { data, error } = await supabase
+    .from(getPartnerApplicationTable(type))
+    .select("*")
+    .order("created_at", { ascending: false });
+  if (error) throw error;
+  return (data ?? []) as PartnerApplicationRecord[];
+}
+
+export async function reviewPartnerApplication(
+  supabase: SupabaseClient,
+  type: PartnerApplicationType,
+  applicationId: string,
+  action: "approve" | "reject",
+  notes: string,
+) {
+  const { data, error } = await supabase.functions.invoke("review-partner-application", {
+    body: {
+      action,
+      applicationId,
+      applicationType: type,
+      notes,
+    },
+  });
+  if (error) throw error;
+  if (data?.error) throw new Error(String(data.error));
+  return data as { accountUserId?: string; message?: string; status: PartnerApplicationStatus };
+}
+
+export async function savePartnerApplicationNotes(
+  supabase: SupabaseClient,
+  type: PartnerApplicationType,
+  applicationId: string,
+  notes: string,
+) {
+  const { error } = await supabase
+    .from(getPartnerApplicationTable(type))
+    .update({ admin_notes: notes.trim() || null })
+    .eq("id", applicationId);
+  if (error) throw error;
+}
+
+export async function createPartnerDocumentLinks(
+  supabase: SupabaseClient,
+  paths: string[],
+) {
+  if (paths.length === 0) return [];
+
+  const { data, error } = await supabase.storage
+    .from("partner-application-documents")
+    .createSignedUrls(paths, 600);
+  if (error) throw error;
+
+  return data.flatMap((item, index) => item.signedUrl ? [{
+    name: paths[index]?.split("/").pop() ?? `Document ${index + 1}`,
+    path: paths[index],
+    url: item.signedUrl,
+  }] : []);
 }
 
 export async function listWorkshopBookings(supabase: SupabaseClient) {
@@ -676,5 +815,9 @@ export async function resolveMetric(supabase: SupabaseClient, metric: MetricQuer
 }
 
 function isManHubRole(role: unknown): role is ManHubRole {
-  return role === "customer" || role === "supplier" || role === "workshop" || role === "admin";
+  return role === "customer"
+    || role === "supplier"
+    || role === "workshop"
+    || role === "technician"
+    || role === "admin";
 }

@@ -15,10 +15,13 @@ import {
   readManFixSessionHandoff,
   removeManFixSessionHandoff,
   routeAfterLogin,
+  submitPartnerApplication,
+  uploadPartnerApplicationFiles,
   type ManHubProfile,
   type ManHubRole,
+  type PartnerApplicationType,
 } from "@manhub/backend";
-import { Button, Card, EmptyState, FormField, PageHeader, PortalShell } from "@manhub/ui";
+import { Button, Card, EmptyState, FileField, FormField, PageHeader, PortalShell, TextAreaField } from "@manhub/ui";
 
 export type AuthState = {
   allowed: boolean;
@@ -179,11 +182,342 @@ export function SingleSignOnPage() {
           <div className="mh-actions">
             <Button onClick={submit}>{mode === "login" ? "Sign in" : "Create customer account"}</Button>
             <Button tone="ghost" onClick={() => setMode(mode === "login" ? "customer-register" : "login")}>
-              {mode === "login" ? "Register as customer" : "Back to sign in"}
+              {mode === "login" ? "Create customer account" : "Back to sign in"}
             </Button>
+            {mode === "login" && (
+              <Button tone="ghost" onClick={() => window.location.assign("/partners")}>
+                Become a ManFix Partner
+              </Button>
+            )}
           </div>
         </div>
-        <p className="mh-muted-note">Supplier, workshop, and admin accounts are created by ManFix Admin after approval.</p>
+        <p className="mh-muted-note">
+          Supplier, workshop, and technician accounts are created only after ManFix Admin approval.
+        </p>
+      </Card>
+    </AuthShell>
+  );
+}
+
+export function PartnerLandingPage() {
+  const applications: Array<{
+    description: string;
+    label: string;
+    path: string;
+  }> = [
+    {
+      description: "List automotive products, manage stock, and receive supplier orders.",
+      label: "Apply as Supplier",
+      path: "/apply/supplier",
+    },
+    {
+      description: "Join the service network and manage bookings, repairs, and technicians.",
+      label: "Apply as Workshop",
+      path: "/apply/workshop",
+    },
+    {
+      description: "Submit your experience and certificates for technician approval.",
+      label: "Apply as Technician",
+      path: "/apply/technician",
+    },
+  ];
+
+  return (
+    <AuthShell>
+      <PageHeader title="Become a ManFix Partner">
+        <Button tone="ghost" onClick={() => window.location.assign("/login")}>Back to sign in</Button>
+      </PageHeader>
+      <Card tone="blue">
+        <span className="mh-stat-label">Partner Network</span>
+        <h2>Apply first. Access follows approval.</h2>
+        <p>Submitting an application does not create a portal account. ManFix Admin reviews every partner before issuing secure sign-in access.</p>
+      </Card>
+      <div className="mh-partner-grid">
+        {applications.map((application) => (
+          <Card key={application.path}>
+            <div className="mh-partner-card">
+              <div>
+                <h2 className="mh-card-title">{application.label}</h2>
+                <p>{application.description}</p>
+              </div>
+              <Button onClick={() => window.location.assign(application.path)}>Open application</Button>
+            </div>
+          </Card>
+        ))}
+      </div>
+    </AuthShell>
+  );
+}
+
+export function SupplierApplicationPage() {
+  const supabase = useMemo(() => createManHubSupabaseClient(), []);
+  const [companyName, setCompanyName] = useState("");
+  const [ssmNumber, setSsmNumber] = useState("");
+  const [contactPerson, setContactPerson] = useState("");
+  const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
+  const [address, setAddress] = useState("");
+  const [category, setCategory] = useState("");
+  const [bankAccount, setBankAccount] = useState("");
+  const [logo, setLogo] = useState<File[]>([]);
+  const [documents, setDocuments] = useState<File[]>([]);
+  const submission = usePartnerSubmission("supplier");
+
+  const submit = async () => {
+    if (!supabase) return;
+    await submission.run(async (id) => {
+      requireFields([
+        ["Company name", companyName],
+        ["SSM registration number", ssmNumber],
+        ["Contact person", contactPerson],
+        ["Email", email],
+        ["Phone", phone],
+        ["Business address", address],
+        ["Business category", category],
+      ]);
+      requireFiles("Company logo", logo);
+      requireFiles("Supporting documents", documents);
+
+      const [logoPaths, documentPaths] = await Promise.all([
+        uploadPartnerApplicationFiles(supabase, "supplier", id, "logo", logo),
+        uploadPartnerApplicationFiles(supabase, "supplier", id, "document", documents),
+      ]);
+
+      await submitPartnerApplication(supabase, "supplier", {
+        bank_account: bankAccount.trim() || null,
+        business_address: address.trim(),
+        business_category: category.trim(),
+        company_logo_path: logoPaths[0],
+        company_name: companyName.trim(),
+        contact_person: contactPerson.trim(),
+        email: email.trim().toLowerCase(),
+        id,
+        phone: phone.trim(),
+        ssm_registration_number: ssmNumber.trim(),
+        supporting_document_paths: documentPaths,
+      });
+    });
+  };
+
+  return (
+    <PartnerApplicationShell
+      busy={submission.busy}
+      status={submission.status}
+      submittedId={submission.submittedId}
+      title="Supplier Application"
+      onSubmit={submit}
+    >
+      <div className="mh-grid-2">
+        <FormField label="Company Name" value={companyName} onChange={setCompanyName} />
+        <FormField label="SSM Registration Number" value={ssmNumber} onChange={setSsmNumber} />
+        <FormField label="Contact Person" value={contactPerson} onChange={setContactPerson} />
+        <FormField label="Email" value={email} onChange={setEmail} type="email" />
+        <FormField label="Phone" value={phone} onChange={setPhone} type="tel" />
+        <FormField label="Business Category" value={category} onChange={setCategory} />
+      </div>
+      <TextAreaField label="Business Address" value={address} onChange={setAddress} />
+      <FormField label="Bank Account (optional)" value={bankAccount} onChange={setBankAccount} />
+      <div className="mh-grid-2">
+        <FileField accept="image/jpeg,image/png,image/webp" label="Company Logo" onChange={setLogo} required />
+        <FileField accept=".pdf,.doc,.docx,image/jpeg,image/png,image/webp" label="Supporting Documents" multiple onChange={setDocuments} required />
+      </div>
+    </PartnerApplicationShell>
+  );
+}
+
+export function WorkshopApplicationPage() {
+  const supabase = useMemo(() => createManHubSupabaseClient(), []);
+  const [workshopName, setWorkshopName] = useState("");
+  const [ssmNumber, setSsmNumber] = useState("");
+  const [address, setAddress] = useState("");
+  const [phone, setPhone] = useState("");
+  const [email, setEmail] = useState("");
+  const [hours, setHours] = useState("");
+  const [brands, setBrands] = useState("");
+  const [technicians, setTechnicians] = useState("");
+  const [lifts, setLifts] = useState("");
+  const [photos, setPhotos] = useState<File[]>([]);
+  const submission = usePartnerSubmission("workshop");
+
+  const submit = async () => {
+    if (!supabase) return;
+    await submission.run(async (id) => {
+      requireFields([
+        ["Workshop name", workshopName],
+        ["SSM number", ssmNumber],
+        ["Address", address],
+        ["Phone", phone],
+        ["Email", email],
+        ["Operating hours", hours],
+        ["Brands supported", brands],
+        ["Number of technicians", technicians],
+        ["Number of lifts", lifts],
+      ]);
+      requireFiles("Workshop photos", photos);
+
+      const photoPaths = await uploadPartnerApplicationFiles(supabase, "workshop", id, "photo", photos);
+      await submitPartnerApplication(supabase, "workshop", {
+        address: address.trim(),
+        brands_supported: splitList(brands),
+        email: email.trim().toLowerCase(),
+        id,
+        number_of_lifts: parseWholeNumber("Number of lifts", lifts),
+        number_of_technicians: parseWholeNumber("Number of technicians", technicians),
+        operating_hours: hours.trim(),
+        phone: phone.trim(),
+        ssm_number: ssmNumber.trim(),
+        workshop_name: workshopName.trim(),
+        workshop_photo_paths: photoPaths,
+      });
+    });
+  };
+
+  return (
+    <PartnerApplicationShell
+      busy={submission.busy}
+      status={submission.status}
+      submittedId={submission.submittedId}
+      title="Workshop Application"
+      onSubmit={submit}
+    >
+      <div className="mh-grid-2">
+        <FormField label="Workshop Name" value={workshopName} onChange={setWorkshopName} />
+        <FormField label="SSM Number" value={ssmNumber} onChange={setSsmNumber} />
+        <FormField label="Phone" value={phone} onChange={setPhone} type="tel" />
+        <FormField label="Email" value={email} onChange={setEmail} type="email" />
+        <FormField label="Operating Hours" value={hours} onChange={setHours} />
+        <FormField label="Brands Supported (comma separated)" value={brands} onChange={setBrands} />
+        <FormField label="Number of Technicians" value={technicians} onChange={setTechnicians} type="number" />
+        <FormField label="Number of Lifts" value={lifts} onChange={setLifts} type="number" />
+      </div>
+      <TextAreaField label="Address" value={address} onChange={setAddress} />
+      <FileField accept="image/jpeg,image/png,image/webp" label="Workshop Photos" multiple onChange={setPhotos} required />
+    </PartnerApplicationShell>
+  );
+}
+
+export function TechnicianApplicationPage() {
+  const supabase = useMemo(() => createManHubSupabaseClient(), []);
+  const [fullName, setFullName] = useState("");
+  const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
+  const [experience, setExperience] = useState("");
+  const [employer, setEmployer] = useState("");
+  const [resume, setResume] = useState<File[]>([]);
+  const [certificates, setCertificates] = useState<File[]>([]);
+  const submission = usePartnerSubmission("technician");
+
+  const submit = async () => {
+    if (!supabase) return;
+    await submission.run(async (id) => {
+      requireFields([
+        ["Full name", fullName],
+        ["Email", email],
+        ["Phone", phone],
+        ["Work experience", experience],
+      ]);
+      requireFiles("Resume", resume);
+      requireFiles("Certificates", certificates);
+
+      const [resumePaths, certificatePaths] = await Promise.all([
+        uploadPartnerApplicationFiles(supabase, "technician", id, "resume", resume),
+        uploadPartnerApplicationFiles(supabase, "technician", id, "certificate", certificates),
+      ]);
+
+      await submitPartnerApplication(supabase, "technician", {
+        certificate_paths: certificatePaths,
+        current_employer: employer.trim() || null,
+        email: email.trim().toLowerCase(),
+        full_name: fullName.trim(),
+        id,
+        phone: phone.trim(),
+        resume_path: resumePaths[0],
+        work_experience: experience.trim(),
+      });
+    });
+  };
+
+  return (
+    <PartnerApplicationShell
+      busy={submission.busy}
+      status={submission.status}
+      submittedId={submission.submittedId}
+      title="Technician Application"
+      onSubmit={submit}
+    >
+      <div className="mh-grid-2">
+        <FormField label="Full Name" value={fullName} onChange={setFullName} />
+        <FormField label="Email" value={email} onChange={setEmail} type="email" />
+        <FormField label="Phone" value={phone} onChange={setPhone} type="tel" />
+        <FormField label="Current Employer (optional)" value={employer} onChange={setEmployer} />
+      </div>
+      <TextAreaField label="Work Experience" value={experience} onChange={setExperience} rows={6} />
+      <div className="mh-grid-2">
+        <FileField accept=".pdf,.doc,.docx" label="Resume" onChange={setResume} required />
+        <FileField accept=".pdf,.doc,.docx,image/jpeg,image/png,image/webp" label="Certificates" multiple onChange={setCertificates} required />
+      </div>
+    </PartnerApplicationShell>
+  );
+}
+
+export function SetPasswordPage() {
+  const supabase = useMemo(() => createManHubSupabaseClient(), []);
+  const [password, setPassword] = useState("");
+  const [confirmation, setConfirmation] = useState("");
+  const [ready, setReady] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [status, setStatus] = useState("Checking your secure invitation...");
+
+  useEffect(() => {
+    if (!supabase) return;
+    void supabase.auth.getSession().then(({ data, error }) => {
+      if (error || !data.session) {
+        setStatus("This invitation is invalid or has expired. Ask ManFix Admin to send a new invitation.");
+        return;
+      }
+      setReady(true);
+      setStatus("Create a password to activate your approved partner account.");
+    });
+  }, [supabase]);
+
+  const save = async () => {
+    if (!supabase || busy || !ready) return;
+    if (password.length < 8) {
+      setStatus("Use at least 8 characters for your password.");
+      return;
+    }
+    if (password !== confirmation) {
+      setStatus("The password confirmation does not match.");
+      return;
+    }
+
+    setBusy(true);
+    try {
+      const { error } = await supabase.auth.updateUser({ password });
+      if (error) throw error;
+      setStatus("Password saved. Opening your approved ManFix portal...");
+      await openPortal(supabase, await routeAfterLogin(supabase));
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "Unable to save your password.");
+      setBusy(false);
+    }
+  };
+
+  return (
+    <AuthShell>
+      <PageHeader title="Activate Partner Account" />
+      <Card tone="blue"><h2>Set your password</h2><p>{status}</p></Card>
+      <Card>
+        <div className="mh-form-stack">
+          <FormField label="New Password" value={password} onChange={setPassword} type="password" />
+          <FormField label="Confirm Password" value={confirmation} onChange={setConfirmation} type="password" />
+          <div className="mh-actions">
+            <Button disabled={!ready || busy} onClick={() => void save()}>
+              {busy ? "Activating..." : "Activate account"}
+            </Button>
+            <Button tone="ghost" onClick={() => window.location.assign("/login")}>Back to sign in</Button>
+          </div>
+        </div>
       </Card>
     </AuthShell>
   );
@@ -262,7 +596,7 @@ export async function signOut(supabase: SupabaseClient, scope: "global" | "local
   if (error) throw error;
 }
 
-async function openPortal(supabase: SupabaseClient, destination: string) {
+export async function openPortal(supabase: SupabaseClient, destination: string) {
   if (canShareManHubSession(window.location.href, destination)) {
     window.location.replace(destination);
     return;
@@ -282,6 +616,105 @@ async function openPortal(supabase: SupabaseClient, destination: string) {
     data.session.access_token,
     data.session.refresh_token,
   ));
+}
+
+function PartnerApplicationShell({
+  busy,
+  children,
+  onSubmit,
+  status,
+  submittedId,
+  title,
+}: {
+  busy: boolean;
+  children: ReactNode;
+  onSubmit: () => Promise<void>;
+  status: string;
+  submittedId: string | null;
+  title: string;
+}) {
+  if (submittedId) {
+    return (
+      <AuthShell>
+        <PageHeader title={title} />
+        <Card tone="blue">
+          <span className="mh-stat-label">Application Received</span>
+          <h2>Pending admin review</h2>
+          <p>Your reference is {submittedId}. No portal account has been created yet. Approved applicants receive a secure password setup email.</p>
+        </Card>
+        <div className="mh-actions">
+          <Button onClick={() => window.location.assign("/login")}>Back to sign in</Button>
+          <Button tone="ghost" onClick={() => window.location.assign("/partners")}>Partner applications</Button>
+        </div>
+      </AuthShell>
+    );
+  }
+
+  return (
+    <AuthShell>
+      <PageHeader title={title}>
+        <Button tone="ghost" onClick={() => window.location.assign("/partners")}>Back</Button>
+      </PageHeader>
+      <Card tone="blue">
+        <span className="mh-stat-label">Approval Required</span>
+        <h2>Submit business details for review</h2>
+        <p>This application does not create an account. ManFix Admin will review the information and documents first.</p>
+      </Card>
+      <Card>
+        <div className="mh-form-stack">{children}</div>
+        <p className="mh-muted-note">{status}</p>
+        <div className="mh-actions">
+          <Button disabled={busy} onClick={() => void onSubmit()}>
+            {busy ? "Submitting..." : "Submit application"}
+          </Button>
+          <Button disabled={busy} tone="ghost" onClick={() => window.location.assign("/login")}>Cancel</Button>
+        </div>
+      </Card>
+    </AuthShell>
+  );
+}
+
+function usePartnerSubmission(type: PartnerApplicationType) {
+  const [busy, setBusy] = useState(false);
+  const [status, setStatus] = useState("All submitted information is reviewed by ManFix Admin.");
+  const [submittedId, setSubmittedId] = useState<string | null>(null);
+
+  const run = async (submit: (id: string) => Promise<void>) => {
+    if (busy) return;
+    setBusy(true);
+    setStatus("Uploading documents and submitting your application...");
+    const id = crypto.randomUUID();
+
+    try {
+      await submit(id);
+      setSubmittedId(id);
+      setStatus(`${type} application submitted.`);
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "Unable to submit this application.");
+      setBusy(false);
+    }
+  };
+
+  return { busy, run, status, submittedId };
+}
+
+function requireFields(fields: Array<[string, string]>) {
+  const missing = fields.find(([, value]) => !value.trim());
+  if (missing) throw new Error(`${missing[0]} is required.`);
+}
+
+function requireFiles(label: string, files: File[]) {
+  if (files.length === 0) throw new Error(`${label} is required.`);
+}
+
+function splitList(value: string) {
+  return value.split(",").map((item) => item.trim()).filter(Boolean);
+}
+
+function parseWholeNumber(label: string, value: string) {
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed < 0) throw new Error(`${label} must be a whole number.`);
+  return parsed;
 }
 
 function AuthShell({ children }: { children: ReactNode }) {

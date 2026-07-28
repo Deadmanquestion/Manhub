@@ -2,9 +2,21 @@ import { StrictMode, useCallback, useEffect, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { BrowserRouter, Route, Routes } from "react-router-dom";
 import { signOut, usePortalAuth } from "@manhub/auth";
-import { createManHubSupabaseClient, fetchRows, getLogoutUrl, insertRow, updateStatus } from "@manhub/backend";
+import {
+  createManHubSupabaseClient,
+  createPartnerDocumentLinks,
+  fetchRows,
+  getLogoutUrl,
+  insertRow,
+  listPartnerApplications,
+  reviewPartnerApplication,
+  savePartnerApplicationNotes,
+  updateStatus,
+  type PartnerApplicationRecord,
+  type PartnerApplicationType,
+} from "@manhub/backend";
 import { adminRoutes } from "@manhub/platform-config";
-import { Button, Card, DataTable, EmptyState, FormField, MiniChart, PageHeader, PortalShell, StatGrid } from "@manhub/ui";
+import { Button, Card, DataTable, EmptyState, FormField, MiniChart, PageHeader, PortalShell, StatGrid, TextAreaField } from "@manhub/ui";
 
 type Row = { id?: string; [key: string]: unknown };
 type Client = NonNullable<ReturnType<typeof createManHubSupabaseClient>>;
@@ -53,6 +65,7 @@ function AdminApp() {
       <Card tone="blue"><strong>{notice}</strong></Card>
       <Routes>
         <Route path="/" element={<Overview supabase={supabase} />} />
+        <Route path="/partner-applications" element={<PartnerApplications run={run} supabase={supabase} />} />
         <Route path="/users" element={<Users run={run} supabase={supabase} />} />
         <Route path="/workshops" element={<StatusPage run={run} supabase={supabase} table="platform_workshops" title="Workshops" columns={["name", "city", "status", "rating"]} actions={["Verified", "Suspended"]} />} />
         <Route path="/suppliers" element={<StatusPage run={run} supabase={supabase} table="supplier_profiles" title="Suppliers" columns={["company_name", "status", "rating", "bank_name"]} actions={["Verified", "Suspended"]} />} />
@@ -104,6 +117,209 @@ function Overview({ supabase }: { supabase: Client }) {
 
 function Users({ run, supabase }: ActionProps) {
   return <StatusPage run={run} supabase={supabase} table="profiles" title="Users" columns={["full_name", "email", "role", "status"]} actions={["Verified", "Suspended", "Banned"]} />;
+}
+
+type CombinedApplication = {
+  record: PartnerApplicationRecord;
+  type: PartnerApplicationType;
+};
+
+function PartnerApplications({ run, supabase }: ActionProps) {
+  const [applications, setApplications] = useState<CombinedApplication[]>([]);
+  const [selected, setSelected] = useState<CombinedApplication | null>(null);
+  const [documents, setDocuments] = useState<Array<{ name: string; path: string; url: string }>>([]);
+  const [notes, setNotes] = useState("");
+  const [statusFilter, setStatusFilter] = useState<"All" | "Pending" | "Approved" | "Rejected">("Pending");
+  const [processing, setProcessing] = useState<string | null>(null);
+
+  const refresh = useCallback(async () => {
+    const types: PartnerApplicationType[] = ["supplier", "workshop", "technician"];
+    const groups = await Promise.all(types.map(async (type) => ({
+      rows: await listPartnerApplications(supabase, type),
+      type,
+    })));
+    setApplications(
+      groups
+        .flatMap(({ rows, type }) => rows.map((record) => ({ record, type })))
+        .sort((a, b) => b.record.created_at.localeCompare(a.record.created_at)),
+    );
+  }, [supabase]);
+
+  useEffect(() => {
+    void refresh().catch(() => setApplications([]));
+  }, [refresh]);
+
+  const view = async (application: CombinedApplication) => {
+    setSelected(application);
+    setNotes(application.record.admin_notes ?? "");
+    setDocuments([]);
+    const paths = documentPaths(application);
+    if (paths.length > 0) {
+      setDocuments(await createPartnerDocumentLinks(supabase, paths));
+    }
+  };
+
+  const review = (application: CombinedApplication, action: "approve" | "reject") => {
+    void run(async () => {
+      setProcessing(application.record.id);
+      try {
+        await reviewPartnerApplication(
+          supabase,
+          application.type,
+          application.record.id,
+          action,
+          selected?.record.id === application.record.id ? notes : application.record.admin_notes ?? "",
+        );
+        await refresh();
+        setSelected(null);
+        setDocuments([]);
+      } finally {
+        setProcessing(null);
+      }
+    }, action === "approve"
+      ? "Partner approved. The password setup invitation has been sent."
+      : "Partner application rejected.");
+  };
+
+  const filtered = applications.filter(({ record }) => statusFilter === "All" || record.status === statusFilter);
+  const pending = (type: PartnerApplicationType) => applications.filter((item) => item.type === type && item.record.status === "Pending").length;
+
+  return (
+    <div className="mh-form-stack">
+      <StatGrid items={[
+        ["Pending Suppliers", pending("supplier")],
+        ["Pending Workshops", pending("workshop")],
+        ["Pending Technicians", pending("technician")],
+        ["Total Applications", applications.length],
+      ]} />
+      <Card>
+        <div className="mh-actions">
+          {(["Pending", "Approved", "Rejected", "All"] as const).map((filter) => (
+            <Button key={filter} tone={statusFilter === filter ? "primary" : "ghost"} onClick={() => setStatusFilter(filter)}>
+              {filter}
+            </Button>
+          ))}
+          <Button tone="ghost" onClick={() => void refresh()}>Refresh</Button>
+        </div>
+      </Card>
+      <Card>
+        <h2 className="mh-card-title">Partner Applications</h2>
+        <DataTable
+          headers={["Type", "Applicant", "Email", "Submitted", "Status", "Actions"]}
+          rows={filtered.map((application) => [
+            labelize(application.type),
+            applicationName(application),
+            application.record.email,
+            new Date(application.record.created_at).toLocaleString("en-MY"),
+            <span className={`mh-badge ${application.record.status === "Approved" ? "success" : application.record.status === "Rejected" ? "danger" : "warning"}`}>
+              {application.record.status}
+            </span>,
+            <div className="mh-actions">
+              <Button tone="ghost" onClick={() => void view(application)}>View documents</Button>
+              {application.record.status === "Pending" && (
+                <>
+                  <Button disabled={processing === application.record.id} onClick={() => review(application, "approve")}>Approve</Button>
+                  <Button disabled={processing === application.record.id} tone="danger" onClick={() => review(application, "reject")}>Reject</Button>
+                </>
+              )}
+            </div>,
+          ])}
+        />
+      </Card>
+      {selected && (
+        <Card>
+          <h2 className="mh-card-title">{applicationName(selected)} - {labelize(selected.type)}</h2>
+          <div className="mh-detail-grid">
+            {applicationDetails(selected).map(([label, value]) => (
+              <div className="mh-detail" key={label}><span>{label}</span><strong>{value}</strong></div>
+            ))}
+          </div>
+          <div className="mh-form-section">
+            <h3>Documents</h3>
+            <div className="mh-document-list">
+              {documents.length === 0 && <span className="mh-muted-note">No documents attached.</span>}
+              {documents.map((document) => (
+                <a className="mh-document-link" href={document.url} key={document.path} rel="noreferrer" target="_blank">
+                  {document.name}
+                </a>
+              ))}
+            </div>
+          </div>
+          <div className="mh-form-section">
+            <TextAreaField label="Admin Notes" value={notes} onChange={setNotes} rows={5} />
+            <div className="mh-actions">
+              <Button tone="ghost" onClick={() => void run(async () => {
+                await savePartnerApplicationNotes(supabase, selected.type, selected.record.id, notes);
+                await refresh();
+              }, "Application notes saved.")}>Save notes</Button>
+              {selected.record.status === "Pending" && (
+                <>
+                  <Button disabled={processing === selected.record.id} onClick={() => review(selected, "approve")}>Approve and invite</Button>
+                  <Button disabled={processing === selected.record.id} tone="danger" onClick={() => review(selected, "reject")}>Reject</Button>
+                </>
+              )}
+            </div>
+          </div>
+        </Card>
+      )}
+    </div>
+  );
+}
+
+function applicationName(application: CombinedApplication) {
+  if (application.type === "supplier") return String(application.record.company_name ?? application.record.contact_person ?? "-");
+  if (application.type === "workshop") return String(application.record.workshop_name ?? "-");
+  return String(application.record.full_name ?? "-");
+}
+
+function documentPaths(application: CombinedApplication) {
+  const record = application.record;
+  if (application.type === "supplier") {
+    return [
+      record.company_logo_path,
+      ...(Array.isArray(record.supporting_document_paths) ? record.supporting_document_paths : []),
+    ].filter((path): path is string => typeof path === "string" && path.length > 0);
+  }
+  if (application.type === "workshop") {
+    return (Array.isArray(record.workshop_photo_paths) ? record.workshop_photo_paths : [])
+      .filter((path): path is string => typeof path === "string");
+  }
+  return [
+    record.resume_path,
+    ...(Array.isArray(record.certificate_paths) ? record.certificate_paths : []),
+  ].filter((path): path is string => typeof path === "string" && path.length > 0);
+}
+
+function applicationDetails(application: CombinedApplication): Array<[string, string]> {
+  const record = application.record;
+  if (application.type === "supplier") {
+    return [
+      ["Company", String(record.company_name ?? "-")],
+      ["SSM", String(record.ssm_registration_number ?? "-")],
+      ["Contact", String(record.contact_person ?? "-")],
+      ["Phone", String(record.phone ?? "-")],
+      ["Category", String(record.business_category ?? "-")],
+      ["Address", String(record.business_address ?? "-")],
+    ];
+  }
+  if (application.type === "workshop") {
+    return [
+      ["Workshop", String(record.workshop_name ?? "-")],
+      ["SSM", String(record.ssm_number ?? "-")],
+      ["Phone", String(record.phone ?? "-")],
+      ["Operating Hours", String(record.operating_hours ?? "-")],
+      ["Technicians", String(record.number_of_technicians ?? "0")],
+      ["Lifts", String(record.number_of_lifts ?? "0")],
+    ];
+  }
+  return [
+    ["Name", String(record.full_name ?? "-")],
+    ["Phone", String(record.phone ?? "-")],
+    ["Employer", String(record.current_employer ?? "-")],
+    ["Experience", String(record.work_experience ?? "-")],
+    ["Email", record.email],
+    ["Status", record.status],
+  ];
 }
 
 function CommissionPage({ supabase }: { supabase: Client }) {

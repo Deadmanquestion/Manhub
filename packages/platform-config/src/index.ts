@@ -43,6 +43,7 @@ export const technicianRoutes: PortalRoute[] = [
 
 export const adminRoutes: PortalRoute[] = [
   { label: "Overview", path: "/" },
+  { label: "Partner Applications", path: "/partner-applications" },
   { label: "Users", path: "/users" },
   { label: "Workshops", path: "/workshops" },
   { label: "Suppliers", path: "/suppliers" },

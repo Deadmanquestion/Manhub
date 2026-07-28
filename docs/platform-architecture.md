@@ -8,6 +8,7 @@ ManFix is organized as independent deployable React frontends that share one Sup
 - `apps/auth`: Single Login for `auth.manfix.my`
 - `apps/supplier`: Supplier Portal for `supplier.manfix.my`
 - `apps/workshop`: Workshop Portal for `workshop.manfix.my`
+- `apps/technician`: Technician Portal for `tech.manfix.my`
 - `apps/admin`: Admin Dashboard for `admin.manfix.my`
 
 Each app owns its routing and can be built or deployed separately.
@@ -43,6 +44,7 @@ VITE_MANFIX_AUTH_URL=https://auth.manfix.my
 VITE_MANFIX_CUSTOMER_URL=https://app.manfix.my
 VITE_MANFIX_SUPPLIER_URL=https://supplier.manfix.my
 VITE_MANFIX_WORKSHOP_URL=https://workshop.manfix.my
+VITE_MANFIX_TECHNICIAN_URL=https://tech.manfix.my
 VITE_MANFIX_ADMIN_URL=https://admin.manfix.my
 ```
 
@@ -60,11 +62,20 @@ After login, the shared auth layer reads the user's role from `public.profiles`.
 - `customer` routes to the Customer App
 - `supplier` routes to the Supplier Portal
 - `workshop` routes to the Workshop Portal
+- `technician` routes to the Technician Portal
 - `admin` routes to the Admin Dashboard
 
 There is one login app: `apps/auth`.
 
-Customers can self-register from this page. Supplier, workshop, and admin accounts are not exposed in self-registration; admin creates or approves those profiles.
+Customers can self-register from this page. Suppliers, workshops, and technicians submit separate partner applications and receive an account invitation only after admin approval. Admin accounts remain manually controlled.
+
+Partner applications are stored separately in:
+
+- `supplier_applications`
+- `workshop_applications`
+- `technician_applications`
+
+Supporting files are kept in the private `partner-application-documents` bucket. The `review-partner-application` Edge Function verifies the admin role before approving or rejecting an application and is the only browser-accessible workflow that creates partner accounts.
 
 ## RBAC
 

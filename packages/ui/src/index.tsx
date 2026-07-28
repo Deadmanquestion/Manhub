@@ -66,16 +66,18 @@ export function StatGrid({ items }: { items: Array<[string, string | number]> })
 
 export function Button({
   children,
+  disabled = false,
   onClick,
   tone = "primary",
   type = "button",
 }: {
   children: ReactNode;
+  disabled?: boolean;
   onClick?: () => void;
   tone?: "primary" | "ghost" | "danger";
   type?: "button" | "submit" | "reset";
 }) {
-  return <button className={`mh-button ${tone}`} onClick={onClick} type={type}>{children}</button>;
+  return <button className={`mh-button ${tone}`} disabled={disabled} onClick={onClick} type={type}>{children}</button>;
 }
 
 export function DataTable({ headers, rows }: { headers: string[]; rows: ReactNode[][] }) {
@@ -112,6 +114,47 @@ export function MiniChart({ data, title }: { data: Array<{ label: string; value:
 
 export function FormField({ label, onChange, type = "text", value }: { label: string; onChange: (value: string) => void; type?: string; value: string }) {
   return <label className="mh-field">{label}<input onChange={(event) => onChange(event.target.value)} type={type} value={value} /></label>;
+}
+
+export function TextAreaField({
+  label,
+  onChange,
+  rows = 4,
+  value,
+}: {
+  label: string;
+  onChange: (value: string) => void;
+  rows?: number;
+  value: string;
+}) {
+  return <label className="mh-field">{label}<textarea onChange={(event) => onChange(event.target.value)} rows={rows} value={value} /></label>;
+}
+
+export function FileField({
+  accept,
+  label,
+  multiple = false,
+  onChange,
+  required = false,
+}: {
+  accept?: string;
+  label: string;
+  multiple?: boolean;
+  onChange: (files: File[]) => void;
+  required?: boolean;
+}) {
+  return (
+    <label className="mh-field">
+      {label}
+      <input
+        accept={accept}
+        multiple={multiple}
+        onChange={(event) => onChange(Array.from(event.target.files ?? []))}
+        required={required}
+        type="file"
+      />
+    </label>
+  );
 }
 
 export function EmptyState({ text }: { text: string }) {
