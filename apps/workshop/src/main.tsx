@@ -1,7 +1,7 @@
 import { StrictMode, useCallback, useEffect, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { BrowserRouter, Route, Routes } from "react-router-dom";
-import { signOut, usePortalAuth } from "@manhub/auth";
+import { signOut, SwitchPortalButton, usePortalAuth } from "@manhub/auth";
 import {
   createManHubSupabaseClient,
   fetchRows,
@@ -16,6 +16,8 @@ import {
   updateStatus,
   type RepairJob,
   type WorkshopBooking,
+  type ManHubProfile,
+  type ManHubRole,
 } from "@manhub/backend";
 import { workshopMetrics, workshopRoutes } from "@manhub/platform-config";
 import { Button, Card, DataTable, EmptyState, FormField, MiniChart, PageHeader, PortalShell, StatGrid } from "@manhub/ui";
@@ -59,6 +61,7 @@ function WorkshopApp() {
       <PageHeader title="Workshop Portal">
         <div className="mh-actions">
           <Button tone="ghost" onClick={auth.refresh}>Refresh session</Button>
+          <SwitchPortalButton supabase={supabase} />
           <Button tone="danger" onClick={() => void handleSignOut()}>
             {signingOut ? "Logging out..." : "Log out"}
           </Button>
@@ -74,8 +77,38 @@ function WorkshopApp() {
         <Route path="/invoices" element={<Invoices run={run} supabase={supabase} />} />
         <Route path="/warranty" element={<WarrantyInspections run={run} supabase={supabase} />} />
         <Route path="/analytics" element={<Analytics supabase={supabase} />} />
+        <Route path="/profile" element={<AccessProfile profile={auth.profile} roles={auth.roles} supabase={supabase} />} />
       </Routes>
     </PortalShell>
+  );
+}
+
+function AccessProfile({
+  profile,
+  roles,
+  supabase,
+}: {
+  profile: ManHubProfile | null;
+  roles: ManHubRole[];
+  supabase: Client;
+}) {
+  return (
+    <div className="mh-grid-2">
+      <Card>
+        <h2 className="mh-card-title">Workshop Profile</h2>
+        <div className="mh-detail-grid">
+          <div className="mh-detail"><span>Name</span><strong>{profile?.full_name || "Workshop account"}</strong></div>
+          <div className="mh-detail"><span>Email</span><strong>{profile?.email || "-"}</strong></div>
+          <div className="mh-detail"><span>Status</span><strong>{profile?.status || "-"}</strong></div>
+          <div className="mh-detail"><span>Assigned roles</span><strong>{roles.map(labelize).join(", ")}</strong></div>
+        </div>
+      </Card>
+      <Card tone="blue">
+        <h2 className="mh-card-title">Portal Access</h2>
+        <p>Open another portal assigned to this account without signing out.</p>
+        <SwitchPortalButton supabase={supabase} />
+      </Card>
+    </div>
   );
 }
 

@@ -31,6 +31,7 @@ export const workshopRoutes: PortalRoute[] = [
   { label: "Invoices", path: "/invoices" },
   { label: "Warranty", path: "/warranty" },
   { label: "Analytics", path: "/analytics" },
+  { label: "Profile", path: "/profile" },
 ];
 
 export const technicianRoutes: PortalRoute[] = [
@@ -53,6 +54,7 @@ export const adminRoutes: PortalRoute[] = [
   { label: "Warranty", path: "/warranty" },
   { label: "Analytics", path: "/analytics" },
   { label: "Settings", path: "/settings" },
+  { label: "Profile", path: "/profile" },
 ];
 
 export const adminMetrics: MetricQuery[] = [

@@ -61,17 +61,28 @@ Deno.serve(async (request: Request) => {
     return json({ error: "Your administrator session has expired." }, 401);
   }
 
-  const { data: adminProfile, error: profileError } = await adminClient
-    .from("profiles")
-    .select("id,role,status")
-    .eq("id", userData.user.id)
-    .maybeSingle();
+  const [{ data: adminProfile, error: profileError }, { data: adminRoles, error: rolesError }] = await Promise.all([
+    adminClient
+      .from("profiles")
+      .select("id,status")
+      .eq("id", userData.user.id)
+      .maybeSingle(),
+    adminClient
+      .from("user_roles")
+      .select("role,status")
+      .eq("user_id", userData.user.id)
+      .in("role", ["admin", "super_admin"]),
+  ]);
 
   if (
     profileError
+    || rolesError
     || !adminProfile
-    || adminProfile.role !== "admin"
     || !["Active", "Approved", "Verified"].includes(adminProfile.status)
+    || !(adminRoles ?? []).some((membership) =>
+      ["admin", "super_admin"].includes(membership.role)
+      && ["Active", "Approved", "Verified"].includes(membership.status)
+    )
   ) {
     return json({ error: "Only an approved administrator can review applications." }, 403);
   }
@@ -128,27 +139,50 @@ Deno.serve(async (request: Request) => {
   const fullName = applicantName(payload.applicationType, application);
   const authUrl = Deno.env.get("MANFIX_AUTH_URL") ?? "https://manhub-auth.onrender.com";
   let invitedUserId: string | null = null;
+  let createdNewUser = false;
 
   try {
-    const { data: invitation, error: inviteError } = await adminClient.auth.admin.inviteUserByEmail(email, {
-      data: {
-        application_id: payload.applicationId,
-        full_name: fullName,
-        requested_role: payload.applicationType,
-      },
-      redirectTo: new URL("/set-password", authUrl).toString(),
-    });
+    const { data: existingProfile, error: existingProfileError } = await adminClient
+      .from("profiles")
+      .select("id,role,status")
+      .eq("email", email)
+      .maybeSingle();
+    if (existingProfileError) throw existingProfileError;
 
-    if (inviteError || !invitation.user) {
-      throw inviteError ?? new Error("The approved account could not be created.");
+    if (existingProfile) {
+      invitedUserId = existingProfile.id;
+    } else {
+      const { data: invitation, error: inviteError } = await adminClient.auth.admin.inviteUserByEmail(email, {
+        data: {
+          application_id: payload.applicationId,
+          full_name: fullName,
+          requested_role: payload.applicationType,
+        },
+        redirectTo: new URL("/set-password", authUrl).toString(),
+      });
+
+      if (inviteError || !invitation.user) {
+        throw inviteError ?? new Error("The approved account could not be created.");
+      }
+
+      invitedUserId = invitation.user.id;
+      createdNewUser = true;
     }
 
-    invitedUserId = invitation.user.id;
+    const { data: existingMemberships, error: membershipsError } = await adminClient
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", invitedUserId);
+    if (membershipsError) throw membershipsError;
+    const assignedRoles = Array.from(new Set([
+      ...(existingMemberships ?? []).map((membership) => membership.role),
+      payload.applicationType,
+    ]));
 
     const { error: authUpdateError } = await adminClient.auth.admin.updateUserById(invitedUserId, {
       app_metadata: {
         application_id: payload.applicationId,
-        role: payload.applicationType,
+        roles: assignedRoles,
       },
       user_metadata: {
         application_id: payload.applicationId,
@@ -164,11 +198,21 @@ Deno.serve(async (request: Request) => {
       email,
       full_name: fullName,
       id: invitedUserId,
-      role: payload.applicationType,
-      status: "Approved",
+      role: existingProfile?.role ?? payload.applicationType,
+      status: existingProfile?.status ?? "Approved",
       updated_at: reviewedAt,
     });
     if (profileUpdateError) throw profileUpdateError;
+
+    const { error: membershipUpdateError } = await adminClient.from("user_roles").upsert({
+      assigned_at: reviewedAt,
+      assigned_by: userData.user.id,
+      role: payload.applicationType,
+      status: "Approved",
+      updated_at: reviewedAt,
+      user_id: invitedUserId,
+    }, { onConflict: "user_id,role" });
+    if (membershipUpdateError) throw membershipUpdateError;
 
     if (payload.applicationType === "supplier") {
       const { error } = await adminClient.from("supplier_profiles").upsert({
@@ -230,11 +274,13 @@ Deno.serve(async (request: Request) => {
 
     return json({
       accountUserId: invitedUserId,
-      message: "Application approved. A secure password setup email has been sent.",
+      message: createdNewUser
+        ? "Application approved. A secure password setup email has been sent."
+        : "Application approved. The new portal was added to the existing ManFix account.",
       status: "Approved",
     });
   } catch (error) {
-    if (invitedUserId) {
+    if (invitedUserId && createdNewUser) {
       await adminClient.auth.admin.deleteUser(invitedUserId).catch(() => undefined);
     }
     return json({

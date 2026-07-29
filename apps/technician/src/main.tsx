@@ -1,7 +1,7 @@
 import { StrictMode, useCallback, useEffect, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { BrowserRouter, Route, Routes } from "react-router-dom";
-import { signOut, usePortalAuth } from "@manhub/auth";
+import { signOut, SwitchPortalButton, usePortalAuth } from "@manhub/auth";
 import {
   createManHubSupabaseClient,
   getLogoutUrl,
@@ -61,6 +61,7 @@ function TechnicianApp() {
       <PageHeader title="Workshop Floor">
         <div className="mh-actions">
           <Button tone="ghost" onClick={auth.refresh}>Refresh</Button>
+          <SwitchPortalButton supabase={supabase} />
           <Button tone="danger" onClick={() => void handleSignOut()}>
             {signingOut ? "Logging out..." : "Log out"}
           </Button>
@@ -72,7 +73,7 @@ function TechnicianApp() {
         <Route path="/orders" element={<IncomingOrders run={run} supabase={supabase} />} />
         <Route path="/jobs" element={<RepairJobs run={run} supabase={supabase} />} />
         <Route path="/schedule" element={<Schedule supabase={supabase} />} />
-        <Route path="/profile" element={<Profile profile={auth.profile} />} />
+        <Route path="/profile" element={<Profile profile={auth.profile} supabase={supabase} />} />
       </Routes>
     </PortalShell>
   );
@@ -187,16 +188,23 @@ function Schedule({ supabase }: { supabase: Client }) {
   );
 }
 
-function Profile({ profile }: { profile: ManHubProfile | null }) {
+function Profile({ profile, supabase }: { profile: ManHubProfile | null; supabase: Client }) {
   return (
-    <Card>
-      <h2 className="mh-card-title">Technician Access</h2>
-      <div className="mh-detail-grid">
-        <div className="mh-detail"><span>Name</span><strong>{profile?.full_name || "Technician"}</strong></div>
-        <div className="mh-detail"><span>Email</span><strong>{profile?.email || "-"}</strong></div>
-        <div className="mh-detail"><span>Status</span><strong>{profile?.status || "-"}</strong></div>
-      </div>
-    </Card>
+    <div className="mh-grid-2">
+      <Card>
+        <h2 className="mh-card-title">Technician Access</h2>
+        <div className="mh-detail-grid">
+          <div className="mh-detail"><span>Name</span><strong>{profile?.full_name || "Technician"}</strong></div>
+          <div className="mh-detail"><span>Email</span><strong>{profile?.email || "-"}</strong></div>
+          <div className="mh-detail"><span>Status</span><strong>{profile?.status || "-"}</strong></div>
+        </div>
+      </Card>
+      <Card tone="blue">
+        <h2 className="mh-card-title">Portal Access</h2>
+        <p>Open another assigned ManFix portal without signing out.</p>
+        <SwitchPortalButton supabase={supabase} />
+      </Card>
+    </div>
   );
 }
 

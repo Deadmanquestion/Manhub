@@ -2,7 +2,7 @@ import { StrictMode, useCallback, useEffect, useMemo, useState, type FormEvent, 
 import { createRoot } from "react-dom/client";
 import { BrowserRouter, Route, Routes } from "react-router-dom";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { usePortalAuth } from "@manhub/auth";
+import { SwitchPortalButton, usePortalAuth } from "@manhub/auth";
 import {
   adjustSupplierStock,
   createManHubSupabaseClient,
@@ -113,7 +113,10 @@ function SupplierApp() {
   return (
     <PortalShell eyebrow="Supplier Portal" routes={supplierRoutes} title="ManFix">
       <PageHeader title="Supplier Portal">
-        <Button tone="ghost" onClick={auth.refresh}>Refresh session</Button>
+        <div className="mh-actions">
+          <Button tone="ghost" onClick={auth.refresh}>Refresh session</Button>
+          <SwitchPortalButton supabase={supabase} />
+        </div>
       </PageHeader>
       <Card tone={notice.tone === "error" ? "amber" : notice.tone === "success" ? "blue" : "default"}>
         <strong>{notice.text}</strong>
@@ -655,6 +658,8 @@ function ProfilePage({ run, supabase }: ActionProps) {
           <Detail label="Verified" value={profile.data?.verified ? "Yes" : "No"} />
           <Detail label="Rating" value={profile.data ? String(profile.data.rating) : "No rating"} />
         </div>
+        <p>Open another assigned ManFix portal without signing out.</p>
+        <SwitchPortalButton supabase={supabase} />
       </Card>
     </div>
   );

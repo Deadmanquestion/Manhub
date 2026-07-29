@@ -308,7 +308,13 @@ const initialStore: MockStore = {
   warranties: [],
 };
 
-export default function InvestorCustomerApp({ onSignOut }: { onSignOut?: () => Promise<void> }) {
+export default function InvestorCustomerApp({
+  onSignOut,
+  onSwitchPortal,
+}: {
+  onSignOut?: () => Promise<void>;
+  onSwitchPortal?: () => Promise<void>;
+}) {
   const [store, setStore] = useState<MockStore>(initialStore);
   const [view, setView] = useState<AppView>("Home");
   const [activeFilter, setActiveFilter] = useState("Nearest");
@@ -876,6 +882,7 @@ export default function InvestorCustomerApp({ onSignOut }: { onSignOut?: () => P
           {view === "Me" && (
             <MeTab
               onSignOut={handleSignOut}
+              onSwitchPortal={onSwitchPortal ?? (async () => undefined)}
               profilePanel={profilePanel}
               setProfilePanel={setProfilePanel}
               setView={setView}
@@ -2100,6 +2107,7 @@ function SupportCenterPage({
 
 function MeTab({
   onSignOut,
+  onSwitchPortal,
   profilePanel,
   setProfilePanel,
   setView,
@@ -2109,6 +2117,7 @@ function MeTab({
   vehicleCount,
 }: {
   onSignOut: () => Promise<void>;
+  onSwitchPortal: () => Promise<void>;
   profilePanel: string;
   setProfilePanel: (panel: string) => void;
   setView: (view: AppView) => void;
@@ -2146,6 +2155,9 @@ function MeTab({
       </div>
       <article className="detail-panel"><strong>{profilePanel}</strong><span>Open a customer record to continue.</span></article>
       <section className="logout-section">
+        <button onClick={() => void onSwitchPortal()} type="button">
+          Switch Portal
+        </button>
         <button disabled={signingOut} onClick={() => void onSignOut()} type="button">
           {signingOut ? "Logging out..." : "Log out"}
         </button>

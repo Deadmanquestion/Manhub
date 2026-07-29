@@ -1,12 +1,19 @@
 import { createBrowserClient } from "@supabase/ssr";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-export type ManHubRole = "customer" | "supplier" | "workshop" | "technician" | "admin";
+export type PortalRole = "customer" | "supplier" | "workshop" | "technician" | "admin";
+export type ManHubRole = PortalRole | "super_admin";
 
 export type ManHubProfile = {
   id: string;
   email: string | null;
   full_name: string | null;
+  role: ManHubRole;
+  status: string;
+  last_portal_role: PortalRole | null;
+};
+
+export type UserRoleMembership = {
   role: ManHubRole;
   status: string;
 };
@@ -197,7 +204,17 @@ export type PartnerApplicationRecord = {
   [key: string]: unknown;
 };
 
-export const portalHomeByRole: Record<ManHubRole, string> = {
+export const portalRoles: PortalRole[] = ["customer", "supplier", "workshop", "technician", "admin"];
+
+export const portalLabelByRole: Record<PortalRole, string> = {
+  admin: "Admin Dashboard",
+  customer: "Customer App",
+  supplier: "Supplier Portal",
+  technician: "Technician Portal",
+  workshop: "Workshop Portal",
+};
+
+export const portalHomeByRole: Record<PortalRole, string> = {
   admin: "/admin",
   customer: "/",
   supplier: "/supplier",
@@ -205,7 +222,7 @@ export const portalHomeByRole: Record<ManHubRole, string> = {
   workshop: "/workshop",
 };
 
-export const portalHostByRole: Record<ManHubRole, string> = {
+export const portalHostByRole: Record<PortalRole, string> = {
   admin: "admin.manfix.my",
   customer: "app.manfix.my",
   supplier: "supplier.manfix.my",
@@ -213,7 +230,7 @@ export const portalHostByRole: Record<ManHubRole, string> = {
   workshop: "workshop.manfix.my",
 };
 
-const localPortalUrlByRole: Record<ManHubRole, string> = {
+const localPortalUrlByRole: Record<PortalRole, string> = {
   admin: "http://localhost:4103",
   customer: "http://localhost:4100",
   supplier: "http://localhost:4101",
@@ -221,7 +238,7 @@ const localPortalUrlByRole: Record<ManHubRole, string> = {
   workshop: "http://localhost:4102",
 };
 
-const renderPortalUrlByRole: Partial<Record<ManHubRole, string>> = {
+const renderPortalUrlByRole: Partial<Record<PortalRole, string>> = {
   admin: "https://manfix-admin.onrender.com",
   customer: "https://manhub-customer.onrender.com",
   supplier: "https://manhub-supplier.onrender.com",
@@ -229,7 +246,7 @@ const renderPortalUrlByRole: Partial<Record<ManHubRole, string>> = {
   workshop: "https://manhub-workshop.onrender.com",
 };
 
-const portalAliasesByRole: Partial<Record<ManHubRole, string[]>> = {
+const portalAliasesByRole: Partial<Record<PortalRole, string[]>> = {
   technician: [
     "https://manfix-tech.onrender.com",
     "https://tech.manfix.my",
@@ -265,7 +282,7 @@ export function createManFixSessionHandoffUrl(
   accessToken: string,
   refreshToken: string,
 ) {
-  if (!getPortalRoleForUrl(destinationUrl)) {
+  if (!getPortalRoleForUrl(destinationUrl) && !isAuthAppUrl(destinationUrl)) {
     throw new Error("The requested ManFix portal is not trusted.");
   }
 
@@ -330,6 +347,27 @@ export async function getSessionRole(supabase: SupabaseClient): Promise<ManHubRo
   return profile?.role ?? null;
 }
 
+export async function getSessionRoles(supabase: SupabaseClient): Promise<ManHubRole[]> {
+  const { data: userData, error: userError } = await supabase.auth.getUser();
+  if (userError || !userData.user) return [];
+
+  const { data, error } = await supabase
+    .from("user_roles")
+    .select("role,status")
+    .eq("user_id", userData.user.id);
+
+  if (error) throw error;
+
+  return ((data ?? []) as UserRoleMembership[])
+    .filter((membership) => isManHubRole(membership.role) && isEnabledStatus(membership.status))
+    .map((membership) => membership.role);
+}
+
+export function getAvailablePortalRoles(roles: readonly ManHubRole[]) {
+  if (roles.includes("super_admin")) return [...portalRoles];
+  return portalRoles.filter((role) => roles.includes(role));
+}
+
 export async function getSessionProfile(supabase: SupabaseClient): Promise<ManHubProfile | null> {
   const { data: userData, error: userError } = await supabase.auth.getUser();
   if (userError || !userData.user) {
@@ -338,11 +376,16 @@ export async function getSessionProfile(supabase: SupabaseClient): Promise<ManHu
 
   const { data, error } = await supabase
     .from("profiles")
-    .select("id,email,full_name,role,status")
+    .select("id,email,full_name,role,status,last_portal_role")
     .eq("id", userData.user.id)
     .maybeSingle();
 
-  if (error || !data || !isManHubRole(data.role)) {
+  if (
+    error
+    || !data
+    || !isManHubRole(data.role)
+    || (data.last_portal_role !== null && !isPortalRole(data.last_portal_role))
+  ) {
     return null;
   }
 
@@ -350,33 +393,59 @@ export async function getSessionProfile(supabase: SupabaseClient): Promise<ManHu
 }
 
 export async function routeAfterLogin(supabase: SupabaseClient, nextUrl?: string | null) {
-  const role = await getSessionRole(supabase);
-  if (!role) return getUnauthorizedUrl("missing-profile");
+  const [profile, roles] = await Promise.all([
+    getSessionProfile(supabase),
+    getSessionRoles(supabase),
+  ]);
+  if (!profile) return getUnauthorizedUrl("missing-profile");
+  if (!isProfileEnabled(profile)) return getUnauthorizedUrl("inactive");
+
+  const availablePortals = getAvailablePortalRoles(roles);
+  if (availablePortals.length === 0) return getUnauthorizedUrl("missing-role");
 
   if (nextUrl) {
     const requestedRole = getPortalRoleForUrl(nextUrl);
-    if (requestedRole === role) {
+    if (requestedRole && canOpenPortal(roles, requestedRole)) {
+      await rememberPortal(supabase, requestedRole);
       return nextUrl;
     }
     return getUnauthorizedUrl("wrong-role");
   }
 
-  return getPortalDestination(role);
+  if (availablePortals.length === 1) {
+    await rememberPortal(supabase, availablePortals[0]);
+    return getPortalDestination(availablePortals[0]);
+  }
+
+  return getPortalSelectorUrl();
 }
 
-export function canOpenPortal(role: ManHubRole | null, portalRole: ManHubRole) {
-  return role === portalRole;
+export function canOpenPortal(
+  roles: readonly ManHubRole[] | ManHubRole | null,
+  portalRole: PortalRole,
+) {
+  const assignedRoles = Array.isArray(roles) ? roles : roles ? [roles] : [];
+  return assignedRoles.includes("super_admin") || assignedRoles.includes(portalRole);
 }
 
 export function isProfileEnabled(profile: ManHubProfile | null) {
   if (!profile) return false;
-  return ["Active", "Approved", "Verified"].includes(profile.status);
+  return isEnabledStatus(profile.status);
 }
 
 export function getAuthAppUrl() {
   return import.meta.env.VITE_MANFIX_AUTH_URL
     ?? import.meta.env.VITE_MANHUB_AUTH_URL
     ?? "http://localhost:4104";
+}
+
+export function isAuthAppUrl(value: string) {
+  try {
+    const fallbackOrigin = typeof window === "undefined" ? "http://localhost" : window.location.origin;
+    return new URL(value, fallbackOrigin).origin === new URL(getAuthAppUrl(), fallbackOrigin).origin;
+  } catch {
+    return false;
+  }
 }
 
 export function getUnauthorizedUrl(reason = "role") {
@@ -391,11 +460,15 @@ export function getLoginUrl(nextUrl?: string) {
   return url.toString();
 }
 
+export function getPortalSelectorUrl() {
+  return new URL("/select-portal", getAuthAppUrl()).toString();
+}
+
 export function getLogoutUrl() {
   return new URL("/logout", getAuthAppUrl()).toString();
 }
 
-export function getPortalDestination(role: ManHubRole) {
+export function getPortalDestination(role: PortalRole) {
   const configured = {
     admin: import.meta.env.VITE_MANFIX_ADMIN_URL ?? import.meta.env.VITE_MANHUB_ADMIN_URL,
     customer: import.meta.env.VITE_MANFIX_CUSTOMER_URL ?? import.meta.env.VITE_MANHUB_CUSTOMER_URL,
@@ -404,7 +477,7 @@ export function getPortalDestination(role: ManHubRole) {
       ?? import.meta.env.VITE_MANHUB_TECHNICIAN_URL,
     workshop: import.meta.env.VITE_MANFIX_WORKSHOP_URL
       ?? import.meta.env.VITE_MANHUB_WORKSHOP_URL,
-  } satisfies Partial<Record<ManHubRole, string | undefined>>;
+  } satisfies Partial<Record<PortalRole, string | undefined>>;
 
   const localHost = typeof window !== "undefined"
     && ["localhost", "127.0.0.1"].includes(window.location.hostname);
@@ -413,13 +486,13 @@ export function getPortalDestination(role: ManHubRole) {
     ?? localPortalUrlByRole[role];
 }
 
-export function getPortalRoleForUrl(value: string): ManHubRole | null {
+export function getPortalRoleForUrl(value: string): PortalRole | null {
   try {
     const fallbackOrigin = typeof window === "undefined" ? "http://localhost" : window.location.origin;
     const url = new URL(value, fallbackOrigin);
     const authOrigin = new URL(getAuthAppUrl(), fallbackOrigin).origin;
 
-    for (const role of Object.keys(portalHomeByRole) as ManHubRole[]) {
+    for (const role of Object.keys(portalHomeByRole) as PortalRole[]) {
       const configuredUrl = getPortalDestination(role);
       const candidates = [
         localPortalUrlByRole[role],
@@ -437,6 +510,16 @@ export function getPortalRoleForUrl(value: string): ManHubRole | null {
     return null;
   } catch {
     return null;
+  }
+}
+
+export async function rememberPortal(supabase: SupabaseClient, role: PortalRole) {
+  const { error } = await supabase.rpc("manfix_set_last_portal", {
+    selected_portal: role,
+  });
+  if (error) throw error;
+  if (typeof window !== "undefined") {
+    window.localStorage.setItem("manfix-last-portal", role);
   }
 }
 
@@ -814,10 +897,18 @@ export async function resolveMetric(supabase: SupabaseClient, metric: MetricQuer
   return rows.reduce((sum, row) => sum + Number(row[metric.column ?? "amount"] ?? 0), 0);
 }
 
-function isManHubRole(role: unknown): role is ManHubRole {
+export function isPortalRole(role: unknown): role is PortalRole {
   return role === "customer"
     || role === "supplier"
     || role === "workshop"
     || role === "technician"
     || role === "admin";
+}
+
+function isManHubRole(role: unknown): role is ManHubRole {
+  return isPortalRole(role) || role === "super_admin";
+}
+
+function isEnabledStatus(status: string) {
+  return status === "Active" || status === "Approved" || status === "Verified";
 }

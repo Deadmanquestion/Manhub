@@ -3,7 +3,7 @@ import { createRoot } from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";
 import { EmptyState, MobileShell } from "@manhub/ui";
 import { createManHubSupabaseClient, getLogoutUrl } from "@manhub/backend";
-import { signOut, usePortalAuth } from "@manhub/auth";
+import { openPortalSelector, signOut, usePortalAuth } from "@manhub/auth";
 import { useMemo } from "react";
 import InvestorCustomerApp from "./InvestorCustomerApp";
 
@@ -25,6 +25,7 @@ function ProtectedCustomerApp() {
 
   return (
     <InvestorCustomerApp
+      onSwitchPortal={async () => openPortalSelector(supabase)}
       onSignOut={async () => {
         await signOut(supabase);
         window.location.replace(getLogoutUrl());

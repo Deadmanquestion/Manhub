@@ -5,14 +5,20 @@ import {
   canOpenPortal,
   createManFixSessionHandoffUrl,
   createManHubSupabaseClient,
+  getAvailablePortalRoles,
   getAuthAppUrl,
   getLoginUrl,
   getPortalDestination,
+  getPortalSelectorUrl,
   getPortalRoleForUrl,
   getSessionProfile,
+  getSessionRoles,
   getUnauthorizedUrl,
+  isAuthAppUrl,
   isProfileEnabled,
+  portalLabelByRole,
   readManFixSessionHandoff,
+  rememberPortal,
   removeManFixSessionHandoff,
   routeAfterLogin,
   submitPartnerApplication,
@@ -20,6 +26,7 @@ import {
   type ManHubProfile,
   type ManHubRole,
   type PartnerApplicationType,
+  type PortalRole,
 } from "@manhub/backend";
 import { Button, Card, EmptyState, FileField, FormField, PageHeader, PortalShell, TextAreaField } from "@manhub/ui";
 
@@ -29,22 +36,24 @@ export type AuthState = {
   profile: ManHubProfile | null;
   redirecting: boolean;
   role: ManHubRole | null;
+  roles: ManHubRole[];
   user: User | null;
 };
 
-export function usePortalAuth(supabase: SupabaseClient | null, portalRole: ManHubRole): AuthState & { refresh: () => Promise<void> } {
+export function usePortalAuth(supabase: SupabaseClient | null, portalRole: PortalRole): AuthState & { refresh: () => Promise<void> } {
   const [state, setState] = useState<AuthState>({
     allowed: false,
     loading: true,
     profile: null,
     redirecting: false,
     role: null,
+    roles: [],
     user: null,
   });
 
   const refresh = useCallback(async () => {
     if (!supabase) {
-      setState({ allowed: false, loading: false, profile: null, redirecting: false, role: null, user: null });
+      setState({ allowed: false, loading: false, profile: null, redirecting: false, role: null, roles: [], user: null });
       return;
     }
 
@@ -54,7 +63,7 @@ export function usePortalAuth(supabase: SupabaseClient | null, portalRole: ManHu
       window.history.replaceState(window.history.state, "", cleanUrl);
 
       if (getPortalRoleForUrl(cleanUrl) !== portalRole) {
-        setState({ allowed: false, loading: false, profile: null, redirecting: true, role: null, user: null });
+        setState({ allowed: false, loading: false, profile: null, redirecting: true, role: null, roles: [], user: null });
         window.location.replace(getUnauthorizedUrl("wrong-role"));
         return;
       }
@@ -65,7 +74,7 @@ export function usePortalAuth(supabase: SupabaseClient | null, portalRole: ManHu
       });
 
       if (error) {
-        setState({ allowed: false, loading: false, profile: null, redirecting: true, role: null, user: null });
+        setState({ allowed: false, loading: false, profile: null, redirecting: true, role: null, roles: [], user: null });
         window.location.replace(getLoginUrl(cleanUrl));
         return;
       }
@@ -74,35 +83,37 @@ export function usePortalAuth(supabase: SupabaseClient | null, portalRole: ManHu
     const { data: sessionData } = await supabase.auth.getSession();
 
     if (!sessionData.session) {
-      setState({ allowed: false, loading: false, profile: null, redirecting: true, role: null, user: null });
+      setState({ allowed: false, loading: false, profile: null, redirecting: true, role: null, roles: [], user: null });
       window.location.replace(getLoginUrl(window.location.href));
       return;
     }
 
-    const [{ data }, profile] = await Promise.all([
+    const [{ data }, profile, roles] = await Promise.all([
       supabase.auth.getUser(),
       getSessionProfile(supabase),
+      getSessionRoles(supabase),
     ]);
 
     if (!data.user) {
-      setState({ allowed: false, loading: false, profile: null, redirecting: true, role: null, user: null });
+      setState({ allowed: false, loading: false, profile: null, redirecting: true, role: null, roles: [], user: null });
       window.location.replace(getLoginUrl(window.location.href));
       return;
     }
 
     if (!profile || !isProfileEnabled(profile)) {
-      setState({ allowed: false, loading: false, profile, redirecting: true, role: profile?.role ?? null, user: data.user });
+      setState({ allowed: false, loading: false, profile, redirecting: true, role: profile?.role ?? null, roles, user: data.user });
       window.location.replace(getUnauthorizedUrl(profile ? "inactive" : "missing-profile"));
       return;
     }
 
-    const allowed = canOpenPortal(profile.role, portalRole);
+    const allowed = canOpenPortal(roles, portalRole);
     setState({
       allowed,
       loading: false,
       profile,
       redirecting: !allowed,
       role: profile.role,
+      roles,
       user: data.user,
     });
 
@@ -195,6 +206,125 @@ export function SingleSignOnPage() {
           Supplier, workshop, and technician accounts are created only after ManFix Admin approval.
         </p>
       </Card>
+    </AuthShell>
+  );
+}
+
+export function PortalSelectionPage() {
+  const supabase = useMemo(() => createManHubSupabaseClient(), []);
+  const [profile, setProfile] = useState<ManHubProfile | null>(null);
+  const [roles, setRoles] = useState<ManHubRole[]>([]);
+  const [busyRole, setBusyRole] = useState<PortalRole | null>(null);
+  const [status, setStatus] = useState("Checking the portals assigned to your account...");
+
+  useEffect(() => {
+    if (!supabase) return;
+
+    const load = async () => {
+      const handoff = readManFixSessionHandoff(window.location.href);
+      if (handoff) {
+        const cleanUrl = removeManFixSessionHandoff(window.location.href);
+        window.history.replaceState(window.history.state, "", cleanUrl);
+        if (!isAuthAppUrl(cleanUrl)) throw new Error("The portal switch request is not trusted.");
+
+        const { error } = await supabase.auth.setSession({
+          access_token: handoff.accessToken,
+          refresh_token: handoff.refreshToken,
+        });
+        if (error) throw error;
+      }
+
+      const { data: sessionData } = await supabase.auth.getSession();
+      if (!sessionData.session) {
+        window.location.replace(getLoginUrl());
+        return;
+      }
+
+      const [loadedProfile, loadedRoles] = await Promise.all([
+        getSessionProfile(supabase),
+        getSessionRoles(supabase),
+      ]);
+      if (!loadedProfile || !isProfileEnabled(loadedProfile)) {
+        window.location.replace(getUnauthorizedUrl(loadedProfile ? "inactive" : "missing-profile"));
+        return;
+      }
+
+      const available = getAvailablePortalRoles(loadedRoles);
+      if (available.length === 0) {
+        window.location.replace(getUnauthorizedUrl("missing-role"));
+        return;
+      }
+      if (available.length === 1) {
+        await rememberPortal(supabase, available[0]);
+        await openPortal(supabase, getPortalDestination(available[0]));
+        return;
+      }
+
+      setProfile(loadedProfile);
+      setRoles(loadedRoles);
+      setStatus("Choose where you want to work. You can switch again from your profile.");
+    };
+
+    void load().catch((error) => {
+      setStatus(error instanceof Error ? error.message : "Unable to load your assigned portals.");
+    });
+  }, [supabase]);
+
+  if (!supabase) {
+    return <AuthShell><EmptyState text="Connect the shared Supabase project to choose a portal." /></AuthShell>;
+  }
+
+  const availablePortals = getAvailablePortalRoles(roles);
+  const locallyRemembered = window.localStorage.getItem("manfix-last-portal");
+  const lastPortal = profile?.last_portal_role
+    ?? (availablePortals.find((role) => role === locallyRemembered) ?? null);
+  const orderedPortals = [...availablePortals].sort((left, right) => {
+    if (left === lastPortal) return -1;
+    if (right === lastPortal) return 1;
+    return portalLabelByRole[left].localeCompare(portalLabelByRole[right]);
+  });
+
+  const choose = async (role: PortalRole) => {
+    if (busyRole) return;
+    setBusyRole(role);
+    setStatus(`Opening ${portalLabelByRole[role]}...`);
+    try {
+      await rememberPortal(supabase, role);
+      await openPortal(supabase, getPortalDestination(role));
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "Unable to open that portal.");
+      setBusyRole(null);
+    }
+  };
+
+  return (
+    <AuthShell>
+      <PageHeader title="Select Portal">
+        <Button tone="ghost" onClick={() => void signOut(supabase).then(() => window.location.replace(getLoginUrl()))}>
+          Sign out
+        </Button>
+      </PageHeader>
+      <Card tone="blue">
+        <span className="mh-stat-label">{roles.includes("super_admin") ? "Super Admin Access" : "Multi-Role Account"}</span>
+        <h2>{profile?.full_name ? `Welcome, ${profile.full_name}` : "Choose Portal"}</h2>
+        <p>{status}</p>
+      </Card>
+      <div className="mh-partner-grid">
+        {orderedPortals.map((role) => (
+          <Card key={role}>
+            <div className="mh-partner-card">
+              <div>
+                <span className="mh-stat-label">{role === lastPortal ? "Last used" : "Available"}</span>
+                <h2 className="mh-card-title">{portalLabelByRole[role]}</h2>
+                <p>{portalDescription(role)}</p>
+              </div>
+              <Button disabled={busyRole !== null} onClick={() => void choose(role)}>
+                {busyRole === role ? "Opening..." : "Open portal"}
+              </Button>
+            </div>
+          </Card>
+        ))}
+      </div>
     </AuthShell>
   );
 }
@@ -533,9 +663,9 @@ export function UnauthorizedPage() {
   }, [supabase]);
 
   const goHome = async () => {
-    if (profile?.role && isProfileEnabled(profile)) {
+    if (profile && isProfileEnabled(profile)) {
       if (!supabase) return;
-      await openPortal(supabase, getPortalDestination(profile.role));
+      await openPortal(supabase, await routeAfterLogin(supabase));
       return;
     }
     window.location.assign(getLoginUrl());
@@ -546,9 +676,9 @@ export function UnauthorizedPage() {
       <PageHeader title="Unauthorized" />
       <Card tone="amber">
         <h2>This portal is not available for your account.</h2>
-        <p>ManFix checks your role from the profiles table and only opens the dashboard assigned to your account.</p>
+        <p>ManFix only opens portals included in your approved account roles.</p>
         <div className="mh-actions">
-          <Button onClick={() => void goHome()}>{profile?.role ? "Go to my portal" : "Back to sign in"}</Button>
+          <Button onClick={() => void goHome()}>{profile ? "Go to my portals" : "Back to sign in"}</Button>
           {supabase && <Button tone="ghost" onClick={() => void signOut(supabase).then(() => window.location.assign(getLoginUrl()))}>Sign out</Button>}
         </div>
       </Card>
@@ -602,7 +732,7 @@ export async function openPortal(supabase: SupabaseClient, destination: string) 
     return;
   }
 
-  if (!getPortalRoleForUrl(destination)) {
+  if (!getPortalRoleForUrl(destination) && !isAuthAppUrl(destination)) {
     throw new Error("Your assigned ManFix portal is not available yet.");
   }
 
@@ -616,6 +746,33 @@ export async function openPortal(supabase: SupabaseClient, destination: string) 
     data.session.access_token,
     data.session.refresh_token,
   ));
+}
+
+export async function openPortalSelector(supabase: SupabaseClient) {
+  await openPortal(supabase, getPortalSelectorUrl());
+}
+
+export function SwitchPortalButton({
+  label = "Switch Portal",
+  supabase,
+}: {
+  label?: string;
+  supabase: SupabaseClient;
+}) {
+  const [switching, setSwitching] = useState(false);
+
+  return (
+    <Button
+      disabled={switching}
+      tone="ghost"
+      onClick={() => {
+        setSwitching(true);
+        void openPortalSelector(supabase).catch(() => setSwitching(false));
+      }}
+    >
+      {switching ? "Opening portals..." : label}
+    </Button>
+  );
 }
 
 function PartnerApplicationShell({
@@ -715,6 +872,17 @@ function parseWholeNumber(label: string, value: string) {
   const parsed = Number(value);
   if (!Number.isInteger(parsed) || parsed < 0) throw new Error(`${label} must be a whole number.`);
   return parsed;
+}
+
+function portalDescription(role: PortalRole) {
+  const descriptions: Record<PortalRole, string> = {
+    admin: "Manage users, partners, payments, warranties, and platform operations.",
+    customer: "Manage vehicles, diagnosis, parts, orders, payments, and warranties.",
+    supplier: "Manage products, stock, supplier orders, commissions, and withdrawals.",
+    technician: "Review incoming work, update repair jobs, and manage your schedule.",
+    workshop: "Manage bookings, repair queues, technicians, invoices, and inspections.",
+  };
+  return descriptions[role];
 }
 
 function AuthShell({ children }: { children: ReactNode }) {
