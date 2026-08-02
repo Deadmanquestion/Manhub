@@ -79,7 +79,7 @@ export default function CustomerApp({ onSignOut, onSwitchPortal, profile: initia
   return (
     <main className="customer-stage">
       <section className="customer-phone">
-        <Header name={profile.full_name || profile.email || ""} unread={unread} />
+        <Header unread={unread} />
         {notice && <button className={`customer-notice ${notice.tone}`} onClick={() => setNotice(null)}>{notice.message}</button>}
         <section className="customer-content">
           <Routes>
@@ -110,12 +110,21 @@ export default function CustomerApp({ onSignOut, onSwitchPortal, profile: initia
   );
 }
 
-function Header({ name, unread }: { name: string; unread: number }) {
-  const firstName = name.trim().split(/\s+/)[0] || "Customer";
+function Header({ unread }: { unread: number }) {
+  const [time, setTime] = useState(() => new Date());
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setTime(new Date()), 30_000);
+    return () => window.clearInterval(timer);
+  }, []);
+
   return (
     <header className="customer-header">
-      <div><span>ManFix</span><strong>Hi {firstName}</strong></div>
-      <Link aria-label="Notifications" className="header-alert" to="/notifications">Alerts{unread > 0 && <b>{unread}</b>}</Link>
+      <strong>{time.toLocaleTimeString("en-MY", { hour: "numeric", minute: "2-digit" })}</strong>
+      <Link aria-label="Notifications" className="header-alert" to="/notifications">
+        <span className="bell-icon" />
+        {unread > 0 && <b>{unread > 9 ? "9+" : unread}</b>}
+      </Link>
     </header>
   );
 }
@@ -125,28 +134,68 @@ function Home({ profile, supabase }: { profile: ManHubProfile; supabase: Supabas
   const products = useResource(() => listCustomerCatalog(supabase), [supabase], [] as SupplierProduct[]);
   const orders = useResource(() => listCustomerOrders(supabase), [supabase], [] as CustomerOrder[]);
   const cart = useResource(() => listCustomerCart(supabase), [supabase], [] as CustomerCartItem[]);
+  const firstName = (profile.full_name || profile.email || "Customer").trim().split(/\s+/)[0];
+  const vehicle = vehicles.data[0];
   const latestOrder = orders.data[0];
+  const orderProgress = getOrderProgress(latestOrder?.status);
+
   return (
-    <div className="customer-stack">
-      <section className="dashboard-summary">
-        <span>Customer account</span>
-        <h1>{profile.full_name || profile.email}</h1>
-        <p>{latestOrder ? `${latestOrder.order_number} - ${latestOrder.status}` : "No active order"}</p>
-      </section>
-      <div className="primary-actions">
-        <DashboardLink to="/diagnosis" title="AI diagnosis" detail="Describe a symptom using your real vehicle details" tone="blue" />
-        <DashboardLink to="/book-service" title="Book a service" detail="Choose your vehicle and workshop" tone="green" />
+    <section className="home-dashboard">
+      <h1>Hi {firstName}</h1>
+      <Link className={`home-vehicle-card ${vehicle ? "" : "empty"}`} to="/vehicles">
+        <div>
+          <strong>{vehicle ? `${vehicle.make} ${vehicle.model}` : "Add your vehicle"}</strong>
+          <span>{vehicle ? [vehicle.license_plate, vehicle.year].filter(Boolean).join(" · ") : "Keep service and ownership details together"}</span>
+          <small>{vehicle ? "Mileage" : "Vehicle profile"}</small>
+          <b>{vehicle?.mileage === null || vehicle?.mileage === undefined ? (vehicle ? "Not recorded" : "Get started") : `${vehicle.mileage.toLocaleString()} km`}</b>
+        </div>
+        <span aria-hidden="true" className="vehicle-visual"><i /><i /></span>
+        <span className="home-chevron">&gt;</span>
+      </Link>
+      <Link className="home-diagnosis-card" to="/diagnosis">
+        <span className="cta-icon" />
+        <span>
+          <strong>AI Diagnosis</strong>
+          <small>Describe your car problem</small>
+          <em>Upload photos or record engine noise</em>
+        </span>
+        <span className="home-chevron">&gt;</span>
+      </Link>
+      <Link className="home-job-card" to={latestOrder ? "/orders" : "/book-service"}>
+        <span className="job-icon" />
+        <span>
+          <small>{latestOrder ? latestOrder.order_number : "Service booking"}</small>
+          <strong>{latestOrder ? latestOrder.status : "Book your next service"}</strong>
+          <em>{latestOrder ? `${latestOrder.items.length} item${latestOrder.items.length === 1 ? "" : "s"} · ${money.format(latestOrder.total)}` : "Choose a vehicle, workshop, and service"}</em>
+          <i className="job-progress-bar"><b style={{ width: `${orderProgress}%` }} /></i>
+        </span>
+        <span className="home-chevron">&gt;</span>
+      </Link>
+      <div className="quick-actions">
+        <Link to="/vehicles"><span className="quick-icon car" /><strong>My vehicles</strong><span className="tile-chevron">&gt;</span></Link>
+        <Link to="/parts"><span className="quick-icon wheel" /><strong>Spare parts</strong><span className="tile-chevron">&gt;</span></Link>
+        <Link to="/orders"><span className="quick-icon document" /><strong>Orders</strong><span className="tile-chevron">&gt;</span></Link>
       </div>
-      <div className="quick-grid">
-        <MetricLink to="/vehicles" label="Vehicles" value={vehicles.data.length} />
-        <MetricLink to="/cart" label="Cart items" value={cart.data.reduce((sum, item) => sum + item.quantity, 0)} />
-        <MetricLink to="/orders" label="Orders" value={orders.data.length} />
-        <MetricLink to="/payments" label="Payments" value={orders.data.filter((order) => order.payment_status === "Pending").length} />
-        <MetricLink to="/parts" label="Available parts" value={products.data.length} />
+      <div className="home-account-summary">
+        <Link to="/cart"><span>Cart</span><strong>{cart.data.reduce((sum, item) => sum + item.quantity, 0)}</strong></Link>
+        <Link to="/parts"><span>Available parts</span><strong>{products.data.length}</strong></Link>
+        <Link to="/payments"><span>Payments due</span><strong>{orders.data.filter((order) => order.payment_status === "Pending").length}</strong></Link>
       </div>
       <ResourceMessage resources={[vehicles, products, orders, cart]} />
-    </div>
+    </section>
   );
+}
+
+function getOrderProgress(status?: CustomerOrder["status"]) {
+  if (!status) return 0;
+  return {
+    "Pending Supplier Acceptance": 20,
+    Processing: 45,
+    "Partially Rejected": 45,
+    Dispatched: 75,
+    Completed: 100,
+    Cancelled: 0,
+  }[status];
 }
 
 type DiagnosisResult = {
@@ -223,14 +272,6 @@ function Diagnosis({ supabase }: { supabase: SupabaseClient }) {
 
 function ResultList({ title, values }: { title: string; values: string[] }) {
   return <section className="result-list"><strong>{title}</strong><ul>{values.map((value) => <li key={value}>{value}</li>)}</ul></section>;
-}
-
-function DashboardLink({ detail, title, to, tone }: { detail: string; title: string; to: string; tone: string }) {
-  return <Link className={`dashboard-action ${tone}`} to={to}><div><strong>{title}</strong><span>{detail}</span></div><b>&gt;</b></Link>;
-}
-
-function MetricLink({ label, to, value }: { label: string; to: string; value: number }) {
-  return <Link className="metric-link" to={to}><strong>{value}</strong><span>{label}</span></Link>;
 }
 
 const emptyVehicle: CustomerVehicleInput = {
@@ -595,7 +636,13 @@ function Profile({ onProfileChange, onSignOut, onSwitchPortal, profile, run, sup
 }
 
 function BottomNav({ unread }: { unread: number }) {
-  return <nav className="bottom-nav"><NavLink to="/">Home</NavLink><NavLink to="/parts">Parts</NavLink><NavLink to="/cart">Cart</NavLink><NavLink to="/orders">Orders</NavLink><NavLink to="/profile">Me{unread > 0 && <b>{unread}</b>}</NavLink></nav>;
+  return <nav className="bottom-nav">
+    <NavLink to="/"><span className="tab-icon home" />Home</NavLink>
+    <NavLink to="/book-service"><span className="tab-icon workshops" />Workshops</NavLink>
+    <NavLink to="/parts"><span className="tab-icon parts" />Parts</NavLink>
+    <NavLink to="/orders"><span className="tab-icon orders" />Orders</NavLink>
+    <NavLink to="/profile"><span className="tab-icon me" />Me{unread > 0 && <b>{unread > 9 ? "9+" : unread}</b>}</NavLink>
+  </nav>;
 }
 
 function Page({ action, children, title }: { action?: ReactNode; children: ReactNode; title: string }) {
