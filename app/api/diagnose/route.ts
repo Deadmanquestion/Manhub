@@ -43,18 +43,39 @@ const diagnosisSchema = {
   ],
 };
 
+export function OPTIONS() {
+  return new Response(null, { status: 204, headers: corsHeaders });
+}
+
 export async function POST(request: Request) {
+  const accessToken = getAccessToken(request);
+  if (!accessToken) return json({ error: "Authentication required." }, 401);
+  const supabase = createSupabaseServerClient(accessToken);
+  if (!supabase) return json({ error: "AI diagnosis is not configured." }, 503);
+  const { error: authError } = await supabase.auth.getUser(accessToken);
+  if (authError) return json({ error: "Authentication required." }, 401);
+
   let body: DiagnoseRequest;
 
   try {
     body = await request.json();
   } catch {
-    return Response.json(mockDiagnosis({}), { status: 200 });
+    return json({ error: "Invalid diagnosis request." }, 400);
+  }
+
+  if (!body.symptom?.trim() || !body.carModel?.trim() || !body.mileage?.trim()) {
+    return json(
+      { error: "Symptom, car model, and mileage are required." },
+      400,
+    );
   }
 
   const apiKey = getApiKey();
   if (!apiKey) {
-    return Response.json(mockDiagnosis(body), { status: 200 });
+    return json(
+      { error: "AI diagnosis is not configured." },
+      503,
+    );
   }
 
   try {
@@ -93,16 +114,25 @@ export async function POST(request: Request) {
     });
 
     if (!response.ok) {
-      return Response.json(mockDiagnosis(body), { status: 200 });
+      const detail = await response.text();
+      console.error("OpenAI diagnosis request failed", response.status, detail);
+      return json(
+        { error: "AI diagnosis is temporarily unavailable." },
+        502,
+      );
     }
 
     const payload = await response.json();
     const outputText = extractOutputText(payload);
     const parsed = JSON.parse(outputText) as DiagnosisResult;
 
-    return Response.json(normalizeDiagnosis(parsed, body), { status: 200 });
-  } catch {
-    return Response.json(mockDiagnosis(body), { status: 200 });
+    return json(normalizeDiagnosis(parsed), 200);
+  } catch (error) {
+    console.error("AI diagnosis failed", error);
+    return json(
+      { error: "AI diagnosis is temporarily unavailable." },
+      502,
+    );
   }
 }
 
@@ -141,59 +171,50 @@ function extractOutputText(payload: OpenAiResponsePayload) {
   throw new Error("No diagnosis output text returned");
 }
 
-function normalizeDiagnosis(result: DiagnosisResult, input: DiagnoseRequest): DiagnosisResult {
-  const fallback = mockDiagnosis(input);
+function normalizeDiagnosis(result: DiagnosisResult): DiagnosisResult {
+  if (
+    !result.diagnosis?.trim()
+    || !result.estimated_cost_range?.trim()
+    || !isNonEmptyList(result.possible_causes)
+    || !isNonEmptyList(result.recommended_actions)
+    || !isNonEmptyList(result.recommended_parts)
+  ) {
+    throw new Error("AI diagnosis response did not match the required schema");
+  }
+
   return {
-    confidence: clampConfidence(result.confidence ?? fallback.confidence),
-    diagnosis: result.diagnosis || fallback.diagnosis,
-    estimated_cost_range: result.estimated_cost_range || fallback.estimated_cost_range,
-    possible_causes: nonEmptyList(result.possible_causes, fallback.possible_causes),
-    recommended_actions: nonEmptyList(result.recommended_actions, fallback.recommended_actions),
-    recommended_parts: nonEmptyList(result.recommended_parts, fallback.recommended_parts),
+    confidence: clampConfidence(result.confidence),
+    diagnosis: result.diagnosis.trim(),
+    estimated_cost_range: result.estimated_cost_range.trim(),
+    possible_causes: result.possible_causes.map((value) => value.trim()).filter(Boolean),
+    recommended_actions: result.recommended_actions.map((value) => value.trim()).filter(Boolean),
+    recommended_parts: result.recommended_parts.map((value) => value.trim()).filter(Boolean),
   };
 }
 
 function clampConfidence(value: number) {
-  if (!Number.isFinite(value)) return 75;
+  if (!Number.isFinite(value)) throw new Error("AI diagnosis confidence is invalid");
   return Math.max(0, Math.min(100, Math.round(value)));
 }
 
-function nonEmptyList(value: string[] | undefined, fallback: string[]) {
-  return Array.isArray(value) && value.length > 0 ? value : fallback;
+function isNonEmptyList(value: string[] | undefined): value is string[] {
+  return Array.isArray(value) && value.some((item) => typeof item === "string" && item.trim());
 }
 
-function mockDiagnosis(input: DiagnoseRequest): DiagnosisResult {
-  const symptom = (input.symptom ?? "").toLowerCase();
-  const carModel = input.carModel ?? "your vehicle";
+const corsHeaders = {
+  "Access-Control-Allow-Headers": "authorization, content-type",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+  "Access-Control-Allow-Origin": "*",
+};
 
-  if (symptom.includes("battery") || symptom.includes("start")) {
-    return {
-      confidence: 82,
-      diagnosis: "Battery health low or charging system needs inspection",
-      estimated_cost_range: "RM 220-380",
-      possible_causes: ["Weak battery", "Loose terminal connection", "Alternator charging issue"],
-      recommended_actions: ["Run battery load test", "Check alternator output", "Confirm battery size before replacement"],
-      recommended_parts: ["NS60L battery", "Battery terminal cleaner"],
-    };
-  }
-
-  if (symptom.includes("oil") || symptom.includes("smell") || symptom.includes("engine")) {
-    return {
-      confidence: 78,
-      diagnosis: "Engine oil service or minor leak inspection recommended",
-      estimated_cost_range: "RM 160-300",
-      possible_causes: ["Oil level low", "Old engine oil", "Minor gasket or drain plug seepage"],
-      recommended_actions: ["Check oil level and colour", "Inspect underside for leak marks", "Confirm oil grade for the vehicle"],
-      recommended_parts: ["5W-30 fully synthetic engine oil", "Oil filter"],
-    };
-  }
-
-  return {
-    confidence: 87,
-    diagnosis: `Front brake pad wear likely on ${carModel}`,
-    estimated_cost_range: "RM 280-420",
-    possible_causes: ["Front brake pads worn", "Brake dust buildup", "Rotor surface needs inspection"],
-    recommended_actions: ["Inspect front brake pad thickness", "Check rotor surface", "Confirm final quote with a certified technician"],
-    recommended_parts: ["Bendix front brake pad set", "DOT4 brake fluid"],
-  };
+function json(body: unknown, status: number) {
+  return Response.json(body, { status, headers: corsHeaders });
 }
+
+function getAccessToken(request: Request) {
+  const authorization = request.headers.get("authorization") ?? "";
+  return authorization.toLowerCase().startsWith("bearer ")
+    ? authorization.slice(7).trim()
+    : null;
+}
+import { createSupabaseServerClient } from "@/lib/supabase/server";

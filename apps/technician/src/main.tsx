@@ -15,7 +15,7 @@ import {
   type WorkshopBooking,
 } from "@manhub/backend";
 import { technicianRoutes } from "@manhub/platform-config";
-import { Button, Card, DataTable, EmptyState, PageHeader, PortalShell, StatGrid } from "@manhub/ui";
+import { Button, Card, DataTable, EmptyState, NotificationsPanel, PageHeader, PortalShell, StatGrid } from "@manhub/ui";
 
 type Client = NonNullable<ReturnType<typeof createManHubSupabaseClient>>;
 
@@ -58,7 +58,7 @@ function TechnicianApp() {
 
   return (
     <PortalShell eyebrow="Technician Operations" routes={technicianRoutes} title="ManFix">
-      <PageHeader title="Workshop Floor">
+      <PageHeader title={auth.profile?.full_name || "Workshop Floor"}>
         <div className="mh-actions">
           <Button tone="ghost" onClick={auth.refresh}>Refresh</Button>
           <SwitchPortalButton supabase={supabase} />
@@ -73,6 +73,7 @@ function TechnicianApp() {
         <Route path="/orders" element={<IncomingOrders run={run} supabase={supabase} />} />
         <Route path="/jobs" element={<RepairJobs run={run} supabase={supabase} />} />
         <Route path="/schedule" element={<Schedule supabase={supabase} />} />
+        <Route path="/notifications" element={<NotificationsPanel supabase={supabase} />} />
         <Route path="/profile" element={<Profile profile={auth.profile} supabase={supabase} />} />
       </Routes>
     </PortalShell>
@@ -194,7 +195,7 @@ function Profile({ profile, supabase }: { profile: ManHubProfile | null; supabas
       <Card>
         <h2 className="mh-card-title">Technician Access</h2>
         <div className="mh-detail-grid">
-          <div className="mh-detail"><span>Name</span><strong>{profile?.full_name || "Technician"}</strong></div>
+          <div className="mh-detail"><span>Name</span><strong>{profile?.full_name || profile?.email || "-"}</strong></div>
           <div className="mh-detail"><span>Email</span><strong>{profile?.email || "-"}</strong></div>
           <div className="mh-detail"><span>Status</span><strong>{profile?.status || "-"}</strong></div>
         </div>

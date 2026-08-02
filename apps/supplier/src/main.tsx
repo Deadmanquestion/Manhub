@@ -2,12 +2,14 @@ import { StrictMode, useCallback, useEffect, useMemo, useState, type FormEvent, 
 import { createRoot } from "react-dom/client";
 import { BrowserRouter, Route, Routes } from "react-router-dom";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { SwitchPortalButton, usePortalAuth } from "@manhub/auth";
+import { signOut, SwitchPortalButton, usePortalAuth } from "@manhub/auth";
 import {
   adjustSupplierStock,
   createManHubSupabaseClient,
   deleteSupplierProduct,
   fetchRows,
+  getLogoutUrl,
+  getSupplierCommissionRate,
   getSupplierWallet,
   listProductCategories,
   listSupplierCommissions,
@@ -34,7 +36,7 @@ import {
   type SupplierWithdrawal,
 } from "@manhub/backend";
 import { supplierRoutes } from "@manhub/platform-config";
-import { Button, Card, DataTable, EmptyState, FormField, MiniChart, PageHeader, PortalShell, StatGrid } from "@manhub/ui";
+import { Button, Card, DataTable, EmptyState, FormField, MiniChart, NotificationsPanel, PageHeader, PortalShell, StatGrid } from "@manhub/ui";
 
 type Db = SupabaseClient;
 type NoticeTone = "info" | "success" | "error";
@@ -76,6 +78,7 @@ function SupplierApp() {
     text: "Supplier portal is connected to ManFix Supabase.",
     tone: "info",
   });
+  const [signingOut, setSigningOut] = useState(false);
 
   const run = useCallback(async (task: () => Promise<void>, success: string) => {
     try {
@@ -112,10 +115,20 @@ function SupplierApp() {
 
   return (
     <PortalShell eyebrow="Supplier Portal" routes={supplierRoutes} title="ManFix">
-      <PageHeader title="Supplier Portal">
+      <PageHeader title={auth.profile?.full_name || auth.profile?.email || "Supplier Portal"}>
         <div className="mh-actions">
           <Button tone="ghost" onClick={auth.refresh}>Refresh session</Button>
           <SwitchPortalButton supabase={supabase} />
+          <Button tone="danger" disabled={signingOut} onClick={() => void (async () => {
+            setSigningOut(true);
+            try {
+              await signOut(supabase);
+              window.location.replace(getLogoutUrl());
+            } catch (error) {
+              setNotice({ text: error instanceof Error ? error.message : "Unable to log out.", tone: "error" });
+              setSigningOut(false);
+            }
+          })()}>{signingOut ? "Logging out..." : "Log out"}</Button>
         </div>
       </PageHeader>
       <Card tone={notice.tone === "error" ? "amber" : notice.tone === "success" ? "blue" : "default"}>
@@ -129,6 +142,7 @@ function SupplierApp() {
         <Route path="/warranty" element={<WarrantyPage run={run} supabase={supabase} />} />
         <Route path="/withdrawals" element={<WithdrawalsPage run={run} supabase={supabase} />} />
         <Route path="/analytics" element={<AnalyticsPage supabase={supabase} />} />
+        <Route path="/notifications" element={<NotificationsPanel supabase={supabase} />} />
         <Route path="/profile" element={<ProfilePage run={run} supabase={supabase} />} />
       </Routes>
     </PortalShell>
@@ -139,6 +153,7 @@ function Dashboard({ supabase }: { supabase: Db }) {
   const products = useSupplierResource(() => listSupplierProducts(supabase), [supabase], [] as SupplierProduct[]);
   const orders = useSupplierResource(() => listSupplierOrders(supabase), [supabase], [] as SupplierOrder[]);
   const commissions = useSupplierResource(() => listSupplierCommissions(supabase), [supabase], [] as SupplierCommission[]);
+  const commissionRate = useSupplierResource(() => getSupplierCommissionRate(supabase), [supabase], 0);
   const withdrawals = useSupplierResource(() => listSupplierWithdrawals(supabase), [supabase], [] as SupplierWithdrawal[]);
   const claims = useSupplierResource(() => listSupplierWarrantyClaims(supabase), [supabase], [] as SupplierWarrantyClaim[]);
   const wallet = useSupplierResource(() => getSupplierWallet(supabase), [supabase], null as SupplierWallet | null);
@@ -168,7 +183,7 @@ function Dashboard({ supabase }: { supabase: Db }) {
       stats: [
         ["Today's Gross Sales", money.format(grossToday)],
         ["Monthly Gross Sales", money.format(grossMonth)],
-        ["ManFix Fees (20%)", money.format(feesMonth)],
+        [`ManFix Fees (${commissionRate.data}%)`, money.format(feesMonth)],
         ["Monthly Net Payout", money.format(netMonth)],
         ["Wallet Available", money.format(Number(wallet.data?.available_balance ?? 0))],
         ["Pending Withdrawal", money.format(pendingWithdrawal)],
@@ -179,11 +194,11 @@ function Dashboard({ supabase }: { supabase: Db }) {
         ["Average Rating", rating],
       ] as Array<[string, string | number]>,
     };
-  }, [claims.data, commissions.data, orders.data, products.data, profile.data, wallet.data, withdrawals.data]);
+  }, [claims.data, commissionRate.data, commissions.data, orders.data, products.data, profile.data, wallet.data, withdrawals.data]);
 
   return (
     <>
-      <ResourceStatus resources={[products, orders, commissions, withdrawals, claims, wallet, invoices, profile]} />
+      <ResourceStatus resources={[products, orders, commissions, commissionRate, withdrawals, claims, wallet, invoices, profile]} />
       <StatGrid items={dashboard.stats} />
       <div className="mh-grid-3">
         <ChartOrEmpty title="Gross Sales (7 days)" data={dashboard.chart7} />
@@ -394,16 +409,17 @@ function OrdersPage({ run, supabase }: ActionProps) {
   const orders = useSupplierResource(() => listSupplierOrders(supabase), [supabase], [] as SupplierOrder[]);
   const invoices = useSupplierResource(() => listSupplierInvoices(supabase), [supabase], [] as SupplierInvoice[]);
   const commissions = useSupplierResource(() => listSupplierCommissions(supabase), [supabase], [] as SupplierCommission[]);
+  const commissionRate = useSupplierResource(() => getSupplierCommissionRate(supabase), [supabase], 0);
   const [selectedInvoice, setSelectedInvoice] = useState<SupplierInvoice | null>(null);
 
   const invoiceFor = (order: SupplierOrder) => invoices.data.find((invoice) => invoice.order_id === order.id || invoice.invoice_number === order.invoice_number) ?? null;
 
   return (
     <div className="mh-form-stack">
-      <ResourceStatus resources={[orders, invoices, commissions]} />
+      <ResourceStatus resources={[orders, invoices, commissions, commissionRate]} />
       <Card tone="blue">
         <h2 className="mh-card-title">Transparent ManFix Settlement</h2>
-        <p>For every delivered parts order, ManFix records the gross sale, charges a 20% platform commission, and credits the remaining 80% to your supplier wallet.</p>
+        <p>For every delivered parts order, ManFix records the gross sale, charges the configured {commissionRate.data}% platform commission, and credits the remaining {100 - commissionRate.data}% to your supplier wallet.</p>
       </Card>
       <Card>
         <h2 className="mh-card-title">Orders</h2>
@@ -417,10 +433,10 @@ function OrdersPage({ run, supabase }: ActionProps) {
             money.format(Number(order.amount)),
             order.status === "Delivered" ? money.format(Number(order.commission_amount)) : "Calculated on delivery",
             order.status === "Delivered" ? money.format(Number(order.supplier_net_amount)) : "-",
-            <StatusBadge tone={order.status === "Cancelled" ? "danger" : order.status === "Delivered" ? "success" : "warning"}>{order.status}</StatusBadge>,
+            <StatusBadge tone={["Cancelled", "Rejected"].includes(order.status) ? "danger" : order.status === "Delivered" ? "success" : "warning"}>{order.status}</StatusBadge>,
             <div className="mh-actions">
               {nextOrderStatuses(order.status).map((status) => (
-                <Button key={status} tone={status === "Cancelled" ? "danger" : "ghost"} onClick={() => void run(async () => {
+                <Button key={status} tone={["Cancelled", "Rejected"].includes(status) ? "danger" : "ghost"} onClick={() => void run(async () => {
                   await setSupplierOrderStatus(supabase, order.id, status);
                   await Promise.all([orders.reload(), invoices.reload(), commissions.reload()]);
                 }, `Order ${order.id} marked ${status}.`)}>
@@ -557,6 +573,7 @@ function AnalyticsPage({ supabase }: { supabase: Db }) {
   const orders = useSupplierResource(() => listSupplierOrders(supabase), [supabase], [] as SupplierOrder[]);
   const claims = useSupplierResource(() => listSupplierWarrantyClaims(supabase), [supabase], [] as SupplierWarrantyClaim[]);
   const commissions = useSupplierResource(() => listSupplierCommissions(supabase), [supabase], [] as SupplierCommission[]);
+  const commissionRate = useSupplierResource(() => getSupplierCommissionRate(supabase), [supabase], 0);
 
   const analytics = useMemo(() => {
     const grossSales = commissions.data.reduce((sum, item) => sum + Number(item.gross_amount), 0);
@@ -571,7 +588,7 @@ function AnalyticsPage({ supabase }: { supabase: Db }) {
       productRevenue: topProducts(orders.data),
       stats: [
         ["Gross Sales", money.format(grossSales)],
-        ["ManFix Fees (20%)", money.format(manFixFees)],
+        [`ManFix Fees (${commissionRate.data}%)`, money.format(manFixFees)],
         ["Net Revenue", money.format(netRevenue)],
         ["Profit After Fees", money.format(profit)],
         ["Top Products", products.data.length],
@@ -582,11 +599,11 @@ function AnalyticsPage({ supabase }: { supabase: Db }) {
       workshops,
       repeatCustomers,
     };
-  }, [claims.data.length, commissions.data, orders.data, products.data.length]);
+  }, [claims.data.length, commissionRate.data, commissions.data, orders.data, products.data.length]);
 
   return (
     <>
-      <ResourceStatus resources={[products, orders, claims, commissions]} />
+      <ResourceStatus resources={[products, orders, claims, commissions, commissionRate]} />
       <StatGrid items={analytics.stats} />
       <div className="mh-grid-2">
         <ChartOrEmpty title="Revenue" data={analytics.monthlyRevenue} />
@@ -860,8 +877,9 @@ function maskAccount(value: string) {
 }
 
 function nextOrderStatuses(status: SupplierOrder["status"]): SupplierOrder["status"][] {
-  if (status === "New") return ["Confirmed", "Cancelled"];
-  if (status === "Confirmed") return ["Dispatched", "Cancelled"];
+  if (status === "New") return ["Accepted", "Rejected"];
+  if (status === "Accepted") return ["Preparing", "Rejected"];
+  if (status === "Preparing") return ["Dispatched", "Cancelled"];
   if (status === "Dispatched") return ["Delivered", "Cancelled"];
   return [];
 }

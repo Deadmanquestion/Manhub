@@ -4,6 +4,7 @@ import { BrowserRouter, Route, Routes } from "react-router-dom";
 import { signOut, SwitchPortalButton, usePortalAuth } from "@manhub/auth";
 import {
   createManHubSupabaseClient,
+  assignRepairTechnician,
   fetchRows,
   getLogoutUrl,
   insertRow,
@@ -14,13 +15,14 @@ import {
   setWorkshopRepairStatus,
   subscribeToWorkshopOperations,
   updateStatus,
+  updateWorkshopWarrantyClaim,
   type RepairJob,
   type WorkshopBooking,
   type ManHubProfile,
   type ManHubRole,
 } from "@manhub/backend";
 import { workshopMetrics, workshopRoutes } from "@manhub/platform-config";
-import { Button, Card, DataTable, EmptyState, FormField, MiniChart, PageHeader, PortalShell, StatGrid } from "@manhub/ui";
+import { Button, Card, DataTable, EmptyState, FormField, MiniChart, NotificationsPanel, PageHeader, PortalShell, StatGrid } from "@manhub/ui";
 
 type Row = { id?: string; [key: string]: unknown };
 type Client = NonNullable<ReturnType<typeof createManHubSupabaseClient>>;
@@ -58,7 +60,7 @@ function WorkshopApp() {
 
   return (
     <PortalShell eyebrow="Workshop Portal" routes={workshopRoutes} title="ManFix">
-      <PageHeader title="Workshop Portal">
+      <PageHeader title={auth.profile?.full_name || "Workshop Portal"}>
         <div className="mh-actions">
           <Button tone="ghost" onClick={auth.refresh}>Refresh session</Button>
           <SwitchPortalButton supabase={supabase} />
@@ -72,11 +74,12 @@ function WorkshopApp() {
         <Route path="/" element={<Dashboard supabase={supabase} />} />
         <Route path="/bookings" element={<Bookings run={run} supabase={supabase} />} />
         <Route path="/repair-queue" element={<RepairQueue run={run} supabase={supabase} />} />
-        <Route path="/customers" element={<TablePage supabase={supabase} table="app_users" title="Customers" columns={["full_name", "email", "account_type", "status"]} />} />
+        <Route path="/customers" element={<Customers supabase={supabase} />} />
         <Route path="/technicians" element={<Technicians run={run} supabase={supabase} />} />
-        <Route path="/invoices" element={<Invoices run={run} supabase={supabase} />} />
+        <Route path="/invoices" element={<Invoices supabase={supabase} />} />
         <Route path="/warranty" element={<WarrantyInspections run={run} supabase={supabase} />} />
         <Route path="/analytics" element={<Analytics supabase={supabase} />} />
+        <Route path="/notifications" element={<NotificationsPanel supabase={supabase} />} />
         <Route path="/profile" element={<AccessProfile profile={auth.profile} roles={auth.roles} supabase={supabase} />} />
       </Routes>
     </PortalShell>
@@ -97,7 +100,7 @@ function AccessProfile({
       <Card>
         <h2 className="mh-card-title">Workshop Profile</h2>
         <div className="mh-detail-grid">
-          <div className="mh-detail"><span>Name</span><strong>{profile?.full_name || "Workshop account"}</strong></div>
+          <div className="mh-detail"><span>Name</span><strong>{profile?.full_name || profile?.email || "-"}</strong></div>
           <div className="mh-detail"><span>Email</span><strong>{profile?.email || "-"}</strong></div>
           <div className="mh-detail"><span>Status</span><strong>{profile?.status || "-"}</strong></div>
           <div className="mh-detail"><span>Assigned roles</span><strong>{roles.map(labelize).join(", ")}</strong></div>
@@ -114,6 +117,8 @@ function AccessProfile({
 
 function Dashboard({ supabase }: { supabase: Client }) {
   const [metrics, setMetrics] = useState<Array<[string, string | number]>>([]);
+  const [bookings] = useWorkshopBookings(supabase);
+  const [jobs] = useRepairJobs(supabase);
   useEffect(() => {
     void Promise.all(workshopMetrics.map(async (metric) => [metric.label, await resolveMetric(supabase, metric)] as [string, number]))
       .then(setMetrics)
@@ -123,8 +128,8 @@ function Dashboard({ supabase }: { supabase: Client }) {
     <>
       <StatGrid items={metrics.length ? metrics : [["Bookings", 0], ["Repair Queue", 0], ["Invoices", 0], ["Warranty Jobs", 0]]} />
       <div className="mh-grid-2">
-        <MiniChart title="Bay Utilization" data={[64, 71, 58, 82, 76].map((value, index) => ({ label: `Bay ${index + 1}`, value }))} />
-        <MiniChart title="Repair Throughput" data={[7, 9, 6, 11, 12].map((value, index) => ({ label: `D${index + 1}`, value }))} />
+        <MiniChart title="Bookings by Status" data={groupByStatus(bookings)} />
+        <MiniChart title="Repairs by Status" data={groupByStatus(jobs)} />
       </div>
     </>
   );
@@ -163,6 +168,7 @@ function Bookings({ run, supabase }: ActionProps) {
 
 function RepairQueue({ run, supabase }: ActionProps) {
   const [rows, refresh] = useRepairJobs(supabase);
+  const [technicians] = useRows(supabase, "technicians");
   return (
     <Card>
       <h2 className="mh-card-title">Repair Queue</h2>
@@ -175,6 +181,17 @@ function RepairQueue({ run, supabase }: ActionProps) {
           row.technician_name ?? "Unassigned",
           labelize(row.status),
           <div className="mh-actions">
+            <select
+              aria-label={`Assign technician for ${row.vehicle_label}`}
+              value=""
+              onChange={(event) => event.target.value && void run(async () => {
+                await assignRepairTechnician(supabase, row.id, event.target.value);
+                await refresh();
+              }, "Technician assigned and notified.")}
+            >
+              <option value="">Assign technician</option>
+              {technicians.map((item) => <option key={String(item.id)} value={String(item.id)}>{String(item.name)}</option>)}
+            </select>
             {row.status === "queued" && <Button onClick={() => void updateRepair("in_progress", row.id)}>Start</Button>}
             {row.status === "in_progress" && <Button onClick={() => void updateRepair("ready", row.id)}>Mark ready</Button>}
             {row.status === "ready" && <Button onClick={() => void updateRepair("completed", row.id)}>Complete</Button>}
@@ -196,14 +213,17 @@ function RepairQueue({ run, supabase }: ActionProps) {
 function Technicians({ run, supabase }: ActionProps) {
   const [rows, setRows] = useRows(supabase, "technicians");
   const [name, setName] = useState("");
+  const [certification, setCertification] = useState("");
   return (
     <Card>
       <h2 className="mh-card-title">Technicians</h2>
       <div className="mh-form-row">
         <FormField label="Technician Name" value={name} onChange={setName} />
+        <FormField label="Certification" value={certification} onChange={setCertification} />
         <Button onClick={() => run(async () => {
-          await insertRow(supabase, "technicians", { name, certification: "IMI Certified", status: "Available", jobs_today: 0 });
+          await insertRow(supabase, "technicians", { name, certification: certification || null, status: "Available", jobs_today: 0 });
           setName("");
+          setCertification("");
           setRows(await fetchRows<Row>(supabase, "technicians"));
         }, "Technician added.")}>Add Technician</Button>
       </div>
@@ -212,18 +232,22 @@ function Technicians({ run, supabase }: ActionProps) {
   );
 }
 
-function Invoices({ run, supabase }: ActionProps) {
-  const [rows, setRows] = useRows(supabase, "platform_payments");
-  return <TableWithStatus rows={rows} columns={["invoice_number", "amount", "status", "method", "created_at"]} title="Invoices" actions={["Paid", "Refunded"]} update={(id, status) => run(async () => {
-    await updateStatus(supabase, "platform_payments", id, status);
-    setRows(await fetchRows<Row>(supabase, "platform_payments"));
-  }, `Invoice ${status}.`)} />;
+function Invoices({ supabase }: { supabase: Client }) {
+  return <TablePage supabase={supabase} table="service_bookings" title="Booking Payments" columns={["vehicle_label", "service_type", "estimated_price", "payment_status", "created_at"]} />;
+}
+
+function Customers({ supabase }: { supabase: Client }) {
+  const [jobs] = useRepairJobs(supabase);
+  const unique = Array.from(new Map(jobs.map((job) => [job.customer_name, job])).values());
+  return <Card><h2 className="mh-card-title">Customers</h2><DataTable headers={["Customer", "Vehicle", "Latest Diagnosis", "Status"]} rows={unique.map((job) => [job.customer_name, job.vehicle_label, job.diagnosis, labelize(job.status)])} /></Card>;
 }
 
 function WarrantyInspections({ run, supabase }: ActionProps) {
   const [rows, setRows] = useRows(supabase, "warranty_claims");
-  return <TableWithStatus rows={rows} columns={["warranty_id", "description", "status", "submitted_at"]} title="Warranty Inspection Jobs" actions={["Inspection Accepted", "Inspection Scheduled", "Replacement Recommended"]} update={(id, status) => run(async () => {
-    await updateStatus(supabase, "warranty_claims", id, status);
+  const actions = ["Accepted", "Scheduled", "Report uploaded", "Replacement recommended"] as const;
+  return <TableWithStatus rows={rows} columns={["warranty_id", "description", "status", "inspection_status", "submitted_at"]} title="Warranty Inspection Jobs" actions={[...actions]} update={(id, status) => run(async () => {
+    if (!actions.includes(status as (typeof actions)[number])) throw new Error("Unsupported warranty inspection action.");
+    await updateWorkshopWarrantyClaim(supabase, id, status as (typeof actions)[number]);
     setRows(await fetchRows<Row>(supabase, "warranty_claims"));
   }, `Warranty inspection ${status}.`)} />;
 }
@@ -306,6 +330,12 @@ function formatDate(input: string) {
     dateStyle: "medium",
     timeStyle: "short",
   });
+}
+
+function groupByStatus(rows: Array<{ status: string }>) {
+  const values = new Map<string, number>();
+  rows.forEach((row) => values.set(labelize(row.status), (values.get(labelize(row.status)) ?? 0) + 1));
+  return Array.from(values, ([label, value]) => ({ label, value }));
 }
 
 createRoot(document.getElementById("root")!).render(<StrictMode><BrowserRouter><WorkshopApp /></BrowserRouter></StrictMode>);

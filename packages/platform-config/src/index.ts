@@ -19,6 +19,7 @@ export const supplierRoutes: PortalRoute[] = [
   { label: "Warranty", path: "/warranty" },
   { label: "Withdrawals", path: "/withdrawals" },
   { label: "Analytics", path: "/analytics" },
+  { label: "Notifications", path: "/notifications" },
   { label: "Profile", path: "/profile" },
 ];
 
@@ -31,6 +32,7 @@ export const workshopRoutes: PortalRoute[] = [
   { label: "Invoices", path: "/invoices" },
   { label: "Warranty", path: "/warranty" },
   { label: "Analytics", path: "/analytics" },
+  { label: "Notifications", path: "/notifications" },
   { label: "Profile", path: "/profile" },
 ];
 
@@ -39,6 +41,7 @@ export const technicianRoutes: PortalRoute[] = [
   { label: "Incoming Orders", path: "/orders" },
   { label: "Repair Jobs", path: "/jobs" },
   { label: "Schedule", path: "/schedule" },
+  { label: "Notifications", path: "/notifications" },
   { label: "Profile", path: "/profile" },
 ];
 
@@ -54,15 +57,16 @@ export const adminRoutes: PortalRoute[] = [
   { label: "Warranty", path: "/warranty" },
   { label: "Analytics", path: "/analytics" },
   { label: "Settings", path: "/settings" },
+  { label: "Notifications", path: "/notifications" },
   { label: "Profile", path: "/profile" },
 ];
 
 export const adminMetrics: MetricQuery[] = [
   { label: "Total GMV", table: "platform_payments", type: "sum", column: "amount" },
   { label: "Commission Earned", table: "platform_payments", type: "sum", column: "commission_amount" },
-  { label: "Active Customers", table: "app_users", type: "count", filter: { account_type: "Customer" } },
-  { label: "Active Workshops", table: "platform_workshops", type: "count", filter: { status: "Active" } },
-  { label: "Active Suppliers", table: "supplier_profiles", type: "count", filter: { status: "Active" } },
+  { label: "Active Customers", table: "profiles", type: "count", filter: { role: "customer", status: "Active" } },
+  { label: "Active Workshops", table: "platform_workshops", type: "count", filter: { status: "Verified" } },
+  { label: "Active Suppliers", table: "supplier_profiles", type: "count", filter: { status: "Verified" } },
   { label: "Warranty Claims", table: "warranty_claims", type: "count" },
   { label: "Withdrawal Requests", table: "supplier_withdrawals", type: "count", filter: { status: "Pending" } },
 ];

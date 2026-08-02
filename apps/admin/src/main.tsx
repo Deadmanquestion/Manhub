@@ -6,11 +6,13 @@ import {
   createManHubSupabaseClient,
   createPartnerDocumentLinks,
   fetchRows,
+  getSupplierCommissionRate,
   getLogoutUrl,
   insertRow,
   listPartnerApplications,
   reviewPartnerApplication,
   savePartnerApplicationNotes,
+  updateCustomerPayment,
   updateStatus,
   type PartnerApplicationRecord,
   type PartnerApplicationType,
@@ -20,7 +22,7 @@ import {
   portalRoles,
 } from "@manhub/backend";
 import { adminRoutes } from "@manhub/platform-config";
-import { Button, Card, DataTable, EmptyState, FormField, MiniChart, PageHeader, PortalShell, StatGrid, TextAreaField } from "@manhub/ui";
+import { Button, Card, DataTable, EmptyState, FormField, MiniChart, NotificationsPanel, PageHeader, PortalShell, StatGrid, TextAreaField } from "@manhub/ui";
 
 type Row = { id?: string; [key: string]: unknown };
 type Client = NonNullable<ReturnType<typeof createManHubSupabaseClient>>;
@@ -60,7 +62,7 @@ function AdminApp() {
 
   return (
     <PortalShell eyebrow="Admin Dashboard" routes={adminRoutes} title="ManFix">
-      <PageHeader title="Platform Control">
+      <PageHeader title={auth.profile?.full_name || "Platform Control"}>
         <div className="mh-actions">
           <Button tone="ghost" onClick={auth.refresh}>Refresh session</Button>
           <SwitchPortalButton supabase={supabase} />
@@ -74,12 +76,13 @@ function AdminApp() {
         <Route path="/users" element={<Users currentRoles={auth.roles} run={run} supabase={supabase} />} />
         <Route path="/workshops" element={<StatusPage run={run} supabase={supabase} table="platform_workshops" title="Workshops" columns={["name", "city", "status", "rating"]} actions={["Verified", "Suspended"]} />} />
         <Route path="/suppliers" element={<StatusPage run={run} supabase={supabase} table="supplier_profiles" title="Suppliers" columns={["company_name", "status", "rating", "bank_name"]} actions={["Verified", "Suspended"]} />} />
-        <Route path="/orders" element={<StatusPage run={run} supabase={supabase} table="supplier_orders" title="Orders" columns={["id", "workshop", "customer", "amount", "status"]} actions={["Confirmed", "Delivered", "Cancelled"]} />} />
-        <Route path="/payments" element={<CommissionPage supabase={supabase} />} />
+        <Route path="/orders" element={<TablePage supabase={supabase} table="customer_orders" title="Customer Orders" columns={["order_number", "total", "payment_status", "status", "created_at"]} />} />
+        <Route path="/payments" element={<PaymentManagement run={run} supabase={supabase} />} />
         <Route path="/withdrawals" element={<StatusPage run={run} supabase={supabase} table="supplier_withdrawals" title="Withdrawals" columns={["amount", "bank", "account_number", "status"]} actions={["Approved", "Rejected"]} />} />
         <Route path="/warranty" element={<StatusPage run={run} supabase={supabase} table="warranty_claims" title="Warranty" columns={["warranty_id", "description", "status", "submitted_at"]} actions={["Approved", "Rejected", "Inspection Requested"]} />} />
         <Route path="/analytics" element={<Analytics supabase={supabase} />} />
         <Route path="/settings" element={<Settings run={run} supabase={supabase} />} />
+        <Route path="/notifications" element={<NotificationsPanel supabase={supabase} />} />
         <Route path="/profile" element={<AccessProfile profile={auth.profile} roles={auth.roles} supabase={supabase} />} />
       </Routes>
     </PortalShell>
@@ -100,7 +103,7 @@ function AccessProfile({
       <Card>
         <h2 className="mh-card-title">Admin Profile</h2>
         <div className="mh-detail-grid">
-          <div className="mh-detail"><span>Name</span><strong>{profile?.full_name || "Administrator"}</strong></div>
+          <div className="mh-detail"><span>Name</span><strong>{profile?.full_name || profile?.email || "-"}</strong></div>
           <div className="mh-detail"><span>Email</span><strong>{profile?.email || "-"}</strong></div>
           <div className="mh-detail"><span>Status</span><strong>{profile?.status || "-"}</strong></div>
           <div className="mh-detail"><span>Assigned roles</span><strong>{roles.map(labelize).join(", ")}</strong></div>
@@ -116,15 +119,17 @@ function AccessProfile({
 }
 
 function Overview({ supabase }: { supabase: Client }) {
-  const [payments] = useRows(supabase, "platform_payments");
+  const [payments] = useRows(supabase, "customer_payments");
+  const [settlements] = useRows(supabase, "platform_payments");
   const [memberships] = useRows(supabase, "user_roles");
-  const [orders] = useRows(supabase, "supplier_orders");
+  const [orders] = useRows(supabase, "customer_orders");
   const [withdrawals] = useRows(supabase, "supplier_withdrawals");
   const [claims] = useRows(supabase, "warranty_claims");
   const today = new Date().toISOString().slice(0, 10);
   const paidPayments = payments.filter((payment) => payment.status === "Paid");
   const gmv = sumRows(paidPayments, "amount");
-  const commission = sumRows(paidPayments, "commission_amount");
+  const paidSettlements = settlements.filter((payment) => payment.status === "Paid");
+  const commission = sumRows(paidSettlements, "commission_amount");
   const active = (role: string) => memberships.filter((membership) => membership.role === role && ["Active", "Approved", "Verified"].includes(String(membership.status))).length;
   const metrics: Array<[string, string | number]> = [
     ["Total GMV", money.format(gmv)],
@@ -143,8 +148,8 @@ function Overview({ supabase }: { supabase: Client }) {
       <StatGrid items={metrics} />
       <div className="mh-grid-3">
         <MiniChart title="GMV by Month" data={groupRowsByMonth(paidPayments, "amount")} />
-        <MiniChart title="Commission by Month" data={groupRowsByMonth(paidPayments, "commission_amount")} />
-        <MiniChart title="Supplier Net Payout by Month" data={groupRowsByMonth(paidPayments, "supplier_net_amount")} />
+        <MiniChart title="Commission by Month" data={groupRowsByMonth(paidSettlements, "commission_amount")} />
+        <MiniChart title="Supplier Net Payout by Month" data={groupRowsByMonth(paidSettlements, "supplier_net_amount")} />
       </div>
     </>
   );
@@ -482,21 +487,67 @@ function applicationDetails(application: CombinedApplication): Array<[string, st
   ];
 }
 
+function PaymentManagement({ run, supabase }: ActionProps) {
+  const [payments, setPayments] = useRows(supabase, "customer_payments");
+  const paid = payments.filter((payment) => payment.status === "Paid");
+  const pending = payments.filter((payment) => payment.status === "Pending");
+  const refunded = payments.filter((payment) => payment.status === "Refunded");
+  const refresh = async () => setPayments(await fetchRows<Row>(supabase, "customer_payments"));
+  return (
+    <div className="mh-form-stack">
+      <StatGrid items={[
+        ["Paid Volume", money.format(sumRows(paid, "amount"))],
+        ["Pending Payments", pending.length],
+        ["Refunded Volume", money.format(sumRows(refunded, "amount"))],
+      ]} />
+      <Card>
+        <h2 className="mh-card-title">Customer Payments</h2>
+        <DataTable headers={["Payment", "Order", "Amount", "Method", "Status", "Created", "Actions"]} rows={payments.map((payment) => [
+          String(payment.payment_number),
+          String(payment.order_id),
+          money.format(Number(payment.amount)),
+          String(payment.method),
+          String(payment.status),
+          new Date(String(payment.created_at)).toLocaleString("en-MY"),
+          <div className="mh-actions">
+            {payment.status === "Pending" && <>
+              <Button onClick={() => void run(async () => { await updateCustomerPayment(supabase, String(payment.id), "Paid"); await refresh(); }, "Payment marked Paid.")}>Mark paid</Button>
+              <Button tone="danger" onClick={() => void run(async () => { await updateCustomerPayment(supabase, String(payment.id), "Cancelled"); await refresh(); }, "Payment cancelled.")}>Cancel</Button>
+            </>}
+            {payment.status === "Paid" && <Button tone="danger" onClick={() => void run(async () => { await updateCustomerPayment(supabase, String(payment.id), "Refunded"); await refresh(); }, "Payment refunded.")}>Refund</Button>}
+          </div>,
+        ])} />
+      </Card>
+      <CommissionPage supabase={supabase} />
+    </div>
+  );
+}
+
 function CommissionPage({ supabase }: { supabase: Client }) {
   const [commissions] = useRows(supabase, "supplier_commissions");
+  const [commissionRate, setCommissionRate] = useState<number | null>(null);
   const gross = sumRows(commissions, "gross_amount");
   const fees = sumRows(commissions, "commission_amount");
   const payouts = sumRows(commissions, "supplier_net_amount");
+
+  useEffect(() => {
+    void getSupplierCommissionRate(supabase).then(setCommissionRate).catch(() => setCommissionRate(null));
+  }, [supabase]);
+
+  const commissionPercent = commissionRate;
+  const supplierPercent = commissionPercent === null ? null : 100 - commissionPercent;
 
   return (
     <div className="mh-form-stack">
       <Card tone="blue">
         <h2 className="mh-card-title">Supplier Commission</h2>
-        <p>ManFix charges suppliers 20% only when an order is delivered. The remaining 80% is credited to the supplier wallet automatically.</p>
+        <p>{commissionPercent === null
+          ? "Loading the configured supplier commission from ManFix settings..."
+          : `ManFix charges suppliers ${commissionPercent}% only when an order is delivered. The remaining ${supplierPercent}% is credited to the supplier wallet automatically.`}</p>
       </Card>
       <StatGrid items={[
         ["Supplier Gross Sales", money.format(gross)],
-        ["ManFix Commission (20%)", money.format(fees)],
+        [commissionPercent === null ? "ManFix Commission" : `ManFix Commission (${commissionPercent}%)`, money.format(fees)],
         ["Supplier Net Payouts", money.format(payouts)],
         ["Settled Sales", commissions.filter((item) => item.status === "Settled").length],
       ]} />
