@@ -1,7 +1,7 @@
 type DiagnoseRequest = {
-  carModel?: string;
-  mileage?: string;
   symptom?: string;
+  userVehicleId?: string;
+  vehicleModelId?: string;
 };
 
 type DiagnosisResult = {
@@ -63,12 +63,38 @@ export async function POST(request: Request) {
     return json({ error: "Invalid diagnosis request." }, 400);
   }
 
-  if (!body.symptom?.trim() || !body.carModel?.trim() || !body.mileage?.trim()) {
+  if (!body.symptom?.trim() || !body.userVehicleId?.trim() || !body.vehicleModelId?.trim()) {
     return json(
-      { error: "Symptom, car model, and mileage are required." },
+      { error: "Symptom and a saved vehicle are required." },
       400,
     );
   }
+
+  const { data: vehicle, error: vehicleError } = await supabase
+    .from("user_vehicles")
+    .select(`
+      mileage,vehicle_model_id,
+      vehicle_model:vehicle_models!user_vehicles_vehicle_model_id_fkey(
+        model_name,year,engine,fuel,transmission,horsepower,torque_nm,
+        brand:brands!vehicle_models_brand_id_fkey(name)
+      )
+    `)
+    .eq("id", body.userVehicleId)
+    .eq("vehicle_model_id", body.vehicleModelId)
+    .single();
+  if (vehicleError || !vehicle) {
+    return json({ error: "The selected vehicle could not be verified." }, 404);
+  }
+  const model = vehicle.vehicle_model as unknown as {
+    brand: { name: string };
+    engine: string;
+    fuel: string;
+    horsepower: number | null;
+    model_name: string;
+    torque_nm: number | null;
+    transmission: string;
+    year: number;
+  };
 
   const apiKey = getApiKey();
   if (!apiKey) {
@@ -96,8 +122,14 @@ export async function POST(request: Request) {
           {
             role: "user",
             content: JSON.stringify({
-              carModel: body.carModel ?? "Unknown vehicle",
-              mileage: body.mileage ?? "Unknown mileage",
+              vehicle_model_id: body.vehicleModelId,
+              vehicle: `${model.brand.name} ${model.model_name} ${model.year}`,
+              engine: model.engine,
+              fuel: model.fuel,
+              transmission: model.transmission,
+              horsepower: model.horsepower,
+              torque_nm: model.torque_nm,
+              mileage_km: vehicle.mileage,
               symptom: body.symptom ?? "No symptom provided",
             }),
           },
