@@ -111,32 +111,43 @@ export type SupplierOrder = {
   workshop: string;
 };
 
-export type CustomerVehicle = {
-  color: string | null;
-  created_at: string;
-  engine: string | null;
+export type VehicleBrand = {
   id: string;
-  license_plate: string | null;
-  make: string;
-  mileage: number | null;
-  model: string;
-  notes: string | null;
+  logo_url: string;
+  name: string;
+};
+
+export type VehicleModel = {
+  brand: VehicleBrand;
+  brand_id: string;
+  engine: string;
+  fuel: string;
+  horsepower: number | null;
+  id: string;
+  image_url: string;
+  model_name: string;
+  torque_nm: number | null;
+  transmission: string;
+  year: number;
+};
+
+export type CustomerVehicle = {
+  created_at: string;
+  id: string;
+  mileage: number;
+  nickname: string | null;
+  plate_number: string;
   updated_at: string;
   user_id: string;
-  vin: string | null;
-  year: number | null;
+  vehicle_model: VehicleModel;
+  vehicle_model_id: string;
 };
 
 export type CustomerVehicleInput = {
-  color?: string | null;
-  engine: string | null;
-  license_plate: string | null;
-  make: string;
-  mileage: number | null;
-  model: string;
-  notes?: string | null;
-  vin: string | null;
-  year: number | null;
+  mileage: number;
+  nickname: string | null;
+  plate_number: string;
+  vehicle_model_id: string;
 };
 
 export type CustomerCartItem = {
@@ -723,11 +734,41 @@ export async function uploadCustomerAvatar(supabase: SupabaseClient, file: File)
 
 export async function listCustomerVehicles(supabase: SupabaseClient) {
   const { data, error } = await supabase
-    .from("cars")
-    .select("*")
+    .from("user_vehicles")
+    .select(`
+      id,user_id,vehicle_model_id,plate_number,mileage,nickname,created_at,updated_at,
+      vehicle_model:vehicle_models!user_vehicles_vehicle_model_id_fkey(
+        id,brand_id,model_name,year,engine,fuel,transmission,horsepower,torque_nm,image_url,
+        brand:brands!vehicle_models_brand_id_fkey(id,name,logo_url)
+      )
+    `)
     .order("created_at", { ascending: false });
   if (error) throw error;
-  return (data ?? []) as CustomerVehicle[];
+  return (data ?? []) as unknown as CustomerVehicle[];
+}
+
+export async function listVehicleBrands(supabase: SupabaseClient) {
+  const { data, error } = await supabase
+    .from("brands")
+    .select("id,name,logo_url")
+    .order("name");
+  if (error) throw error;
+  return (data ?? []) as VehicleBrand[];
+}
+
+export async function listVehicleModels(supabase: SupabaseClient, brandId?: string) {
+  let query = supabase
+    .from("vehicle_models")
+    .select(`
+      id,brand_id,model_name,year,engine,fuel,transmission,horsepower,torque_nm,image_url,
+      brand:brands!vehicle_models_brand_id_fkey(id,name,logo_url)
+    `)
+    .order("model_name")
+    .order("year", { ascending: false });
+  if (brandId) query = query.eq("brand_id", brandId);
+  const { data, error } = await query;
+  if (error) throw error;
+  return (data ?? []) as unknown as VehicleModel[];
 }
 
 export async function saveCustomerVehicle(
@@ -738,25 +779,48 @@ export async function saveCustomerVehicle(
   const { data: userData, error: userError } = await supabase.auth.getUser();
   if (userError || !userData.user) throw userError ?? new Error("Authentication required.");
   const query = id
-    ? supabase.from("cars").update(values).eq("id", id).eq("user_id", userData.user.id)
-    : supabase.from("cars").insert({ ...values, user_id: userData.user.id });
-  const { data, error } = await query.select("*").single();
+    ? supabase.from("user_vehicles").update(values).eq("id", id).eq("user_id", userData.user.id)
+    : supabase.from("user_vehicles").insert({ ...values, user_id: userData.user.id });
+  const { data, error } = await query.select(`
+    id,user_id,vehicle_model_id,plate_number,mileage,nickname,created_at,updated_at,
+    vehicle_model:vehicle_models!user_vehicles_vehicle_model_id_fkey(
+      id,brand_id,model_name,year,engine,fuel,transmission,horsepower,torque_nm,image_url,
+      brand:brands!vehicle_models_brand_id_fkey(id,name,logo_url)
+    )
+  `).single();
   if (error) throw error;
-  return data as CustomerVehicle;
+  return data as unknown as CustomerVehicle;
 }
 
 export async function deleteCustomerVehicle(supabase: SupabaseClient, id: string) {
-  const { error } = await supabase.from("cars").delete().eq("id", id);
+  const { error } = await supabase.from("user_vehicles").delete().eq("id", id);
   if (error) throw error;
 }
 
-export async function listCustomerCatalog(supabase: SupabaseClient) {
-  const { data, error } = await supabase
+export async function listCustomerCatalog(supabase: SupabaseClient, vehicleModelId?: string) {
+  let compatibleProductIds: string[] | undefined;
+
+  if (vehicleModelId) {
+    const { data: compatibility, error: compatibilityError } = await supabase
+      .from("product_vehicle_models")
+      .select("product_id")
+      .eq("vehicle_model_id", vehicleModelId);
+    if (compatibilityError) throw compatibilityError;
+
+    compatibleProductIds = (compatibility ?? []).map(
+      (match) => match.product_id as string,
+    );
+    if (compatibleProductIds.length === 0) return [];
+  }
+
+  let query = supabase
     .from("supplier_products")
     .select("*")
     .eq("active", true)
     .gt("stock", 0)
     .order("created_at", { ascending: false });
+  if (compatibleProductIds) query = query.in("id", compatibleProductIds);
+  const { data, error } = await query;
   if (error) throw error;
   return (data ?? []) as SupplierProduct[];
 }
@@ -915,20 +979,37 @@ export async function listServiceCatalog(supabase: SupabaseClient) {
 export async function createCustomerServiceBooking(
   supabase: SupabaseClient,
   values: {
-    car_id: string;
     customer_notes: string | null;
     estimated_price: number;
     service_catalog_id: string;
     service_date: string;
     service_type: string;
+    user_vehicle_id: string;
     workshop_owner_id: string;
   },
 ) {
   const { data: userData, error: userError } = await supabase.auth.getUser();
   if (userError || !userData.user) throw userError ?? new Error("Authentication required.");
+  const { data: vehicle, error: vehicleError } = await supabase
+    .from("user_vehicles")
+    .select(`
+      plate_number,
+      vehicle_model:vehicle_models!user_vehicles_vehicle_model_id_fkey(
+        model_name,year,brand:brands!vehicle_models_brand_id_fkey(name)
+      )
+    `)
+    .eq("id", values.user_vehicle_id)
+    .single();
+  if (vehicleError) throw vehicleError;
+  const model = vehicle.vehicle_model as unknown as {
+    brand: { name: string };
+    model_name: string;
+    year: number;
+  };
+  const vehicleLabel = `${model.brand.name} ${model.model_name} ${model.year} - ${vehicle.plate_number}`;
   const { data, error } = await supabase
     .from("service_bookings")
-    .insert({ ...values, user_id: userData.user.id, scheduled_at: values.service_date, vehicle_label: "Pending" })
+    .insert({ ...values, user_id: userData.user.id, scheduled_at: values.service_date, vehicle_label: vehicleLabel })
     .select("id")
     .single();
   if (error) throw error;
