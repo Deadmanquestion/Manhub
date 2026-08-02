@@ -1,6 +1,7 @@
-import type { ReactNode } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { NavLink } from "react-router-dom";
-import type { PortalRoute } from "@manhub/backend";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import { listNotifications, markNotificationRead, subscribeToNotifications, type PortalRoute } from "@manhub/backend";
 import "./theme.css";
 
 export function PortalShell({
@@ -159,4 +160,45 @@ export function FileField({
 
 export function EmptyState({ text }: { text: string }) {
   return <p className="mh-empty">{text}</p>;
+}
+
+export function NotificationsPanel({ supabase }: { supabase: SupabaseClient }) {
+  const [rows, setRows] = useState<Awaited<ReturnType<typeof listNotifications>>>([]);
+  const [error, setError] = useState<string | null>(null);
+  const refresh = useCallback(async () => {
+    try {
+      setRows(await listNotifications(supabase));
+      setError(null);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Unable to load notifications.");
+    }
+  }, [supabase]);
+
+  useEffect(() => {
+    void refresh();
+    return subscribeToNotifications(supabase, () => void refresh());
+  }, [refresh, supabase]);
+
+  return (
+    <Card>
+      <div className="mh-actions">
+        <h2 className="mh-card-title">Notifications</h2>
+        <Button tone="ghost" onClick={() => void refresh()}>Refresh</Button>
+      </div>
+      {error && <p className="mh-empty">{error}</p>}
+      <DataTable
+        headers={["Status", "Title", "Message", "Created", "Action"]}
+        rows={rows.map((row) => [
+          row.read_at ? "Read" : "Unread",
+          row.title,
+          row.message,
+          new Date(row.created_at).toLocaleString("en-MY"),
+          row.read_at ? "Recorded" : <Button tone="ghost" onClick={() => void (async () => {
+            await markNotificationRead(supabase, row.id);
+            await refresh();
+          })()}>Mark read</Button>,
+        ])}
+      />
+    </Card>
+  );
 }

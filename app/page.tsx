@@ -29,13 +29,13 @@ const deliverables = [
   {
     eyebrow: "03",
     title: "Role Detection",
-    body: "After login, ManFix reads public.profiles.role and redirects to the correct portal.",
+    body: "After login, ManFix reads approved public.user_roles and opens the correct portal or portal selector.",
     status: "Supabase",
   },
   {
     eyebrow: "04",
     title: "Independent Portals",
-    body: "Supplier, Workshop, and Admin are separate React applications with their own routing.",
+    body: "Customer, supplier, workshop, technician, and admin are separate React applications with their own routing.",
     status: "Split",
   },
 ];
@@ -67,7 +67,7 @@ const portals = [
   },
 ];
 
-const flow = ["Supabase Auth", "profiles.role", "Role guard", "Correct portal"];
+const flow = ["Supabase Auth", "user_roles", "Role guard", "Correct portal"];
 
 export default function LandingWebsite() {
   return (
@@ -90,7 +90,7 @@ export default function LandingWebsite() {
           <h1>One backend. One login. Separate portals for every ManFix role.</h1>
           <p>
             ManFix is structured as a platform first: public landing website, Supabase single sign-on,
-            automatic role detection, and independent web portals for suppliers, workshops, and admins.
+            automatic role detection, and independent applications for customers, suppliers, workshops, technicians, and admins.
           </p>
           <div className="hero-actions">
             <a className="primary-action" href={authUrl}>Open Single Login</a>
@@ -100,7 +100,7 @@ export default function LandingWebsite() {
         <aside className="system-panel" aria-label="ManFix architecture status">
           <div className="panel-header">
             <span>Platform Status</span>
-            <b>Architecture First</b>
+            <b>Live SaaS Platform</b>
           </div>
           <div className="flow-line">
             {flow.map((item) => (
@@ -115,8 +115,8 @@ export default function LandingWebsite() {
 
       <section className="deliverables" id="architecture" aria-labelledby="architecture-title">
         <header className="section-header">
-          <span>Required Deliverables</span>
-          <h2 id="architecture-title">Customer App work is paused until this foundation is complete.</h2>
+          <span>Production Foundation</span>
+          <h2 id="architecture-title">Every portal shares live Supabase data and protected business workflows.</h2>
         </header>
         <div className="deliverable-grid">
           {deliverables.map((item) => (

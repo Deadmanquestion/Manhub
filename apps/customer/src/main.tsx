@@ -8,10 +8,6 @@ import { useMemo } from "react";
 import InvestorCustomerApp from "./InvestorCustomerApp";
 
 function CustomerApp() {
-  if (import.meta.env.DEV && new URLSearchParams(window.location.search).has("preview")) {
-    return <InvestorCustomerApp onSignOut={async () => undefined} />;
-  }
-
   return <ProtectedCustomerApp />;
 }
 
@@ -25,6 +21,8 @@ function ProtectedCustomerApp() {
 
   return (
     <InvestorCustomerApp
+      profile={auth.profile!}
+      supabase={supabase}
       onSwitchPortal={async () => openPortalSelector(supabase)}
       onSignOut={async () => {
         await signOut(supabase);

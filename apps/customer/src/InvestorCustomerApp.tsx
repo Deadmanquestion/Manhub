@@ -1,146 +1,153 @@
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
+import { Link, Navigate, NavLink, Route, Routes, useNavigate } from "react-router-dom";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import {
+  addCustomerCartItem,
+  checkoutCustomerCart,
+  createCustomerServiceBooking,
+  deleteCustomerVehicle,
+  getManFixApiUrl,
+  listCustomerBookings,
+  listCustomerCart,
+  listCustomerCatalog,
+  listCustomerOrders,
+  listCustomerPayments,
+  listCustomerWarranties,
+  listCustomerWarrantyClaims,
+  listCustomerVehicles,
+  listNotifications,
+  listPlatformWorkshops,
+  listServiceCatalog,
+  markNotificationRead,
+  saveCustomerVehicle,
+  setCustomerCartQuantity,
+  subscribeToNotifications,
+  submitCustomerWarrantyClaim,
+  updateCustomerPayment,
+  updateCustomerProfile,
+  uploadCustomerAvatar,
+  type CustomerCartItem,
+  type CustomerOrder,
+  type CustomerPayment,
+  type CustomerVehicle,
+  type CustomerVehicleInput,
+  type CustomerWarranty,
+  type CustomerWarrantyClaim,
+  type ManFixNotification,
+  type ManHubProfile,
+  type PlatformWorkshop,
+  type ServiceCatalogItem,
+  type SupplierProduct,
+} from "@manhub/backend";
 import "./customer-app.css";
 
-type CustomerTab = "Home" | "Workshops" | "Parts" | "Orders" | "Me";
-type AppView =
-  | CustomerTab
-  | "Diagnosis"
-  | "WorkshopDetail"
-  | "MyVehicles"
-  | "AddVehicle"
-  | "VehicleDetail"
-  | "SparePartDetail"
-  | "PartReservationSummary"
-  | "Notifications"
-  | "QuoteReview"
-  | "Payment"
-  | "PaymentSuccess"
-  | "Invoice"
-  | "ServiceRecord"
-  | "SupportCenter"
-  | "OrderDetail"
-  | "WarrantyList"
-  | "WarrantyDetail"
-  | "ClaimWarranty"
-  | "SupplierWarrantyDashboard"
-  | "WorkshopWarrantyDashboard"
-  | "AdminWarrantyAnalytics";
-
-type VehicleRecord = {
-  engine: string;
-  fuelType: string;
-  id: string;
-  isDefault: boolean;
-  lastServiceDate: string;
-  make: string;
-  mileage: string;
-  model: string;
-  nextServiceReminder: string;
-  notes: string;
-  plate: string;
-  transmission: string;
-  year: string;
+type Props = {
+  onSignOut: () => Promise<void>;
+  onSwitchPortal?: () => Promise<void>;
+  profile: ManHubProfile;
+  supabase: SupabaseClient;
 };
 
-type SparePart = {
-  brand: string;
-  compatibleVehicleId: string;
-  compatibleWith: string;
-  description: string;
-  id: string;
-  installationRecommendation: string;
-  kind: string;
-  linkedDiagnosis?: string;
-  name: string;
-  normalUsage: string;
-  price: number;
-  stockStatus: string;
-  supplier: string;
-  warranty: string;
-};
+type Notice = { message: string; tone: "success" | "error" } | null;
 
-type ReservedPart = {
-  createdAt: string;
-  depositAmount: number;
-  diagnosis: string;
-  id: string;
-  jobNo: string;
-  partId: string;
-  status: "Recommended" | "Soft reserved" | "Added to quote" | "Confirmed" | "Deposit paid" | "Fully paid" | "Installed";
-  vehicleId: string;
-};
+const money = new Intl.NumberFormat("en-MY", { currency: "MYR", style: "currency" });
 
-type OrderRecord = {
-  diagnosis: string;
-  id: string;
-  jobNo: string;
-  status: "Booking confirmed" | "Diagnosis confirmed" | "Quote approved" | "Deposit paid" | "Repair in progress" | "Ready for pickup" | "Completed";
-  technician: string;
-  vehicleId: string;
-  workshop: string;
-};
+export default function CustomerApp({ onSignOut, onSwitchPortal, profile: initialProfile, supabase }: Props) {
+  const [profile, setProfile] = useState(initialProfile);
+  const [notice, setNotice] = useState<Notice>(null);
+  const [unread, setUnread] = useState(0);
 
-type NotificationRecord = {
-  action: "reserved-part";
-  id: string;
-  message: string;
-  reservedPartId: string;
-  status: "Unread" | "Read";
-  title: string;
-};
+  const refreshUnread = useCallback(async () => {
+    const rows = await listNotifications(supabase);
+    setUnread(rows.filter((row) => !row.read_at).length);
+  }, [supabase]);
 
-type PaymentRecord = {
-  amount: number;
-  method: string;
-  reservedPartId: string;
-  status: "Deposit paid" | "Fully paid";
-};
+  useEffect(() => {
+    void refreshUnread().catch(() => setUnread(0));
+    return subscribeToNotifications(supabase, () => void refreshUnread().catch(() => setUnread(0)));
+  }, [refreshUnread, supabase]);
 
-type ReceiptRecord = {
-  amount: number;
-  id: string;
-  method: string;
-  reservedPartId: string;
-};
+  const run = useCallback(async (task: () => Promise<void>, success: string) => {
+    try {
+      await task();
+      setNotice({ message: success, tone: "success" });
+    } catch (error) {
+      setNotice({ message: error instanceof Error ? error.message : "Action failed.", tone: "error" });
+    }
+  }, []);
 
-type WarrantyStatus = "Active" | "Expired" | "Claimed" | "Cancelled";
+  return (
+    <main className="customer-stage">
+      <section className="customer-phone">
+        <Header name={profile.full_name || profile.email || ""} unread={unread} />
+        {notice && <button className={`customer-notice ${notice.tone}`} onClick={() => setNotice(null)}>{notice.message}</button>}
+        <section className="customer-content">
+          <Routes>
+            <Route path="/" element={<Home supabase={supabase} profile={profile} />} />
+            <Route path="/vehicles" element={<Vehicles run={run} supabase={supabase} />} />
+            <Route path="/diagnosis" element={<Diagnosis supabase={supabase} />} />
+            <Route path="/parts" element={<Parts run={run} supabase={supabase} />} />
+            <Route path="/cart" element={<Cart run={run} supabase={supabase} />} />
+            <Route path="/orders" element={<Orders supabase={supabase} />} />
+            <Route path="/book-service" element={<BookService run={run} supabase={supabase} />} />
+            <Route path="/notifications" element={<Notifications onUnreadChange={setUnread} supabase={supabase} />} />
+            <Route path="/payments" element={<Payments run={run} supabase={supabase} />} />
+            <Route path="/warranty" element={<Warranty run={run} supabase={supabase} />} />
+            <Route path="/profile" element={<Profile
+              onProfileChange={setProfile}
+              onSignOut={onSignOut}
+              onSwitchPortal={onSwitchPortal}
+              profile={profile}
+              run={run}
+              supabase={supabase}
+            />} />
+            <Route path="*" element={<Navigate replace to="/" />} />
+          </Routes>
+        </section>
+        <BottomNav unread={unread} />
+      </section>
+    </main>
+  );
+}
 
-type WarrantyRecord = {
-  customer: string;
-  durationMonths: number;
-  expiryDate: string;
-  id: string;
-  invoiceNumber: string;
-  mileageLimit?: string;
-  orderId: string;
-  partBrand: string;
-  partId: string;
-  partName: string;
-  repairDate: string;
-  repairHistory: string[];
-  startDate: string;
-  status: WarrantyStatus;
-  supplier: string;
-  terms: string[];
-  vehicleId: string;
-  workshop: string;
-};
+function Header({ name, unread }: { name: string; unread: number }) {
+  const firstName = name.trim().split(/\s+/)[0] || "Customer";
+  return (
+    <header className="customer-header">
+      <div><span>ManFix</span><strong>Hi {firstName}</strong></div>
+      <Link aria-label="Notifications" className="header-alert" to="/notifications">Alerts{unread > 0 && <b>{unread}</b>}</Link>
+    </header>
+  );
+}
 
-type WarrantyClaimStatus = "Pending Review" | "Approved" | "Rejected" | "Inspection Requested";
-
-type WarrantyClaim = {
-  customerId: string;
-  description: string;
-  id: string;
-  inspectionStatus?: "New" | "Accepted" | "Scheduled" | "Report uploaded" | "Replacement recommended";
-  photos: string[];
-  report?: string;
-  reviewedAt?: string;
-  status: WarrantyClaimStatus;
-  submittedAt: string;
-  videos: string[];
-  warrantyId: string;
-};
+function Home({ profile, supabase }: { profile: ManHubProfile; supabase: SupabaseClient }) {
+  const vehicles = useResource(() => listCustomerVehicles(supabase), [supabase], [] as CustomerVehicle[]);
+  const products = useResource(() => listCustomerCatalog(supabase), [supabase], [] as SupplierProduct[]);
+  const orders = useResource(() => listCustomerOrders(supabase), [supabase], [] as CustomerOrder[]);
+  const cart = useResource(() => listCustomerCart(supabase), [supabase], [] as CustomerCartItem[]);
+  const latestOrder = orders.data[0];
+  return (
+    <div className="customer-stack">
+      <section className="dashboard-summary">
+        <span>Customer account</span>
+        <h1>{profile.full_name || profile.email}</h1>
+        <p>{latestOrder ? `${latestOrder.order_number} - ${latestOrder.status}` : "No active order"}</p>
+      </section>
+      <div className="primary-actions">
+        <DashboardLink to="/diagnosis" title="AI diagnosis" detail="Describe a symptom using your real vehicle details" tone="blue" />
+        <DashboardLink to="/book-service" title="Book a service" detail="Choose your vehicle and workshop" tone="green" />
+      </div>
+      <div className="quick-grid">
+        <MetricLink to="/vehicles" label="Vehicles" value={vehicles.data.length} />
+        <MetricLink to="/cart" label="Cart items" value={cart.data.reduce((sum, item) => sum + item.quantity, 0)} />
+        <MetricLink to="/orders" label="Orders" value={orders.data.length} />
+        <MetricLink to="/payments" label="Payments" value={orders.data.filter((order) => order.payment_status === "Pending").length} />
+        <MetricLink to="/parts" label="Available parts" value={products.data.length} />
+      </div>
+      <ResourceMessage resources={[vehicles, products, orders, cart]} />
+    </div>
+  );
+}
 
 type DiagnosisResult = {
   confidence: number;
@@ -151,2018 +158,487 @@ type DiagnosisResult = {
   recommended_parts: string[];
 };
 
-type MockStore = {
-  notifications: NotificationRecord[];
-  orders: OrderRecord[];
-  payments: PaymentRecord[];
-  receipts: ReceiptRecord[];
-  reservedParts: ReservedPart[];
-  selectedPartId: string;
-  selectedReservedPartId: string;
-  selectedVehicleId: string;
-  selectedWarrantyId: string;
-  vehicles: VehicleRecord[];
-  warrantyClaims: WarrantyClaim[];
-  warranties: WarrantyRecord[];
-};
+function Diagnosis({ supabase }: { supabase: SupabaseClient }) {
+  const vehicles = useResource(() => listCustomerVehicles(supabase), [supabase], [] as CustomerVehicle[]);
+  const [vehicleId, setVehicleId] = useState("");
+  const [symptom, setSymptom] = useState("");
+  const [result, setResult] = useState<DiagnosisResult | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-const tabs: CustomerTab[] = ["Home", "Workshops", "Parts", "Orders", "Me"];
-const filters = ["Nearest", "Top rated", "Brake service", "Open now"];
-const jobNo = "MF-08471";
-const quoteNo = "Q-08471";
-const invoiceNo = "INV-08471";
-const receiptNo = "RCPT-08471";
-const customerName = "Daniel Tan";
-const customerId = "customer-daniel";
-const diagnosis = "Front brake pads worn";
-const workshopName = "AutoFix Pro";
-const technician = "Ahmad F.";
-const labourSubtotal = 112;
-const reservationDeposit = 30;
-const repairDate = "19 Jul 2026";
+  useEffect(() => { if (!vehicleId && vehicles.data[0]) setVehicleId(vehicles.data[0].id); }, [vehicleId, vehicles.data]);
+  const vehicle = vehicles.data.find((item) => item.id === vehicleId);
 
-const workshops = [
-  { name: "AutoFix Pro", distance: "1.2 km", rating: "4.8", count: "(234)", tags: "Oil - Brakes - Tyres", hours: "8:30 AM - 7:00 PM" },
-  { name: "QuickCare Motors", distance: "2.5 km", rating: "4.6", count: "(158)", tags: "General - AC - Battery", hours: "9:00 AM - 6:30 PM" },
-  { name: "Evergreen Auto Centre", distance: "3.1 km", rating: "4.5", count: "(96)", tags: "Engine - Diagnostics", hours: "8:00 AM - 6:00 PM" },
-];
-
-const spareParts: SparePart[] = [
-  {
-    brand: "Bendix",
-    compatibleVehicleId: "vios",
-    compatibleWith: "Toyota Vios 1.5G 2021",
-    description: "Front brake pad set recommended after brake squealing diagnosis.",
-    id: "bendix-front-brake",
-    installationRecommendation: "Install after technician confirms pad thickness and rotor condition.",
-    kind: "brake",
-    linkedDiagnosis: diagnosis,
-    name: "Brake pad set front",
-    normalUsage: "Around 30,000-50,000 km depending on driving style.",
-    price: 168,
-    stockStatus: "Available for soft reservation",
-    supplier: "PartsHub Trading Sdn Bhd",
-    warranty: "6 months supplier warranty",
-  },
-  {
-    brand: "Bosch service grade",
-    compatibleVehicleId: "vios",
-    compatibleWith: "Toyota Vios 1.5G 2021",
-    description: "DOT4 brake fluid for hydraulic brake pressure and consistent pedal feel.",
-    id: "dot4-brake-fluid",
-    installationRecommendation: "Use during brake service if fluid condition is weak.",
-    kind: "fluid",
-    linkedDiagnosis: diagnosis,
-    name: "Brake fluid DOT4 1L",
-    normalUsage: "Normally inspected during brake work and refreshed when condition is poor.",
-    price: 32,
-    stockStatus: "Available",
-    supplier: "AutoParts2U Sdn Bhd",
-    warranty: "Supplier sealed-bottle warranty",
-  },
-  {
-    brand: "Shell Helix",
-    compatibleVehicleId: "vios",
-    compatibleWith: "Toyota Vios 1.5G 2021",
-    description: "Fully synthetic engine oil for scheduled servicing.",
-    id: "shell-5w30-oil",
-    installationRecommendation: "Use with oil filter replacement during scheduled maintenance.",
-    kind: "oil",
-    name: "Engine oil 5W-30 fully syn 4L",
-    normalUsage: "Usually replaced every 7,000-10,000 km.",
-    price: 189,
-    stockStatus: "Available",
-    supplier: "PartsHub Trading Sdn Bhd",
-    warranty: "Original supplier product warranty",
-  },
-  {
-    brand: "Century",
-    compatibleVehicleId: "myvi",
-    compatibleWith: "Perodua Myvi 1.5 2020",
-    description: "NS60L battery for starting and vehicle electrical systems.",
-    id: "century-ns60l",
-    installationRecommendation: "Test current battery health before installation.",
-    kind: "battery",
-    name: "Battery NS60L",
-    normalUsage: "Commonly lasts around 18-30 months depending on heat and usage.",
-    price: 245,
-    stockStatus: "Limited stock",
-    supplier: "Century Battery Partner",
-    warranty: "12 months supplier warranty",
-  },
-];
-
-const initialStore: MockStore = {
-  notifications: [],
-  orders: [
-    {
-      diagnosis,
-      id: "order-08471",
-      jobNo,
-      status: "Diagnosis confirmed",
-      technician,
-      vehicleId: "vios",
-      workshop: workshopName,
-    },
-  ],
-  payments: [],
-  receipts: [],
-  reservedParts: [],
-  selectedPartId: "bendix-front-brake",
-  selectedReservedPartId: "",
-  selectedVehicleId: "vios",
-  selectedWarrantyId: "",
-  vehicles: [
-    {
-      engine: "1.5L petrol",
-      fuelType: "Petrol",
-      id: "vios",
-      isDefault: true,
-      lastServiceDate: "12 May 2026",
-      make: "Toyota",
-      mileage: "68,420 km",
-      model: "Vios 1.5G",
-      nextServiceReminder: "Engine oil change at 70,000 km",
-      notes: "Daily city car, brake squeal reported in the morning.",
-      plate: "WXY 4321",
-      transmission: "Automatic",
-      year: "2021",
-    },
-    {
-      engine: "1.5L petrol",
-      fuelType: "Petrol",
-      id: "myvi",
-      isDefault: false,
-      lastServiceDate: "04 June 2026",
-      make: "Perodua",
-      mileage: "52,800 km",
-      model: "Myvi 1.5",
-      nextServiceReminder: "Aircon service due next month",
-      notes: "Family second car.",
-      plate: "VBK 9902",
-      transmission: "Automatic",
-      year: "2020",
-    },
-  ],
-  warrantyClaims: [],
-  warranties: [],
-};
-
-export default function InvestorCustomerApp({
-  onSignOut,
-  onSwitchPortal,
-}: {
-  onSignOut?: () => Promise<void>;
-  onSwitchPortal?: () => Promise<void>;
-}) {
-  const [store, setStore] = useState<MockStore>(initialStore);
-  const [view, setView] = useState<AppView>("Home");
-  const [activeFilter, setActiveFilter] = useState("Nearest");
-  const [notice, setNotice] = useState("");
-  const [problem, setProblem] = useState("High-pitched squeal when braking, worse in the morning.");
-  const [photoAttached, setPhotoAttached] = useState(false);
-  const [noiseRecorded, setNoiseRecorded] = useState(false);
-  const [aiDone, setAiDone] = useState(false);
-  const [diagnosisLoading, setDiagnosisLoading] = useState(false);
-  const [diagnosisResult, setDiagnosisResult] = useState<DiagnosisResult | null>(null);
-  const [supportNotice, setSupportNotice] = useState("");
-  const [paymentMethod, setPaymentMethod] = useState("Touch 'n Go eWallet");
-  const [profilePanel, setProfilePanel] = useState("My vehicles");
-  const [signOutError, setSignOutError] = useState("");
-  const [signingOut, setSigningOut] = useState(false);
-
-  const selectedVehicle = store.vehicles.find((item) => item.id === store.selectedVehicleId) ?? store.vehicles[0];
-  const selectedPart = spareParts.find((item) => item.id === store.selectedPartId) ?? spareParts[0];
-  const selectedReservedPart = store.reservedParts.find((item) => item.id === store.selectedReservedPartId) ?? store.reservedParts[0];
-  const selectedWarranty = store.warranties.find((item) => item.id === store.selectedWarrantyId) ?? store.warranties[0];
-  const selectedOrder = store.orders[0];
-  const relatedReservedParts = store.reservedParts.filter((item) => item.vehicleId === selectedVehicle.id);
-  const vehicleWarranties = store.warranties.filter((item) => item.vehicleId === selectedVehicle.id);
-  const unreadCount = store.notifications.filter((item) => item.status === "Unread").length;
-  const activeTab = tabs.includes(view as CustomerTab) ? (view as CustomerTab) : viewToTab(view);
-
-  function updateStore(updater: (current: MockStore) => MockStore) {
-    setStore(updater);
-  }
-
-  async function handleSignOut() {
-    if (!onSignOut || signingOut) return;
-    setSignOutError("");
-    setSigningOut(true);
+  const submit = async (event: FormEvent) => {
+    event.preventDefault();
+    if (!vehicle) return;
+    setLoading(true); setError(null); setResult(null);
     try {
-      await onSignOut();
-    } catch {
-      setSignOutError("We could not log you out. Please check your connection and try again.");
-      setSigningOut(false);
-    }
-  }
-
-  function selectVehicle(vehicleId: string, nextView: AppView) {
-    updateStore((current) => ({ ...current, selectedVehicleId: vehicleId }));
-    setView(nextView);
-  }
-
-  function selectPart(partId: string, nextView: AppView) {
-    updateStore((current) => ({ ...current, selectedPartId: partId }));
-    setView(nextView);
-  }
-
-  function addVehicle(vehicle: Omit<VehicleRecord, "id" | "isDefault" | "lastServiceDate" | "nextServiceReminder">) {
-    const id = `${vehicle.plate.toLowerCase().replace(/[^a-z0-9]/g, "")}-${Date.now()}`;
-    const nextVehicle: VehicleRecord = {
-      ...vehicle,
-      id,
-      isDefault: false,
-      lastServiceDate: "No service record yet",
-      nextServiceReminder: "Book first inspection with ManFix",
-    };
-    updateStore((current) => ({
-      ...current,
-      selectedVehicleId: id,
-      vehicles: [...current.vehicles, nextVehicle],
-    }));
-    setNotice("Vehicle added successfully");
-    setView("MyVehicles");
-  }
-
-  function reservePart(partId: string, mode: "reserve" | "quote" = "reserve") {
-    const part = spareParts.find((item) => item.id === partId) ?? spareParts[0];
-    const linkedVehicleId = part.compatibleVehicleId;
-    const existing = store.reservedParts.find((item) => item.partId === partId && item.vehicleId === linkedVehicleId);
-    const reservedId = existing?.id ?? `reserved-${partId}`;
-    const status = mode === "quote" ? "Added to quote" : "Soft reserved";
-
-    updateStore((current) => {
-      const withoutExisting = current.reservedParts.filter((item) => item.id !== reservedId);
-      const nextReserved: ReservedPart = {
-        createdAt: "Today 10:42 AM",
-        depositAmount: reservationDeposit,
-        diagnosis: part.linkedDiagnosis ?? diagnosis,
-        id: reservedId,
-        jobNo,
-        partId,
-        status,
-        vehicleId: linkedVehicleId,
-      };
-      const nextNotification: NotificationRecord = {
-        action: "reserved-part",
-        id: `notif-${reservedId}`,
-        message: `${part.brand} ${part.name} has been soft reserved for Job #${jobNo}.`,
-        reservedPartId: reservedId,
-        status: "Unread",
-        title: "Part reserved",
-      };
-      const notifications = current.notifications.some((item) => item.id === nextNotification.id)
-        ? current.notifications
-        : [nextNotification, ...current.notifications];
-      return {
-        ...current,
-        notifications,
-        reservedParts: [nextReserved, ...withoutExisting],
-        selectedPartId: partId,
-        selectedReservedPartId: reservedId,
-        selectedVehicleId: linkedVehicleId,
-      };
-    });
-
-    setNotice(mode === "quote" ? `${part.brand} ${part.name} added to quote` : `${part.brand} ${part.name} soft reserved`);
-    setView(mode === "quote" ? "QuoteReview" : "PartReservationSummary");
-  }
-
-  function selectReservedPart(reservedPartId: string, nextView: AppView) {
-    const reserved = store.reservedParts.find((item) => item.id === reservedPartId);
-    updateStore((current) => ({
-      ...current,
-      notifications: nextView === "PartReservationSummary"
-        ? current.notifications.map((item) => item.reservedPartId === reservedPartId ? { ...item, status: "Read" } : item)
-        : current.notifications,
-      selectedPartId: reserved?.partId ?? current.selectedPartId,
-      selectedReservedPartId: reservedPartId,
-      selectedVehicleId: reserved?.vehicleId ?? current.selectedVehicleId,
-    }));
-    setView(nextView);
-  }
-
-  function selectWarranty(warrantyId: string, nextView: AppView) {
-    updateStore((current) => ({
-      ...current,
-      selectedWarrantyId: warrantyId,
-      selectedVehicleId: current.warranties.find((item) => item.id === warrantyId)?.vehicleId ?? current.selectedVehicleId,
-    }));
-    setView(nextView);
-  }
-
-  function payReservedPart(fullPayment: boolean) {
-    if (!selectedReservedPart) return;
-    const part = spareParts.find((item) => item.id === selectedReservedPart.partId) ?? spareParts[0];
-    const amount = fullPayment ? part.price : selectedReservedPart.depositAmount;
-    const paymentStatus = fullPayment ? "Fully paid" : "Deposit paid";
-    const receipt: ReceiptRecord = {
-      amount,
-      id: receiptNo,
-      method: paymentMethod,
-      reservedPartId: selectedReservedPart.id,
-    };
-
-    updateStore((current) => ({
-      ...current,
-      orders: current.orders.map((order) => order.jobNo === selectedReservedPart.jobNo ? { ...order, status: fullPayment ? "Repair in progress" : "Deposit paid" } : order),
-      payments: [
-        ...current.payments.filter((item) => item.reservedPartId !== selectedReservedPart.id),
-        { amount, method: paymentMethod, reservedPartId: selectedReservedPart.id, status: paymentStatus },
-      ],
-      receipts: [
-        ...current.receipts.filter((item) => item.reservedPartId !== selectedReservedPart.id),
-        receipt,
-      ],
-      reservedParts: current.reservedParts.map((item) => item.id === selectedReservedPart.id ? { ...item, status: paymentStatus } : item),
-    }));
-    setNotice("Payment successful");
-    setView("PaymentSuccess");
-  }
-
-  function approveQuote() {
-    updateStore((current) => ({
-      ...current,
-      orders: current.orders.map((order) => order.id === "order-08471" ? { ...order, status: "Quote approved" } : order),
-      reservedParts: current.reservedParts.map((item) => item.vehicleId === current.selectedVehicleId ? { ...item, status: "Confirmed" } : item),
-    }));
-    setNotice("Quote approved. Deposit is ready.");
-    setView("Payment");
-  }
-
-  function completeRepairAndCreateWarranty() {
-    let activatedWarrantyId = "";
-
-    updateStore((current) => {
-      const vehicle = current.vehicles.find((item) => item.id === current.selectedVehicleId) ?? current.vehicles[0];
-      const reserved = current.reservedParts.find((item) => item.vehicleId === vehicle.id) ?? {
-        createdAt: "Today 10:42 AM",
-        depositAmount: reservationDeposit,
-        diagnosis,
-        id: "reserved-bendix-front-brake",
-        jobNo,
-        partId: "bendix-front-brake",
-        status: "Installed" as const,
-        vehicleId: vehicle.id,
-      };
-      const part = partById(reserved.partId);
-      const warrantyId = `WRNT-${jobNo.replace("MF-", "")}-${part.id === "dot4-brake-fluid" ? "002" : "001"}`;
-      activatedWarrantyId = warrantyId;
-      const warrantyExists = current.warranties.some((item) => item.id === warrantyId);
-      const nextWarranty: WarrantyRecord = {
-        customer: customerName,
-        durationMonths: part.id === "century-ns60l" ? 12 : 6,
-        expiryDate: part.id === "century-ns60l" ? "19 Jul 2027" : "19 Jan 2027",
-        id: warrantyId,
-        invoiceNumber: invoiceNo,
-        mileageLimit: part.kind === "brake" ? "10,000 km" : undefined,
-        orderId: "order-08471",
-        partBrand: part.brand,
-        partId: part.id,
-        partName: part.name,
-        repairDate,
-        repairHistory: [
-          `Job #${jobNo} completed by ${technician}`,
-          `${part.brand} ${part.name} installed at ${workshopName}`,
-          `Invoice ${invoiceNo} linked to Warranty+`,
-        ],
-        startDate: repairDate,
-        status: "Active",
-        supplier: part.supplier,
-        terms: [
-          "Valid only for parts and labour transacted through ManFix.",
-          "A certified workshop inspection is required before claim approval.",
-          "Damage caused by misuse, racing, flood, or outside repair is excluded.",
-        ],
-        vehicleId: vehicle.id,
-        workshop: workshopName,
-      };
-      const installedReservedParts = current.reservedParts.length > 0
-        ? current.reservedParts.map((item) => item.vehicleId === vehicle.id ? { ...item, status: "Installed" as const } : item)
-        : [reserved];
-      const notificationId = `notif-${warrantyId}`;
-      const warrantyNotification: NotificationRecord = {
-        action: "reserved-part",
-        id: notificationId,
-        message: `${part.brand} ${part.name} Warranty+ is now active until ${nextWarranty.expiryDate}.`,
-        reservedPartId: reserved.id,
-        status: "Unread",
-        title: "Warranty+ activated",
-      };
-
-      return {
-        ...current,
-        notifications: current.notifications.some((item) => item.id === notificationId)
-          ? current.notifications
-          : [warrantyNotification, ...current.notifications],
-        orders: current.orders.map((order) => order.id === "order-08471" ? { ...order, status: "Completed" } : order),
-        reservedParts: installedReservedParts,
-        selectedReservedPartId: reserved.id,
-        selectedWarrantyId: warrantyId,
-        warranties: warrantyExists ? current.warranties : [nextWarranty, ...current.warranties],
-      };
-    });
-
-    void fetch("/api/warranty", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "complete_order_create_warranty", orderId: "order-08471", warrantyId: activatedWarrantyId }),
-    }).catch(() => undefined);
-
-    setNotice("Warranty+ activated automatically after completed repair");
-    setView("WarrantyDetail");
-  }
-
-  function submitWarrantyClaim(description: string, photos: string[], videos: string[]) {
-    if (!selectedWarranty) return;
-    const claimId = `CLM-${selectedWarranty.id.replace("WRNT-", "")}`;
-    const claim: WarrantyClaim = {
-      customerId,
-      description,
-      id: claimId,
-      inspectionStatus: "New",
-      photos,
-      status: "Pending Review",
-      submittedAt: "Today 11:26 AM",
-      videos,
-      warrantyId: selectedWarranty.id,
-    };
-
-    updateStore((current) => ({
-      ...current,
-      warrantyClaims: [claim, ...current.warrantyClaims.filter((item) => item.id !== claimId)],
-    }));
-
-    void fetch("/api/warranty", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "submit_claim", claim }),
-    }).catch(() => undefined);
-
-    setNotice("Warranty claim submitted for supplier review");
-    setView("WarrantyDetail");
-  }
-
-  function updateWarrantyClaim(claimId: string, status: WarrantyClaimStatus) {
-    updateStore((current) => ({
-      ...current,
-      warrantyClaims: current.warrantyClaims.map((claim) => claim.id === claimId
-        ? { ...claim, status, inspectionStatus: status === "Inspection Requested" ? "New" : claim.inspectionStatus, reviewedAt: "Today 12:08 PM" }
-        : claim),
-      warranties: status === "Approved"
-        ? current.warranties.map((warranty) => warranty.id === current.warrantyClaims.find((claim) => claim.id === claimId)?.warrantyId ? { ...warranty, status: "Claimed" } : warranty)
-        : current.warranties,
-    }));
-    void fetch("/api/warranty", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "supplier_decision", claimId, status }),
-    }).catch(() => undefined);
-    setNotice(status === "Inspection Requested" ? "Inspection job sent to workshop" : `Claim ${status.toLowerCase()}`);
-  }
-
-  function updateInspection(claimId: string, inspectionStatus: WarrantyClaim["inspectionStatus"]) {
-    updateStore((current) => ({
-      ...current,
-      warrantyClaims: current.warrantyClaims.map((claim) => claim.id === claimId
-        ? {
-          ...claim,
-          inspectionStatus,
-          report: inspectionStatus === "Report uploaded" || inspectionStatus === "Replacement recommended"
-            ? "Brake pad surface inspected. Wear pattern matches covered part failure."
-            : claim.report,
-        }
-        : claim),
-    }));
-    void fetch("/api/warranty", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "workshop_update", claimId, status: inspectionStatus }),
-    }).catch(() => undefined);
-    setNotice(`Inspection ${inspectionStatus?.toLowerCase()}`);
-  }
-
-  async function runAiDiagnosis() {
-    setDiagnosisLoading(true);
-    try {
-      const response = await fetch("/api/diagnose", {
+      const { data } = await supabase.auth.getSession();
+      if (!data.session?.access_token) throw new Error("Your session has expired. Please sign in again.");
+      const response = await fetch(`${getManFixApiUrl().replace(/\/$/, "")}/api/diagnose`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          Authorization: `Bearer ${data.session.access_token}`,
+          "Content-Type": "application/json",
+        },
         body: JSON.stringify({
-          carModel: `${selectedVehicle.make} ${selectedVehicle.model}`,
-          mileage: selectedVehicle.mileage,
-          symptom: problem,
+          carModel: `${vehicle.make} ${vehicle.model} ${vehicle.year ?? ""}`.trim(),
+          mileage: vehicle.mileage === null ? "Mileage not recorded" : `${vehicle.mileage} km`,
+          symptom,
         }),
       });
-      const result = await response.json() as DiagnosisResult;
-      setDiagnosisResult(result);
-      setAiDone(true);
-      setNotice("AI pre-diagnosis ready");
-    } catch {
-      setDiagnosisResult({
-        confidence: 87,
-        diagnosis,
-        estimated_cost_range: "RM 280-420",
-        possible_causes: ["Front brake pads worn", "Brake dust buildup", "Rotor surface needs inspection"],
-        recommended_actions: ["Inspect front brake pad thickness", "Check rotor surface", "Confirm final quote with a certified technician"],
-        recommended_parts: ["Bendix front brake pad set", "DOT4 brake fluid"],
-      });
-      setAiDone(true);
-      setNotice("AI pre-diagnosis ready");
+      const payload = await response.json() as DiagnosisResult & { error?: string };
+      if (!response.ok) throw new Error(payload.error || "AI diagnosis is unavailable.");
+      setResult(payload);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "AI diagnosis is unavailable.");
     } finally {
-      setDiagnosisLoading(false);
+      setLoading(false);
     }
-  }
+  };
 
   return (
-    <main className="app-page">
-      <section className="phone-app" aria-label="ManFix customer app">
-        <div className="status-bar">
-          <span>9:41</span>
-          <button className={`status-notification ${unreadCount > 0 ? "has-alert" : ""}`} aria-label="Notifications" onClick={() => setView("Notifications")} type="button">
-            <span className="bell-icon" />
-          </button>
-        </div>
-
-        <div className="app-content">
-          {notice && <article className="notice-card">{notice}</article>}
-          {view === "Home" && <HomeTab order={selectedOrder} setView={setView} vehicle={selectedVehicle} />}
-          {view === "Diagnosis" && (
-            <DiagnosisFlowPage
-              aiDone={aiDone}
-              diagnosisLoading={diagnosisLoading}
-              diagnosisResult={diagnosisResult}
-              noiseRecorded={noiseRecorded}
-              photoAttached={photoAttached}
-              problem={problem}
-              runAiDiagnosis={runAiDiagnosis}
-              setNoiseRecorded={setNoiseRecorded}
-              setPhotoAttached={setPhotoAttached}
-              setProblem={setProblem}
-              setView={setView}
-              vehicle={selectedVehicle}
-            />
-          )}
-          {view === "Workshops" && (
-            <WorkshopsTab
-              activeFilter={activeFilter}
-              setActiveFilter={setActiveFilter}
-              setView={setView}
-            />
-          )}
-          {view === "WorkshopDetail" && <WorkshopDetailPage setView={setView} />}
-          {view === "MyVehicles" && (
-            <MyVehiclesPage
-              relatedReservedParts={relatedReservedParts}
-              selectVehicle={selectVehicle}
-              setView={setView}
-              vehicles={store.vehicles}
-              warranties={store.warranties}
-            />
-          )}
-          {view === "AddVehicle" && <AddVehiclePage addVehicle={addVehicle} setView={setView} />}
-          {view === "VehicleDetail" && (
-            <VehicleDetailPage
-              orders={store.orders.filter((order) => order.vehicleId === selectedVehicle.id)}
-              reservedParts={relatedReservedParts}
-              selectReservedPart={selectReservedPart}
-              selectWarranty={selectWarranty}
-              setView={setView}
-              vehicle={selectedVehicle}
-              warranties={vehicleWarranties}
-            />
-          )}
-          {view === "Parts" && <PartsTab selectPart={selectPart} />}
-          {view === "SparePartDetail" && (
-            <SparePartDetailPage
-              part={selectedPart}
-              reservePart={reservePart}
-              setView={setView}
-              vehicle={store.vehicles.find((item) => item.id === selectedPart.compatibleVehicleId) ?? selectedVehicle}
-            />
-          )}
-          {view === "PartReservationSummary" && (
-            <PartReservationSummaryPage
-              part={selectedPart}
-              reservePart={reservePart}
-              reservedPart={selectedReservedPart}
-              setView={setView}
-              vehicle={store.vehicles.find((item) => item.id === selectedReservedPart?.vehicleId) ?? selectedVehicle}
-            />
-          )}
-          {view === "Orders" && (
-            <OrdersTab
-              orders={store.orders}
-              reservedParts={store.reservedParts}
-              selectReservedPart={selectReservedPart}
-              setView={setView}
-              vehicles={store.vehicles}
-            />
-          )}
-          {view === "OrderDetail" && (
-            <OrderDetailPage
-              completeRepairAndCreateWarranty={completeRepairAndCreateWarranty}
-              order={selectedOrder}
-              reservedParts={store.reservedParts}
-              selectReservedPart={selectReservedPart}
-              setView={setView}
-              vehicle={selectedVehicle}
-              warrantyCount={store.warranties.length}
-            />
-          )}
-          {view === "Notifications" && (
-            <NotificationsPage
-              notifications={store.notifications}
-              selectReservedPart={selectReservedPart}
-              setView={setView}
-            />
-          )}
-          {view === "QuoteReview" && (
-            <QuoteReviewPage
-              approveQuote={approveQuote}
-              part={selectedPart}
-              reservePart={reservePart}
-              reservedPart={selectedReservedPart}
-              setView={setView}
-              vehicle={selectedVehicle}
-            />
-          )}
-          {view === "Payment" && (
-            <PaymentPage
-              method={paymentMethod}
-              part={selectedPart}
-              payReservedPart={payReservedPart}
-              reservedPart={selectedReservedPart}
-              setMethod={setPaymentMethod}
-              setView={setView}
-              vehicle={selectedVehicle}
-            />
-          )}
-          {view === "PaymentSuccess" && (
-            <PaymentSuccessPage
-              receipt={store.receipts.find((item) => item.reservedPartId === selectedReservedPart?.id)}
-              setView={setView}
-            />
-          )}
-          {view === "Invoice" && (
-            <InvoicePage
-              part={selectedPart}
-              payment={store.payments.find((item) => item.reservedPartId === selectedReservedPart?.id)}
-              receipt={store.receipts.find((item) => item.reservedPartId === selectedReservedPart?.id)}
-              setNotice={setNotice}
-              setView={setView}
-              vehicle={selectedVehicle}
-            />
-          )}
-          {view === "ServiceRecord" && (
-            <ServiceRecordPage
-              completeRepairAndCreateWarranty={completeRepairAndCreateWarranty}
-              reservedParts={store.reservedParts.filter((item) => item.vehicleId === selectedVehicle.id)}
-              setView={setView}
-              vehicle={selectedVehicle}
-              warranties={vehicleWarranties}
-            />
-          )}
-          {view === "SupportCenter" && (
-            <SupportCenterPage
-              setSupportNotice={setSupportNotice}
-              setView={setView}
-              supportNotice={supportNotice}
-            />
-          )}
-          {view === "WarrantyList" && (
-            <WarrantyListPage
-              completeRepairAndCreateWarranty={completeRepairAndCreateWarranty}
-              selectWarranty={selectWarranty}
-              setView={setView}
-              vehicle={selectedVehicle}
-              warranties={vehicleWarranties}
-            />
-          )}
-          {view === "WarrantyDetail" && (
-            <WarrantyDetailPage
-              claims={store.warrantyClaims.filter((claim) => claim.warrantyId === selectedWarranty?.id)}
-              selectWarranty={selectWarranty}
-              setView={setView}
-              vehicle={selectedVehicle}
-              warranty={selectedWarranty}
-            />
-          )}
-          {view === "ClaimWarranty" && (
-            <ClaimWarrantyPage
-              setView={setView}
-              submitWarrantyClaim={submitWarrantyClaim}
-              warranty={selectedWarranty}
-            />
-          )}
-          {view === "SupplierWarrantyDashboard" && (
-            <SupplierWarrantyDashboard
-              claims={store.warrantyClaims}
-              setView={setView}
-              updateWarrantyClaim={updateWarrantyClaim}
-              warranties={store.warranties}
-            />
-          )}
-          {view === "WorkshopWarrantyDashboard" && (
-            <WorkshopWarrantyDashboard
-              claims={store.warrantyClaims}
-              setView={setView}
-              updateInspection={updateInspection}
-              warranties={store.warranties}
-            />
-          )}
-          {view === "AdminWarrantyAnalytics" && (
-            <AdminWarrantyAnalytics
-              claims={store.warrantyClaims}
-              setView={setView}
-              warranties={store.warranties}
-            />
-          )}
-          {view === "Me" && (
-            <MeTab
-              onSignOut={handleSignOut}
-              onSwitchPortal={onSwitchPortal ?? (async () => undefined)}
-              profilePanel={profilePanel}
-              setProfilePanel={setProfilePanel}
-              setView={setView}
-              signOutError={signOutError}
-              signingOut={signingOut}
-              unreadCount={unreadCount}
-              vehicleCount={store.vehicles.length}
-            />
-          )}
-        </div>
-
-        <nav className="bottom-tabs" aria-label="Main tabs">
-          {tabs.map((tab) => (
-            <button
-              key={tab}
-              className={activeTab === tab ? "active" : ""}
-              onClick={() => setView(tab)}
-              type="button"
-            >
-              <span className={`tab-icon ${tab.toLowerCase()}`} />
-              {tab}
-            </button>
-          ))}
-        </nav>
-      </section>
-    </main>
+    <Page title="AI diagnosis">
+      <ResourceMessage resources={[vehicles]} />
+      {vehicles.data.length === 0 ? <Empty text="Add a vehicle before starting a diagnosis." /> : (
+        <form className="customer-form" onSubmit={(event) => void submit(event)}>
+          <Select label="Vehicle" value={vehicleId} onChange={setVehicleId} options={vehicles.data.map((item) => ({ label: `${item.make} ${item.model} - ${item.license_plate || "No plate"}`, value: item.id }))} />
+          <label>Describe the problem<textarea required rows={5} value={symptom} onChange={(event) => setSymptom(event.target.value)} /></label>
+          <button className="primary-button" disabled={loading || !symptom.trim()} type="submit">{loading ? "Analysing..." : "Run AI pre-diagnosis"}</button>
+        </form>
+      )}
+      {error && <p className="resource-message error">{error}</p>}
+      {result && <article className="record-card diagnosis-result">
+        <div><strong>{result.diagnosis}</strong><Status value={`${result.confidence}% confidence`} /></div>
+        <dl><div><dt>Cost estimate</dt><dd>{result.estimated_cost_range}</dd></div></dl>
+        <ResultList title="Possible causes" values={result.possible_causes} />
+        <ResultList title="Recommended actions" values={result.recommended_actions} />
+        <ResultList title="Recommended parts" values={result.recommended_parts} />
+        <p>This is an AI pre-diagnosis. A certified technician will confirm before final quote.</p>
+      </article>}
+    </Page>
   );
 }
 
-function viewToTab(view: AppView): CustomerTab {
-  if (view === "Diagnosis" || view === "Notifications") return "Home";
-  if (view === "WorkshopDetail") return "Workshops";
-  if (view === "SparePartDetail" || view === "PartReservationSummary") return "Parts";
-  if (view === "Orders" || view === "OrderDetail" || view === "QuoteReview" || view === "Payment" || view === "PaymentSuccess" || view === "Invoice") return "Orders";
-  if (
-    view === "MyVehicles"
-    || view === "AddVehicle"
-    || view === "VehicleDetail"
-    || view === "ServiceRecord"
-    || view === "SupportCenter"
-    || view === "WarrantyList"
-    || view === "WarrantyDetail"
-    || view === "ClaimWarranty"
-    || view === "SupplierWarrantyDashboard"
-    || view === "WorkshopWarrantyDashboard"
-    || view === "AdminWarrantyAnalytics"
-  ) return "Me";
-  return "Home";
+function ResultList({ title, values }: { title: string; values: string[] }) {
+  return <section className="result-list"><strong>{title}</strong><ul>{values.map((value) => <li key={value}>{value}</li>)}</ul></section>;
 }
 
-function partById(partId: string) {
-  return spareParts.find((part) => part.id === partId) ?? spareParts[0];
+function DashboardLink({ detail, title, to, tone }: { detail: string; title: string; to: string; tone: string }) {
+  return <Link className={`dashboard-action ${tone}`} to={to}><div><strong>{title}</strong><span>{detail}</span></div><b>&gt;</b></Link>;
 }
 
-function warrantyDaysRemaining(warranty: WarrantyRecord) {
-  const expiry = new Date(warranty.expiryDate);
-  const today = new Date("2026-07-19T00:00:00+08:00");
-  return Math.max(0, Math.ceil((expiry.getTime() - today.getTime()) / 86400000));
+function MetricLink({ label, to, value }: { label: string; to: string; value: number }) {
+  return <Link className="metric-link" to={to}><strong>{value}</strong><span>{label}</span></Link>;
 }
 
-function BackButton({ label, onClick }: { label: string; onClick: () => void }) {
+const emptyVehicle: CustomerVehicleInput = {
+  engine: null,
+  license_plate: null,
+  make: "",
+  mileage: null,
+  model: "",
+  vin: null,
+  year: null,
+};
+
+function Vehicles({ run, supabase }: ActionProps) {
+  const vehicles = useResource(() => listCustomerVehicles(supabase), [supabase], [] as CustomerVehicle[]);
+  const [editing, setEditing] = useState<string | null>(null);
+  const [form, setForm] = useState<CustomerVehicleInput>(emptyVehicle);
+
+  const submit = (event: FormEvent) => {
+    event.preventDefault();
+    void run(async () => {
+      await saveCustomerVehicle(supabase, form, editing ?? undefined);
+      setEditing(null);
+      setForm(emptyVehicle);
+      await vehicles.reload();
+    }, editing ? "Vehicle updated." : "Vehicle added.");
+  };
+
+  const edit = (vehicle: CustomerVehicle) => {
+    setEditing(vehicle.id);
+    setForm({
+      color: vehicle.color,
+      engine: vehicle.engine,
+      license_plate: vehicle.license_plate,
+      make: vehicle.make,
+      mileage: vehicle.mileage,
+      model: vehicle.model,
+      notes: vehicle.notes,
+      vin: vehicle.vin,
+      year: vehicle.year,
+    });
+  };
+
   return (
-    <button className="back-button" onClick={onClick} type="button">
-      <span>&lt;</span>
-      {label}
-    </button>
-  );
-}
-
-function StatusPill({ label }: { label: string }) {
-  return <span className="status-pill">{label}</span>;
-}
-
-function HomeTab({ order, setView, vehicle }: { order: OrderRecord; setView: (view: AppView) => void; vehicle: VehicleRecord }) {
-  return (
-    <section className="home-dashboard">
-      <h1>Hi Daniel</h1>
-      <button className="vehicle-card home-vehicle-card" onClick={() => setView("VehicleDetail")} type="button">
-        <div>
-          <strong>{vehicle.make} {vehicle.model}</strong>
-          <span>{vehicle.plate} &middot; {vehicle.year}</span>
-          <small>Mileage</small>
-          <b>{vehicle.mileage}</b>
+    <Page title="My vehicles" action={<button className="text-button" onClick={() => { setEditing(null); setForm(emptyVehicle); }}>New</button>}>
+      <form className="customer-form" onSubmit={submit}>
+        <Input label="Brand" required value={form.make} onChange={(value) => setForm({ ...form, make: value })} />
+        <Input label="Model" required value={form.model} onChange={(value) => setForm({ ...form, model: value })} />
+        <div className="form-row">
+          <Input label="Year" type="number" value={form.year?.toString() ?? ""} onChange={(value) => setForm({ ...form, year: value ? Number(value) : null })} />
+          <Input label="Mileage" type="number" value={form.mileage?.toString() ?? ""} onChange={(value) => setForm({ ...form, mileage: value ? Number(value) : null })} />
         </div>
-        <img alt="Silver Toyota Vios" className="home-car-image" height={180} src="/assets/vios-home-car.png" width={330} />
-        <span className="home-chevron">&gt;</span>
-      </button>
-      <button className="home-diagnosis-card" onClick={() => setView("Diagnosis")} type="button">
-        <span className="cta-icon" />
-        <span>
-          <strong>AI Diagnosis</strong>
-          <small>Describe your car problem</small>
-          <em>Upload photos or record engine noise</em>
-        </span>
-        <span className="home-chevron">&gt;</span>
-      </button>
-      <button className="home-job-card" onClick={() => setView("OrderDetail")} type="button">
-        <span className="job-icon" />
-        <span>
-          <small>Job #{order.jobNo}</small>
-          <strong>{order.status}</strong>
-          <em>{order.diagnosis} &middot; Est. 1 hr 20 min</em>
-          <i className="job-progress-bar"><b /></i>
-        </span>
-        <span className="home-chevron">&gt;</span>
-      </button>
-      <div className="quick-actions">
-        <button type="button" onClick={() => setView("MyVehicles")}><span className="quick-icon car" /><strong>My vehicles</strong><span className="tile-chevron">&gt;</span></button>
-        <button type="button" onClick={() => setView("Parts")}><span className="quick-icon wheel" /><strong>Spare parts</strong><span className="tile-chevron">&gt;</span></button>
-        <button type="button" onClick={() => setView("Orders")}><span className="quick-icon document" /><strong>Orders</strong><span className="tile-chevron">&gt;</span></button>
+        <Input label="Plate number" value={form.license_plate ?? ""} onChange={(value) => setForm({ ...form, license_plate: value || null })} />
+        <Input label="VIN" value={form.vin ?? ""} onChange={(value) => setForm({ ...form, vin: value || null })} />
+        <Input label="Engine" value={form.engine ?? ""} onChange={(value) => setForm({ ...form, engine: value || null })} />
+        <button className="primary-button" type="submit">{editing ? "Save vehicle" : "Add vehicle"}</button>
+      </form>
+      <ResourceMessage resources={[vehicles]} />
+      <div className="record-list">
+        {vehicles.data.map((vehicle) => (
+          <article className="record-card" key={vehicle.id}>
+            <div><strong>{vehicle.make} {vehicle.model}</strong><span>{vehicle.license_plate || "No plate number"}</span></div>
+            <dl>
+              <div><dt>Year</dt><dd>{vehicle.year ?? "-"}</dd></div>
+              <div><dt>Mileage</dt><dd>{vehicle.mileage === null ? "-" : `${vehicle.mileage.toLocaleString()} km`}</dd></div>
+              <div><dt>Engine</dt><dd>{vehicle.engine || "-"}</dd></div>
+              <div><dt>VIN</dt><dd>{vehicle.vin || "-"}</dd></div>
+            </dl>
+            <div className="card-actions">
+              <button onClick={() => edit(vehicle)}>Edit</button>
+              <button className="danger" onClick={() => void run(async () => {
+                await deleteCustomerVehicle(supabase, vehicle.id);
+                await vehicles.reload();
+              }, "Vehicle deleted.")}>Delete</button>
+            </div>
+          </article>
+        ))}
+        {!vehicles.loading && vehicles.data.length === 0 && <Empty text="No vehicles have been added." />}
       </div>
-    </section>
+    </Page>
   );
 }
 
-function DiagnosisFlowPage({
-  aiDone,
-  diagnosisLoading,
-  diagnosisResult,
-  noiseRecorded,
-  photoAttached,
-  problem,
-  runAiDiagnosis,
-  setNoiseRecorded,
-  setPhotoAttached,
-  setProblem,
-  setView,
-  vehicle,
-}: {
-  aiDone: boolean;
-  diagnosisLoading: boolean;
-  diagnosisResult: DiagnosisResult | null;
-  noiseRecorded: boolean;
-  photoAttached: boolean;
-  problem: string;
-  runAiDiagnosis: () => Promise<void>;
-  setNoiseRecorded: (recorded: boolean) => void;
-  setPhotoAttached: (attached: boolean) => void;
-  setProblem: (problem: string) => void;
-  setView: (view: AppView) => void;
-  vehicle: VehicleRecord;
-}) {
+function Parts({ run, supabase }: ActionProps) {
+  const products = useResource(() => listCustomerCatalog(supabase), [supabase], [] as SupplierProduct[]);
+  const [query, setQuery] = useState("");
+  const visible = products.data.filter((product) => `${product.name} ${product.brand} ${product.category}`.toLowerCase().includes(query.toLowerCase()));
   return (
-    <>
-      <BackButton label="Home" onClick={() => setView("Home")} />
-      <header className="page-header">
-        <h1>Diagnosis flow</h1>
-        <p>{vehicle.make} {vehicle.model} - {vehicle.plate}</p>
-      </header>
-      <article className="form-card">
-        <label>
-          Describe your car problem
-          <textarea aria-label="Describe your car problem" onChange={(event) => setProblem(event.target.value)} value={problem} />
-        </label>
-        <div className="media-actions">
-          <button className={photoAttached ? "done" : ""} onClick={() => setPhotoAttached(!photoAttached)} type="button">{photoAttached ? "Photo uploaded" : "Upload photo"}</button>
-          <button className={noiseRecorded ? "done" : ""} onClick={() => setNoiseRecorded(!noiseRecorded)} type="button">{noiseRecorded ? "Noise recorded" : "Record noise"}</button>
-        </div>
-        <button className="wide-action" disabled={diagnosisLoading} onClick={runAiDiagnosis} type="button">
-          {diagnosisLoading ? "Checking symptom..." : "Run AI pre-diagnosis"}
-        </button>
-      </article>
-      <article className={`diagnosis-result ${aiDone ? "ready" : ""}`}>
-        <span>AI pre-diagnosis</span>
-        <strong>{diagnosisResult?.diagnosis ?? (aiDone ? diagnosis : "Waiting for symptom input")}</strong>
-        <p>
-          {diagnosisResult
-            ? `Confidence ${diagnosisResult.confidence}%. Cost estimate ${diagnosisResult.estimated_cost_range}.`
-            : "Add photo or sound note to strengthen the pre-check."}
-        </p>
-      </article>
-      {diagnosisResult && (
-        <section className="diagnosis-breakdown">
-          <article>
-            <h2>Recommended actions</h2>
-            {diagnosisResult.recommended_actions.map((item) => <p key={item}>{item}</p>)}
+    <Page title="Spare parts" action={<Link className="text-button" to="/cart">Cart</Link>}>
+      <input className="search-input" placeholder="Search products" value={query} onChange={(event) => setQuery(event.target.value)} />
+      <ResourceMessage resources={[products]} />
+      <div className="product-grid">
+        {visible.map((product) => (
+          <article className="product-card" key={product.id}>
+            {product.image_url ? <img alt={product.name} src={product.image_url} /> : <div className="product-image-empty">No image</div>}
+            <span className="eyebrow">{product.category}</span>
+            <h2>{product.brand} {product.name}</h2>
+            <p>{product.description || "No product description supplied."}</p>
+            <small>{product.stock} in stock - {product.warranty_duration_months} month warranty</small>
+            <footer><strong>{money.format(product.selling_price)}</strong><button onClick={() => void run(async () => {
+              await addCustomerCartItem(supabase, product.id);
+            }, `${product.name} added to cart.`)}>Add</button></footer>
           </article>
-          <article>
-            <h2>Recommended parts</h2>
-            {diagnosisResult.recommended_parts.map((item) => <p key={item}>{item}</p>)}
+        ))}
+        {!products.loading && visible.length === 0 && <Empty text="No matching in-stock products." />}
+      </div>
+    </Page>
+  );
+}
+
+function Cart({ run, supabase }: ActionProps) {
+  const cart = useResource(() => listCustomerCart(supabase), [supabase], [] as CustomerCartItem[]);
+  const [method, setMethod] = useState("Online banking");
+  const navigate = useNavigate();
+  const total = cart.data.reduce((sum, item) => sum + item.product.selling_price * item.quantity, 0);
+  const change = (item: CustomerCartItem, quantity: number) => void run(async () => {
+    await setCustomerCartQuantity(supabase, item.id, quantity);
+    await cart.reload();
+  }, quantity <= 0 ? "Item removed." : "Cart updated.");
+  return (
+    <Page title="Shopping cart" action={<Link className="text-button" to="/parts">Shop</Link>}>
+      <ResourceMessage resources={[cart]} />
+      <div className="record-list">
+        {cart.data.map((item) => (
+          <article className="cart-row" key={item.id}>
+            <div><strong>{item.product.brand} {item.product.name}</strong><span>{money.format(item.product.selling_price)} each</span></div>
+            <div className="quantity-control">
+              <button aria-label="Decrease quantity" onClick={() => change(item, item.quantity - 1)}>-</button>
+              <strong>{item.quantity}</strong>
+              <button aria-label="Increase quantity" disabled={item.quantity >= item.product.stock} onClick={() => change(item, item.quantity + 1)}>+</button>
+            </div>
           </article>
-          <article>
-            <h2>Possible causes</h2>
-            {diagnosisResult.possible_causes.map((item) => <p key={item}>{item}</p>)}
-          </article>
-          <small>This is an AI pre-diagnosis. A certified technician will confirm before final quote.</small>
+        ))}
+      </div>
+      {!cart.loading && cart.data.length === 0 && <Empty text="Your cart is empty." />}
+      {cart.data.length > 0 && (
+        <section className="checkout-panel">
+          <label>Payment method<select value={method} onChange={(event) => setMethod(event.target.value)}>
+            <option>Online banking</option><option>Touch 'n Go eWallet</option><option>Card</option><option>Pay at workshop</option>
+          </select></label>
+          <div><span>Total</span><strong>{money.format(total)}</strong></div>
+          <button className="primary-button" onClick={() => void run(async () => {
+            await checkoutCustomerCart(supabase, method);
+            await cart.reload();
+            navigate("/orders");
+          }, "Order created and sent to the supplier.")}>Place order</button>
         </section>
       )}
-      <div className="button-stack">
-        <button className="wide-action" type="button" onClick={() => setView("Workshops")}>Choose workshop</button>
-        <button className="secondary-wide" type="button" onClick={() => setView("QuoteReview")}>Send to technician</button>
-      </div>
-    </>
+    </Page>
   );
 }
 
-function WorkshopsTab({
-  activeFilter,
-  setActiveFilter,
-  setView,
-}: {
-  activeFilter: string;
-  setActiveFilter: (filter: string) => void;
-  setView: (view: AppView) => void;
-}) {
-  const sortedWorkshops = useMemo(() => {
-    if (activeFilter === "Top rated") return [...workshops].sort((a, b) => Number(b.rating) - Number(a.rating));
-    if (activeFilter === "Open now") return [...workshops].reverse();
-    return workshops;
-  }, [activeFilter]);
-
+function Orders({ supabase }: { supabase: SupabaseClient }) {
+  const orders = useResource(() => listCustomerOrders(supabase), [supabase], [] as CustomerOrder[]);
   return (
-    <>
-      <h1>Find a workshop</h1>
-      <label className="search-box">
-        <input defaultValue="Brake service near Bandar Sunway..." aria-label="Search workshops" />
-      </label>
-      <div className="filter-row">
-        {filters.map((filter) => (
-          <button className={activeFilter === filter ? "selected" : ""} key={filter} onClick={() => setActiveFilter(filter)} type="button">{filter}</button>
-        ))}
-      </div>
-      <div className="workshop-list">
-        {sortedWorkshops.map((workshop) => (
-          <article className="workshop-card" key={workshop.name}>
-            <div>
-              <strong>{workshop.name}</strong>
-              <p><b>{workshop.rating}</b> {workshop.count} - {workshop.tags}</p>
-              <em>Offers brake pad replacement</em>
+    <Page title="Orders" action={<Link className="text-button" to="/payments">Payments</Link>}>
+      <ResourceMessage resources={[orders]} />
+      <div className="record-list">
+        {orders.data.map((order) => (
+          <article className="record-card" key={order.id}>
+            <div><strong>{order.order_number}</strong><Status value={order.status} /></div>
+            <span>{new Date(order.created_at).toLocaleString("en-MY")}</span>
+            <div className="order-items">
+              {order.items.map((item) => <p key={item.id}><span>{item.quantity} x {item.product_brand} {item.product_name}</span><b>{item.status}</b></p>)}
             </div>
-            <aside>
-              <span>{workshop.distance}</span>
-              <button type="button" onClick={() => setView("WorkshopDetail")}>Details</button>
-            </aside>
+            <dl><div><dt>Payment</dt><dd>{order.payment_status}</dd></div><div><dt>Total</dt><dd>{money.format(order.total)}</dd></div></dl>
           </article>
         ))}
+        {!orders.loading && orders.data.length === 0 && <Empty text="No orders have been placed." />}
       </div>
-    </>
+    </Page>
   );
 }
 
-function WorkshopDetailPage({ setView }: { setView: (view: AppView) => void }) {
-  return (
-    <>
-      <BackButton label="Workshops" onClick={() => setView("Workshops")} />
-      <article className="detail-hero">
-        <span>Customer-selected workshop</span>
-        <h1>AutoFix Pro</h1>
-        <p><b>4.8</b> (234) - 1.2 km</p>
-        <em>Offers brake pad replacement</em>
-      </article>
-      <div className="info-grid">
-        <article><span>Working hours</span><strong>8:30 AM - 7:00 PM</strong></article>
-        <article><span>Services</span><strong>Brakes, tyres, oil, diagnostics</strong></article>
-        <article><span>Technicians</span><strong>Ahmad F., Lim W., Ravi K.</strong></article>
-        <article><span>Reviews</span><strong>Fast diagnosis and clear quote.</strong></article>
-      </div>
-      <button className="wide-action" onClick={() => setView("QuoteReview")} type="button">Book with this workshop</button>
-    </>
-  );
-}
+function BookService({ run, supabase }: ActionProps) {
+  const vehicles = useResource(() => listCustomerVehicles(supabase), [supabase], [] as CustomerVehicle[]);
+  const workshops = useResource(() => listPlatformWorkshops(supabase), [supabase], [] as PlatformWorkshop[]);
+  const services = useResource(() => listServiceCatalog(supabase), [supabase], [] as ServiceCatalogItem[]);
+  const bookings = useResource(() => listCustomerBookings(supabase), [supabase], [] as Array<Record<string, unknown>>);
+  const [vehicleId, setVehicleId] = useState("");
+  const [workshopId, setWorkshopId] = useState("");
+  const [serviceId, setServiceId] = useState("");
+  const [date, setDate] = useState("");
+  const [notes, setNotes] = useState("");
+  const service = services.data.find((item) => item.id === serviceId);
 
-function MyVehiclesPage({
-  relatedReservedParts,
-  selectVehicle,
-  setView,
-  vehicles,
-  warranties,
-}: {
-  relatedReservedParts: ReservedPart[];
-  selectVehicle: (vehicleId: string, nextView: AppView) => void;
-  setView: (view: AppView) => void;
-  vehicles: VehicleRecord[];
-  warranties: WarrantyRecord[];
-}) {
-  return (
-    <>
-      <BackButton label="Me" onClick={() => setView("Me")} />
-      <header className="page-header">
-        <h1>My vehicles</h1>
-        <p>Manage vehicles linked to ManFix orders, parts, and service records.</p>
-      </header>
-      <div className="vehicle-list">
-        {vehicles.map((item) => (
-          <button key={item.id} onClick={() => selectVehicle(item.id, "VehicleDetail")} type="button">
-            <strong>{item.make} {item.model} {item.isDefault && <em>Default</em>}</strong>
-            <span>{item.plate} - {item.year} - {item.mileage}</span>
-            <small>Last service: {item.lastServiceDate}</small>
-          </button>
-        ))}
-      </div>
-      <div className="button-stack">
-        <button className="wide-action" type="button" onClick={() => setView("AddVehicle")}>Add Vehicle</button>
-        <button className="secondary-wide" type="button" onClick={() => setView("WarrantyList")}>Warranty+ ({warranties.length})</button>
-        <button className="secondary-wide" type="button" onClick={() => setView("ServiceRecord")}>View service records</button>
-        <button className="secondary-wide" type="button" onClick={() => setView(relatedReservedParts.length > 0 ? "Orders" : "Parts")}>View reserved parts / orders for this vehicle</button>
-      </div>
-    </>
-  );
-}
+  useEffect(() => { if (!vehicleId && vehicles.data[0]) setVehicleId(vehicles.data[0].id); }, [vehicleId, vehicles.data]);
+  useEffect(() => { if (!workshopId && workshops.data[0]) setWorkshopId(workshops.data[0].owner_id); }, [workshopId, workshops.data]);
+  useEffect(() => { if (!serviceId && services.data[0]) setServiceId(services.data[0].id); }, [serviceId, services.data]);
 
-function AddVehiclePage({
-  addVehicle,
-  setView,
-}: {
-  addVehicle: (vehicle: Omit<VehicleRecord, "id" | "isDefault" | "lastServiceDate" | "nextServiceReminder">) => void;
-  setView: (view: AppView) => void;
-}) {
-  const [form, setForm] = useState({
-    engine: "1.5L petrol",
-    fuelType: "Petrol",
-    make: "Honda",
-    mileage: "54,200 km",
-    model: "City 1.5",
-    notes: "Customer-added vehicle",
-    plate: "JQR 2281",
-    transmission: "Automatic",
-    year: "2020",
-  });
-
-  function updateField(field: keyof typeof form, value: string) {
-    setForm((current) => ({ ...current, [field]: value }));
-  }
+  const submit = (event: FormEvent) => {
+    event.preventDefault();
+    if (!service) return;
+    void run(async () => {
+      await createCustomerServiceBooking(supabase, {
+        car_id: vehicleId,
+        customer_notes: notes || null,
+        estimated_price: service.estimated_price,
+        service_catalog_id: service.id,
+        service_date: new Date(date).toISOString(),
+        service_type: service.name,
+        workshop_owner_id: workshopId,
+      });
+      setNotes(""); setDate("");
+      await bookings.reload();
+    }, "Booking sent to the workshop.");
+  };
 
   return (
-    <>
-      <BackButton label="My vehicles" onClick={() => setView("MyVehicles")} />
-      <header className="page-header">
-        <h1>Add vehicle</h1>
-        <p>Save another car to this customer profile.</p>
-      </header>
-      <article className="vehicle-form">
-        <label>Brand<input value={form.make} onChange={(event) => updateField("make", event.target.value)} /></label>
-        <label>Model<input value={form.model} onChange={(event) => updateField("model", event.target.value)} /></label>
-        <label>Plate number<input value={form.plate} onChange={(event) => updateField("plate", event.target.value)} /></label>
-        <label>Year<input value={form.year} onChange={(event) => updateField("year", event.target.value)} /></label>
-        <label>Mileage<input value={form.mileage} onChange={(event) => updateField("mileage", event.target.value)} /></label>
-        <label>Fuel type<input value={form.fuelType} onChange={(event) => updateField("fuelType", event.target.value)} /></label>
-        <label>Transmission<input value={form.transmission} onChange={(event) => updateField("transmission", event.target.value)} /></label>
-        <label>Notes<input value={form.notes} onChange={(event) => updateField("notes", event.target.value)} /></label>
-        <button className="wide-action" type="button" onClick={() => addVehicle(form)}>Save Vehicle</button>
-      </article>
-    </>
-  );
-}
-
-function VehicleDetailPage({
-  orders,
-  reservedParts,
-  selectReservedPart,
-  selectWarranty,
-  setView,
-  vehicle,
-  warranties,
-}: {
-  orders: OrderRecord[];
-  reservedParts: ReservedPart[];
-  selectReservedPart: (reservedPartId: string, nextView: AppView) => void;
-  selectWarranty: (warrantyId: string, nextView: AppView) => void;
-  setView: (view: AppView) => void;
-  vehicle: VehicleRecord;
-  warranties: WarrantyRecord[];
-}) {
-  return (
-    <>
-      <BackButton label="My vehicles" onClick={() => setView("MyVehicles")} />
-      <article className="vehicle-detail-card">
-        <span>{vehicle.isDefault ? "Default vehicle" : "Saved vehicle"}</span>
-        <strong>{vehicle.make} {vehicle.model}</strong>
-        <div className="job-meta">
-          <p><span>Plate</span><strong>{vehicle.plate}</strong></p>
-          <p><span>Mileage</span><strong>{vehicle.mileage}</strong></p>
-          <p><span>Last service</span><strong>{vehicle.lastServiceDate}</strong></p>
-          <p><span>Next service due</span><strong>{vehicle.nextServiceReminder}</strong></p>
-          <p><span>Health summary</span><strong>Brake service active, no critical alerts</strong></p>
-        </div>
-      </article>
-      <section className="mini-list">
-        <h2>Related orders</h2>
-        {orders.map((order) => <article key={order.id}><strong>Job #{order.jobNo}</strong><small>{order.status} - {order.workshop}</small></article>)}
-      </section>
-      <section className="mini-list">
-        <h2>Reserved parts linked to this vehicle</h2>
-        {reservedParts.length === 0 && <article><strong>No reserved parts yet</strong><small>Reserve a part from the Parts tab.</small></article>}
-        {reservedParts.map((reserved) => {
-          const part = partById(reserved.partId);
-          return (
-            <article key={reserved.id}>
-              <strong>{part.brand} {part.name}</strong>
-              <small>{reserved.status} - Job #{reserved.jobNo}</small>
-              <button className="text-link inline-link" type="button" onClick={() => selectReservedPart(reserved.id, "PartReservationSummary")}>View reserved part</button>
-            </article>
-          );
-        })}
-      </section>
-      <section className="mini-list">
-        <h2>Service records</h2>
-        <article><strong>{vehicle.lastServiceDate}</strong><small>{vehicle.notes}</small></article>
-      </section>
-      <section className="mini-list">
-        <h2>Warranty+</h2>
-        {warranties.length === 0 && <article><strong>No active Warranty+ yet</strong><small>Complete a ManFix repair to generate one automatically.</small></article>}
-        {warranties.map((warranty) => (
-          <article key={warranty.id}>
-            <strong>{warranty.partBrand} {warranty.partName}</strong>
-            <small>{warranty.status} - {warrantyDaysRemaining(warranty)} days remaining</small>
-            <button className="text-link inline-link" type="button" onClick={() => selectWarranty(warranty.id, "WarrantyDetail")}>Open warranty</button>
-          </article>
-        ))}
-      </section>
-      <div className="button-stack">
-        <button className="wide-action" type="button" onClick={() => setView("Diagnosis")}>Book service for this vehicle</button>
-        <button className="secondary-wide" type="button" onClick={() => setView("Orders")}>View orders</button>
-        <button className="secondary-wide" type="button" onClick={() => setView("ServiceRecord")}>View service records</button>
-        <button className="secondary-wide" type="button" onClick={() => setView("WarrantyList")}>View Warranty+</button>
-      </div>
-    </>
-  );
-}
-
-function PartsTab({ selectPart }: { selectPart: (partId: string, nextView: AppView) => void }) {
-  return (
-    <>
-      <h1>Spare parts</h1>
-      <article className="parts-banner">
-        <strong>Recommended from diagnosis</strong>
-        <span>Tap a part card to view compatibility, lifespan, warranty, and reservation options.</span>
-      </article>
-      <div className="parts-grid">
-        {spareParts.map((part) => (
-          <button className="part-card part-card-button" key={part.id} onClick={() => selectPart(part.id, "SparePartDetail")} type="button">
-            <div className={`part-image ${part.kind}`} />
-            <strong>{part.name}</strong>
-            <small>{part.brand}</small>
-            <span>{part.compatibleWith}</span>
-            <b>RM {part.price}</b>
-            <em>{part.stockStatus}</em>
-          </button>
-        ))}
-      </div>
-    </>
-  );
-}
-
-function SparePartDetailPage({
-  part,
-  reservePart,
-  setView,
-  vehicle,
-}: {
-  part: SparePart;
-  reservePart: (partId: string, mode?: "reserve" | "quote") => void;
-  setView: (view: AppView) => void;
-  vehicle: VehicleRecord;
-}) {
-  return (
-    <>
-      <BackButton label="Parts" onClick={() => setView("Parts")} />
-      <article className="detail-hero part-hero">
-        <span>{part.brand}</span>
-        <h1>{part.name}</h1>
-        <p>RM {part.price} - Compatible with {part.compatibleWith}</p>
-        <em>{part.stockStatus}</em>
-      </article>
-      <div className="job-meta">
-        <p><span>Supplier</span><strong>{part.supplier}</strong></p>
-        <p><span>Description</span><strong>{part.description}</strong></p>
-        <p><span>Normal usage</span><strong>{part.normalUsage}</strong></p>
-        <p><span>Warranty</span><strong>{part.warranty}</strong></p>
-        <p><span>Install advice</span><strong>{part.installationRecommendation}</strong></p>
-        <p><span>Linked diagnosis</span><strong>{part.linkedDiagnosis ?? "Not linked yet"}</strong></p>
-        <p><span>Vehicle</span><strong>{vehicle.make} {vehicle.model} - {vehicle.plate}</strong></p>
-      </div>
-      <div className="button-stack">
-        <button className="wide-action" type="button" onClick={() => reservePart(part.id, "reserve")}>Reserve for this repair</button>
-        <button className="secondary-wide" type="button" onClick={() => reservePart(part.id, "quote")}>Add to quote</button>
-        <button className="secondary-wide" type="button" onClick={() => setView("Parts")}>Back to Parts</button>
-      </div>
-    </>
-  );
-}
-
-function PartReservationSummaryPage({
-  part,
-  reservePart,
-  reservedPart,
-  setView,
-  vehicle,
-}: {
-  part: SparePart;
-  reservePart: (partId: string, mode?: "reserve" | "quote") => void;
-  reservedPart?: ReservedPart;
-  setView: (view: AppView) => void;
-  vehicle: VehicleRecord;
-}) {
-  if (!reservedPart) {
-    return (
-      <>
-        <BackButton label="Parts" onClick={() => setView("Parts")} />
-        <article className="record-card"><span>No reservation yet</span><strong>Reserve a part first</strong><p>Open the Parts tab and select Bendix brake pad.</p></article>
-      </>
-    );
-  }
-
-  return (
-    <>
-      <BackButton label="Parts" onClick={() => setView("Parts")} />
-      <header className="page-header">
-        <h1>Part reservation</h1>
-        <p>No payment collected yet. This part will be charged only after technician confirms the quote.</p>
-      </header>
-      <article className="record-card">
-        <span>Reservation status: {reservedPart.status}</span>
-        <strong>{part.brand} {part.name}</strong>
-        <p>RM {part.price} - {vehicle.make} {vehicle.model}</p>
-      </article>
-      <div className="job-meta">
-        <p><span>Vehicle</span><strong>{vehicle.make} {vehicle.model} - {vehicle.plate}</strong></p>
-        <p><span>Linked job</span><strong>Job #{reservedPart.jobNo}</strong></p>
-        <p><span>Diagnosis</span><strong>{reservedPart.diagnosis}</strong></p>
-        <p><span>Deposit</span><strong>RM {reservedPart.depositAmount}</strong></p>
-      </div>
-      <div className="button-stack">
-        <button className="wide-action" type="button" onClick={() => reservePart(part.id, "quote")}>Add to quote</button>
-        <button className="secondary-wide" type="button" onClick={() => setView("OrderDetail")}>View order</button>
-        <button className="secondary-wide" type="button" onClick={() => setView("WorkshopDetail")}>Contact workshop</button>
-        <button className="secondary-wide" type="button" onClick={() => setView("Parts")}>Back to Parts</button>
-      </div>
-    </>
-  );
-}
-
-function OrdersTab({
-  orders,
-  reservedParts,
-  selectReservedPart,
-  setView,
-  vehicles,
-}: {
-  orders: OrderRecord[];
-  reservedParts: ReservedPart[];
-  selectReservedPart: (reservedPartId: string, nextView: AppView) => void;
-  setView: (view: AppView) => void;
-  vehicles: VehicleRecord[];
-}) {
-  return (
-    <>
-      <h1>My orders</h1>
-      <section className="mini-list">
-        <h2>Service orders</h2>
-        {orders.map((order) => (
-          <article key={order.id}>
-            <strong>Job #{order.jobNo}</strong>
-            <small>{order.status} - {order.workshop}</small>
-            <button className="text-link inline-link" type="button" onClick={() => setView("OrderDetail")}>View order</button>
-          </article>
-        ))}
-      </section>
-      <section className="mini-list">
-        <h2>Reserved parts</h2>
-        {reservedParts.length === 0 && <article><strong>No reserved parts yet</strong><small>Reserve one from the Parts tab.</small></article>}
-        {reservedParts.map((reserved) => {
-          const part = partById(reserved.partId);
-          const vehicle = vehicles.find((item) => item.id === reserved.vehicleId);
-          return (
-            <article key={reserved.id}>
-              <strong>{part.brand} {part.name}</strong>
-              <small>{vehicle?.make} {vehicle?.model} - RM {part.price} - {reserved.status} - Job #{reserved.jobNo}</small>
-              <div className="inline-actions">
-                <button type="button" onClick={() => selectReservedPart(reserved.id, "PartReservationSummary")}>View details</button>
-                <button type="button" onClick={() => selectReservedPart(reserved.id, "Payment")}>Continue payment</button>
-              </div>
-            </article>
-          );
-        })}
-      </section>
-      <section className="mini-list">
-        <h2>Completed records</h2>
-        <article><strong>Brake pads replaced</strong><small>12 May 2026 - AutoFix Pro</small></article>
-      </section>
-    </>
-  );
-}
-
-function NotificationsPage({
-  notifications,
-  selectReservedPart,
-  setView,
-}: {
-  notifications: NotificationRecord[];
-  selectReservedPart: (reservedPartId: string, nextView: AppView) => void;
-  setView: (view: AppView) => void;
-}) {
-  return (
-    <>
-      <BackButton label="Home" onClick={() => setView("Home")} />
-      <header className="page-header">
-        <h1>Notifications</h1>
-        <p>Reservation and payment updates appear here.</p>
-      </header>
-      <div className="support-list">
-        {notifications.length === 0 && <button type="button" onClick={() => setView("Parts")}><strong>No notifications yet</strong><span>Reserve a part to create one.</span></button>}
-        {notifications.map((item) => (
-          <button key={item.id} onClick={() => selectReservedPart(item.reservedPartId, "PartReservationSummary")} type="button">
-            <strong>{item.title}</strong>
-            <span>{item.message}</span>
-            <StatusPill label={item.status} />
-          </button>
-        ))}
-      </div>
-    </>
-  );
-}
-
-function OrderDetailPage({
-  completeRepairAndCreateWarranty,
-  order,
-  reservedParts,
-  selectReservedPart,
-  setView,
-  vehicle,
-  warrantyCount,
-}: {
-  completeRepairAndCreateWarranty: () => void;
-  order: OrderRecord;
-  reservedParts: ReservedPart[];
-  selectReservedPart: (reservedPartId: string, nextView: AppView) => void;
-  setView: (view: AppView) => void;
-  vehicle: VehicleRecord;
-  warrantyCount: number;
-}) {
-  const timeline = ["Booking confirmed", "Diagnosis confirmed", "Quote approved", "Deposit paid", "Repair in progress", "Ready for pickup", "Completed"];
-  const currentIndex = Math.max(0, timeline.indexOf(order.status));
-
-  return (
-    <>
-      <BackButton label="Orders" onClick={() => setView("Orders")} />
-      <article className="order-card">
-        <header>
-          <div><strong>Job #{order.jobNo}</strong><span>{vehicle.make} {vehicle.model} - {vehicle.plate}</span></div>
-          <aside><b>{order.status}</b><span>{order.workshop}</span></aside>
-        </header>
-        <div className="job-meta">
-          <p><span>Technician</span><strong>{order.technician}</strong></p>
-          <p><span>Diagnosis</span><strong>{order.diagnosis}</strong></p>
-          <p><span>Vehicle</span><strong>{vehicle.mileage}</strong></p>
-        </div>
-      </article>
-      <section className="mini-list">
-        <h2>Reserved parts</h2>
-        {reservedParts.length === 0 && <article><strong>No reserved parts yet</strong><small>Reserve one from the Parts tab.</small></article>}
-        {reservedParts.map((reserved) => {
-          const part = partById(reserved.partId);
-          return (
-            <article key={reserved.id}>
-              <strong>{part.brand} {part.name}</strong>
-              <small>{reserved.status} - RM {part.price}</small>
-              <div className="inline-actions">
-                <button type="button" onClick={() => selectReservedPart(reserved.id, "PartReservationSummary")}>View reserved part</button>
-                <button type="button" onClick={() => selectReservedPart(reserved.id, "Payment")}>Continue payment</button>
-              </div>
-            </article>
-          );
-        })}
-      </section>
-      <section className="timeline-card">
-        <h2>Timeline</h2>
-        {timeline.map((item, index) => (
-          <p className={index <= currentIndex ? "done" : ""} key={item}><span />{item}</p>
-        ))}
-      </section>
-      {warrantyCount > 0 && (
-        <article className="record-card">
-          <span>Warranty+ active</span>
-          <strong>Digital warranty generated from this completed ManFix order.</strong>
-          <p>Only orders completed inside ManFix receive Warranty+ coverage.</p>
-        </article>
+    <Page title="Book a service">
+      <ResourceMessage resources={[vehicles, workshops, services, bookings]} />
+      {vehicles.data.length === 0 ? <Empty text="Add a vehicle before creating a booking." /> : (
+        <form className="customer-form" onSubmit={submit}>
+          <Select label="Vehicle" value={vehicleId} onChange={setVehicleId} options={vehicles.data.map((item) => ({ label: `${item.make} ${item.model} - ${item.license_plate || "No plate"}`, value: item.id }))} />
+          <Select label="Workshop" value={workshopId} onChange={setWorkshopId} options={workshops.data.map((item) => ({ label: `${item.name}${item.city ? ` - ${item.city}` : ""}`, value: item.owner_id }))} />
+          <Select label="Service" value={serviceId} onChange={setServiceId} options={services.data.map((item) => ({ label: `${item.name} - ${money.format(item.estimated_price)}`, value: item.id }))} />
+          <Input label="Date and time" required type="datetime-local" value={date} onChange={setDate} />
+          <label>Notes<textarea rows={3} value={notes} onChange={(event) => setNotes(event.target.value)} /></label>
+          <button className="primary-button" disabled={!workshopId || !serviceId || !date} type="submit">Send booking</button>
+        </form>
       )}
-      <div className="button-stack">
-        <button className="wide-action" type="button" onClick={() => setView("QuoteReview")}>View quote</button>
-        {order.status !== "Completed" && <button className="secondary-wide" type="button" onClick={completeRepairAndCreateWarranty}>Complete repair and activate Warranty+</button>}
-        <button className="secondary-wide" type="button" onClick={() => setView("Payment")}>Pay deposit if unpaid</button>
-        <button className="secondary-wide" type="button" onClick={() => setView("WorkshopDetail")}>Contact workshop</button>
-        <button className="secondary-wide" type="button" onClick={() => setView("Invoice")}>View invoice</button>
-        <button className="secondary-wide" type="button" onClick={() => setView("ServiceRecord")}>View service record</button>
-        {warrantyCount > 0 && <button className="secondary-wide" type="button" onClick={() => setView("WarrantyList")}>View Warranty+</button>}
+      <div className="record-list">
+        {bookings.data.map((booking) => <article className="record-card" key={String(booking.id)}><div><strong>{String(booking.service_type)}</strong><Status value={String(booking.status)} /></div><span>{new Date(String(booking.scheduled_at)).toLocaleString("en-MY")}</span><p>{String(booking.vehicle_label)}</p></article>)}
       </div>
-    </>
+    </Page>
   );
 }
 
-function QuoteReviewPage({
-  approveQuote,
-  part,
-  reservePart,
-  reservedPart,
-  setView,
-  vehicle,
-}: {
-  approveQuote: () => void;
-  part: SparePart;
-  reservePart: (partId: string, mode?: "reserve" | "quote") => void;
-  reservedPart?: ReservedPart;
-  setView: (view: AppView) => void;
-  vehicle: VehicleRecord;
-}) {
-  const activePart = reservedPart ? partById(reservedPart.partId) : part;
-  const total = activePart.price + labourSubtotal;
-
+function Notifications({ onUnreadChange, supabase }: { onUnreadChange: (count: number) => void; supabase: SupabaseClient }) {
+  const notifications = useResource(() => listNotifications(supabase), [supabase], [] as ManFixNotification[]);
+  useEffect(() => { onUnreadChange(notifications.data.filter((item) => !item.read_at).length); }, [notifications.data, onUnreadChange]);
   return (
-    <>
-      <BackButton label="Orders" onClick={() => setView("Orders")} />
-      <header className="page-header"><h1>Quote #{quoteNo}</h1><p>Job #{jobNo} - {vehicle.make} {vehicle.model}</p></header>
-      <article className="review-card"><span>Quote ready</span><strong>{diagnosis}</strong><small>Workshop: {workshopName} - Technician: {technician}</small></article>
-      <div className="quote-lines">
-        <div><span>{activePart.brand} {activePart.name}</span><strong>RM {activePart.price}</strong></div>
-        <div><span>Brake pad replacement 1.5 hr</span><strong>RM {labourSubtotal}</strong></div>
-        <div className="total-row"><span>Total</span><strong>RM {total}</strong></div>
+    <Page title="Notifications">
+      <ResourceMessage resources={[notifications]} />
+      <div className="record-list">
+        {notifications.data.map((item) => (
+          <button className={`notification-row ${item.read_at ? "read" : ""}`} key={item.id} onClick={() => void (async () => {
+            if (!item.read_at) { await markNotificationRead(supabase, item.id); await notifications.reload(); }
+          })()}>
+            <strong>{item.title}</strong><span>{item.message}</span><small>{new Date(item.created_at).toLocaleString("en-MY")}</small>
+          </button>
+        ))}
+        {!notifications.loading && notifications.data.length === 0 && <Empty text="No notifications yet." />}
       </div>
-      <div className="button-stack">
-        <button className="wide-action" type="button" onClick={approveQuote}>Approve quote</button>
-        <button className="secondary-wide" type="button" onClick={() => reservePart(activePart.id, "quote")}>Add part to quote</button>
-        <button className="secondary-wide" type="button" onClick={() => setView("WorkshopDetail")}>Ask technician</button>
-        <button className="secondary-wide" type="button" onClick={() => setView("Workshops")}>Choose another workshop</button>
-      </div>
-    </>
+    </Page>
   );
 }
 
-function PaymentPage({
-  method,
-  part,
-  payReservedPart,
-  reservedPart,
-  setMethod,
-  setView,
-  vehicle,
-}: {
-  method: string;
-  part: SparePart;
-  payReservedPart: (fullPayment: boolean) => void;
-  reservedPart?: ReservedPart;
-  setMethod: (method: string) => void;
-  setView: (view: AppView) => void;
-  vehicle: VehicleRecord;
-}) {
-  const activePart = reservedPart ? partById(reservedPart.partId) : part;
-  const deposit = reservedPart?.depositAmount ?? reservationDeposit;
-  const total = activePart.price + (reservedPart ? 0 : labourSubtotal);
-  const balance = activePart.price - deposit;
-  const methods = ["Touch 'n Go eWallet", "Online banking", "Card", "Pay at workshop"];
-
+function Payments({ run, supabase }: ActionProps) {
+  const payments = useResource(() => listCustomerPayments(supabase), [supabase], [] as CustomerPayment[]);
   return (
-    <>
-      <BackButton label="Order" onClick={() => setView("OrderDetail")} />
-      <header className="page-header"><h1>Payment</h1><p>Review what you selected before payment.</p></header>
-      <article className="review-card">
-        <span>Selected item</span>
-        <strong>{activePart.brand} {activePart.name}</strong>
-        <small>{vehicle.make} {vehicle.model} - Job #{reservedPart?.jobNo ?? jobNo}</small>
-      </article>
-      <div className="quote-lines">
-        <div><span>Part subtotal</span><strong>RM {activePart.price}</strong></div>
-        <div><span>Labour subtotal</span><strong>{reservedPart ? "After technician confirmation" : `RM ${labourSubtotal}`}</strong></div>
-        <div><span>Reservation deposit</span><strong>RM {deposit}</strong></div>
-        <div><span>Total amount</span><strong>RM {total}</strong></div>
-        <div className="total-row"><span>Balance after deposit</span><strong>RM {balance}</strong></div>
-      </div>
-      <div className="option-list">
-        {methods.map((item) => <button className={method === item ? "selected" : ""} key={item} onClick={() => setMethod(item)} type="button">{item}</button>)}
-      </div>
-      <div className="button-stack">
-        <button className="wide-action" type="button" onClick={() => payReservedPart(false)}>Pay deposit</button>
-        <button className="secondary-wide" type="button" onClick={() => payReservedPart(true)}>Pay full amount</button>
-        <button className="secondary-wide" type="button" onClick={() => setView("OrderDetail")}>Back to order</button>
-      </div>
-    </>
-  );
-}
-
-function PaymentSuccessPage({
-  receipt,
-  setView,
-}: {
-  receipt?: ReceiptRecord;
-  setView: (view: AppView) => void;
-}) {
-  return (
-    <>
-      <header className="success-panel">
-        <span>Payment successful</span>
-        <h1>{receipt?.id ?? receiptNo}</h1>
-        <p>Amount paid: RM {receipt?.amount ?? reservationDeposit}</p>
-        <small>Payment method: {receipt?.method ?? "Touch 'n Go eWallet"} - Linked order #{jobNo}</small>
-      </header>
-      <div className="button-stack">
-        <button className="wide-action" type="button" onClick={() => setView("Invoice")}>View receipt</button>
-        <button className="secondary-wide" type="button" onClick={() => setView("OrderDetail")}>View order</button>
-        <button className="secondary-wide" type="button" onClick={() => setView("Home")}>Back home</button>
-      </div>
-    </>
-  );
-}
-
-function InvoicePage({
-  part,
-  payment,
-  receipt,
-  setNotice,
-  setView,
-  vehicle,
-}: {
-  part: SparePart;
-  payment?: PaymentRecord;
-  receipt?: ReceiptRecord;
-  setNotice: (notice: string) => void;
-  setView: (view: AppView) => void;
-  vehicle: VehicleRecord;
-}) {
-  const paid = receipt?.amount ?? 0;
-  const balance = Math.max(part.price - paid, 0);
-
-  return (
-    <>
-      <BackButton label="Order" onClick={() => setView("OrderDetail")} />
-      <header className="page-header"><h1>Receipt / Invoice</h1><p>{receipt?.id ?? invoiceNo}</p></header>
-      <div className="quote-lines">
-        <div><span>Customer</span><strong>{customerName}</strong></div>
-        <div><span>Vehicle</span><strong>{vehicle.make} {vehicle.model} - {vehicle.plate}</strong></div>
-        <div><span>Job number</span><strong>{jobNo}</strong></div>
-        <div><span>Item purchased / reserved</span><strong>{part.brand} {part.name}</strong></div>
-        <div><span>Part price</span><strong>RM {part.price}</strong></div>
-        <div><span>Deposit paid</span><strong>RM {paid}</strong></div>
-        <div><span>Balance</span><strong>RM {balance}</strong></div>
-        <div className="total-row"><span>Payment status</span><strong>{payment?.status ?? "Deposit pending"}</strong></div>
-      </div>
-      <div className="button-stack">
-        <button className="wide-action" type="button" onClick={() => setNotice("Receipt saved to customer records")}>Download receipt</button>
-        <button className="secondary-wide" type="button" onClick={() => setNotice("Receipt ready to share")}>Share receipt</button>
-        <button className="secondary-wide" type="button" onClick={() => setView("ServiceRecord")}>View service record</button>
-        <button className="secondary-wide" type="button" onClick={() => setView("WarrantyList")}>View Warranty+</button>
-      </div>
-    </>
-  );
-}
-
-function ServiceRecordPage({
-  completeRepairAndCreateWarranty,
-  reservedParts,
-  setView,
-  vehicle,
-  warranties,
-}: {
-  completeRepairAndCreateWarranty: () => void;
-  reservedParts: ReservedPart[];
-  setView: (view: AppView) => void;
-  vehicle: VehicleRecord;
-  warranties: WarrantyRecord[];
-}) {
-  return (
-    <>
-      <BackButton label="Me" onClick={() => setView("Me")} />
-      <header className="page-header"><h1>Service records</h1><p>{vehicle.make} {vehicle.model} - {vehicle.plate}</p></header>
-      <article className="record-card"><span>Latest record</span><strong>{vehicle.lastServiceDate}</strong><p>{vehicle.nextServiceReminder}</p></article>
-      <section className="mini-list">
-        <h2>Reserved parts in service history</h2>
-        {reservedParts.length === 0 && <article><strong>No reserved parts yet</strong><small>Reservations will appear here.</small></article>}
-        {reservedParts.map((reserved) => {
-          const part = partById(reserved.partId);
-          return <article key={reserved.id}><strong>{part.brand} {part.name}</strong><small>{reserved.status} - Job #{reserved.jobNo}</small></article>;
-        })}
-      </section>
-      <section className="mini-list">
-        <h2>Warranty coverage</h2>
-        {warranties.length === 0 && <article><strong>Warranty+ not active yet</strong><small>It appears automatically after the repair order is completed.</small></article>}
-        {warranties.map((warranty) => <article key={warranty.id}><strong>{warranty.partBrand} {warranty.partName}</strong><small>{warranty.status} - expires {warranty.expiryDate}</small></article>)}
-      </section>
-      <div className="button-stack">
-        {warranties.length === 0 && <button className="wide-action" type="button" onClick={completeRepairAndCreateWarranty}>Complete repair and activate Warranty+</button>}
-        <button className="secondary-wide" type="button" onClick={() => setView("WarrantyList")}>View Warranty+</button>
-        <button className="secondary-wide" type="button" onClick={() => setView("Diagnosis")}>Book next service</button>
-      </div>
-    </>
-  );
-}
-
-function WarrantyListPage({
-  completeRepairAndCreateWarranty,
-  selectWarranty,
-  setView,
-  vehicle,
-  warranties,
-}: {
-  completeRepairAndCreateWarranty: () => void;
-  selectWarranty: (warrantyId: string, nextView: AppView) => void;
-  setView: (view: AppView) => void;
-  vehicle: VehicleRecord;
-  warranties: WarrantyRecord[];
-}) {
-  return (
-    <section className="warranty-shell">
-      <BackButton label="My vehicle" onClick={() => setView("VehicleDetail")} />
-      <header className="warranty-hero">
-        <span>ManFix Warranty+</span>
-        <h1>{vehicle.make} {vehicle.model}</h1>
-        <p>Digital warranties are created only after a ManFix order is completed.</p>
-      </header>
-      <div className="warranty-grid">
-        {warranties.length === 0 && (
-          <article className="glass-card">
-            <span>Not active yet</span>
-            <strong>Complete Job #{jobNo} to activate Warranty+</strong>
-            <p>Outside-ManFix purchases do not receive a digital warranty certificate.</p>
-            <button type="button" onClick={completeRepairAndCreateWarranty}>Complete repair now</button>
+    <Page title="Payment history">
+      <ResourceMessage resources={[payments]} />
+      <div className="record-list">
+        {payments.data.map((payment) => (
+          <article className="record-card" key={payment.id}>
+            <div><strong>{payment.payment_number}</strong><Status value={payment.status} /></div>
+            <p>{payment.method}</p><dl><div><dt>Amount</dt><dd>{money.format(payment.amount)}</dd></div><div><dt>Created</dt><dd>{new Date(payment.created_at).toLocaleDateString("en-MY")}</dd></div></dl>
+            {payment.status === "Pending" && <div className="card-actions"><button className="danger" onClick={() => void run(async () => { await updateCustomerPayment(supabase, payment.id, "Cancelled"); await payments.reload(); }, "Payment cancelled.")}>Cancel payment</button></div>}
           </article>
-        )}
-        {warranties.map((warranty) => (
-          <button className="warranty-card" key={warranty.id} onClick={() => selectWarranty(warranty.id, "WarrantyDetail")} type="button">
-            <span>{warranty.status}</span>
-            <strong>{warranty.partBrand} {warranty.partName}</strong>
-            <small>{warranty.workshop}</small>
-            <small>{warranty.supplier}</small>
-            <b>{warrantyDaysRemaining(warranty)} days remaining</b>
-          </button>
         ))}
+        {!payments.loading && payments.data.length === 0 && <Empty text="No payment records yet." />}
       </div>
-      <div className="button-stack">
-        <button className="secondary-wide dark-button" type="button" onClick={() => setView("ServiceRecord")}>Repair history</button>
-        <button className="secondary-wide dark-button" type="button" onClick={() => setView("AdminWarrantyAnalytics")}>Investor analytics</button>
-      </div>
-    </section>
+    </Page>
   );
 }
 
-function WarrantyDetailPage({
-  claims,
-  setView,
-  vehicle,
-  warranty,
-}: {
-  claims: WarrantyClaim[];
-  selectWarranty: (warrantyId: string, nextView: AppView) => void;
-  setView: (view: AppView) => void;
-  vehicle: VehicleRecord;
-  warranty?: WarrantyRecord;
-}) {
-  if (!warranty) {
-    return (
-      <section className="warranty-shell">
-        <BackButton label="Warranty" onClick={() => setView("WarrantyList")} />
-        <article className="glass-card">
-          <span>Warranty+ empty</span>
-          <strong>No certificate has been generated yet.</strong>
-          <p>Complete the current ManFix repair to create the digital warranty.</p>
-          <button type="button" onClick={() => setView("OrderDetail")}>Open order</button>
-        </article>
-      </section>
-    );
-  }
+function Warranty({ run, supabase }: ActionProps) {
+  const warranties = useResource(() => listCustomerWarranties(supabase), [supabase], [] as CustomerWarranty[]);
+  const claims = useResource(() => listCustomerWarrantyClaims(supabase), [supabase], [] as CustomerWarrantyClaim[]);
+  const [selected, setSelected] = useState<CustomerWarranty | null>(null);
+  const [description, setDescription] = useState("");
 
   return (
-    <section className="warranty-shell">
-      <BackButton label="Warranty" onClick={() => setView("WarrantyList")} />
-      <header className="warranty-hero">
-        <span>{warranty.id}</span>
-        <h1>{warranty.partBrand} {warranty.partName}</h1>
-        <p>{warranty.status} - {warrantyDaysRemaining(warranty)} days remaining</p>
-      </header>
-      <div className="warranty-meta">
-        <p><span>Vehicle</span><strong>{vehicle.make} {vehicle.model} - {vehicle.plate}</strong></p>
-        <p><span>Customer</span><strong>{warranty.customer}</strong></p>
-        <p><span>Workshop</span><strong>{warranty.workshop}</strong></p>
-        <p><span>Supplier</span><strong>{warranty.supplier}</strong></p>
-        <p><span>Invoice</span><strong>{warranty.invoiceNumber}</strong></p>
-        <p><span>Repair date</span><strong>{warranty.repairDate}</strong></p>
-        <p><span>Warranty period</span><strong>{warranty.startDate} to {warranty.expiryDate}</strong></p>
-        <p><span>Duration</span><strong>{warranty.durationMonths} months</strong></p>
-        <p><span>Mileage limit</span><strong>{warranty.mileageLimit ?? "No mileage limit"}</strong></p>
-      </div>
-      <section className="glass-section">
-        <h2>Digital invoice</h2>
-        <p>{warranty.invoiceNumber} - linked to Job #{jobNo} and part #{warranty.partId}</p>
-        <button type="button" onClick={() => setView("Invoice")}>Open invoice</button>
-      </section>
-      <section className="glass-section">
-        <h2>Repair history</h2>
-        {warranty.repairHistory.map((item) => <p key={item}>{item}</p>)}
-      </section>
-      <section className="glass-section">
-        <h2>Warranty terms</h2>
-        {warranty.terms.map((item) => <p key={item}>{item}</p>)}
-      </section>
-      {claims.map((claim) => (
-        <article className="claim-status-card" key={claim.id}>
-          <span>{claim.status}</span>
-          <strong>{claim.id}</strong>
-          <p>{claim.description}</p>
-          {claim.inspectionStatus && <small>Inspection: {claim.inspectionStatus}</small>}
-          {claim.report && <small>{claim.report}</small>}
-        </article>
-      ))}
-      <div className="button-stack">
-        <button className="wide-action" type="button" onClick={() => setView("ClaimWarranty")}>Claim warranty</button>
-        <button className="secondary-wide dark-button" type="button" onClick={() => setView("ServiceRecord")}>Repair history</button>
-      </div>
-    </section>
-  );
-}
-
-function ClaimWarrantyPage({
-  setView,
-  submitWarrantyClaim,
-  warranty,
-}: {
-  setView: (view: AppView) => void;
-  submitWarrantyClaim: (description: string, photos: string[], videos: string[]) => void;
-  warranty?: WarrantyRecord;
-}) {
-  const [description, setDescription] = useState("Brake squeal returned after installation. Please review under Warranty+.");
-  const [photos, setPhotos] = useState<string[]>([]);
-  const [videos, setVideos] = useState<string[]>([]);
-
-  return (
-    <section className="warranty-shell">
-      <BackButton label="Warranty" onClick={() => setView("WarrantyDetail")} />
-      <header className="warranty-hero">
-        <span>Claim Warranty</span>
-        <h1>{warranty ? `${warranty.partBrand} ${warranty.partName}` : "Warranty claim"}</h1>
-        <p>Submit evidence for supplier review and workshop inspection.</p>
-      </header>
-      <article className="claim-form">
-        <label>
-          Describe the problem
-          <textarea value={description} onChange={(event) => setDescription(event.target.value)} />
-        </label>
-        <div className="media-actions">
-          <button className={photos.length > 0 ? "done" : ""} type="button" onClick={() => setPhotos(["front-wheel-photo.jpg", "brake-pad-closeup.jpg"])}>{photos.length > 0 ? "2 photos uploaded" : "Upload photos"}</button>
-          <button className={videos.length > 0 ? "done" : ""} type="button" onClick={() => setVideos(["brake-noise-video.mp4"])}>{videos.length > 0 ? "Video uploaded" : "Upload video"}</button>
-        </div>
-        <button className="wide-action" type="button" onClick={() => submitWarrantyClaim(description, photos, videos)}>Submit claim</button>
-      </article>
-    </section>
-  );
-}
-
-function SupplierWarrantyDashboard({
-  claims,
-  setView,
-  updateWarrantyClaim,
-  warranties,
-}: {
-  claims: WarrantyClaim[];
-  setView: (view: AppView) => void;
-  updateWarrantyClaim: (claimId: string, status: WarrantyClaimStatus) => void;
-  warranties: WarrantyRecord[];
-}) {
-  const pendingClaims = claims.filter((claim) => claim.status === "Pending Review");
-  const approvedClaims = claims.filter((claim) => claim.status === "Approved");
-  const rejectedClaims = claims.filter((claim) => claim.status === "Rejected");
-  return (
-    <section className="warranty-shell dashboard-shell">
-      <BackButton label="Me" onClick={() => setView("Me")} />
-      <header className="warranty-hero">
-        <span>Supplier Portal</span>
-        <h1>Warranty Management</h1>
-        <p>PartsHub can manage only warranties and claims linked to its supplied parts.</p>
-      </header>
-      <div className="metric-grid">
-        <article><strong>{warranties.filter((item) => item.status === "Active").length}</strong><span>Active warranties</span></article>
-        <article><strong>{pendingClaims.length}</strong><span>Pending claims</span></article>
-        <article><strong>{approvedClaims.length}</strong><span>Approved</span></article>
-        <article><strong>{rejectedClaims.length}</strong><span>Rejected</span></article>
-      </div>
-      <section className="glass-section">
-        <h2>Pending claims</h2>
-        {pendingClaims.length === 0 && <p>No pending supplier review. Submit a customer claim to create one.</p>}
-        {pendingClaims.map((claim) => {
-          const warranty = warranties.find((item) => item.id === claim.warrantyId);
-          return (
-            <article className="dashboard-job" key={claim.id}>
-              <strong>{claim.id} - {warranty?.partBrand} {warranty?.partName}</strong>
-              <small>{claim.description}</small>
-              <div className="inline-actions">
-                <button type="button" onClick={() => updateWarrantyClaim(claim.id, "Approved")}>Approve</button>
-                <button type="button" onClick={() => updateWarrantyClaim(claim.id, "Rejected")}>Reject</button>
-                <button type="button" onClick={() => updateWarrantyClaim(claim.id, "Inspection Requested")}>Request inspection</button>
-              </div>
-            </article>
-          );
+    <Page title="Warranty+">
+      <ResourceMessage resources={[warranties, claims]} />
+      <div className="record-list">
+        {warranties.data.map((warranty) => {
+          const claim = claims.data.find((item) => item.warranty_id === warranty.id);
+          const remaining = Math.max(0, Math.ceil((new Date(warranty.expiry_date).getTime() - Date.now()) / 86400000));
+          return <article className="record-card" key={warranty.id}>
+            <div><strong>{warranty.part_brand ? `${warranty.part_brand} ` : ""}{warranty.part_name || warranty.coverage_type}</strong><Status value={warranty.status} /></div>
+            <span>{warranty.warranty_number}</span>
+            <dl>
+              <div><dt>Workshop</dt><dd>{warranty.workshop_name || "Not linked"}</dd></div>
+              <div><dt>Supplier</dt><dd>{warranty.supplier_name || "Not linked"}</dd></div>
+              <div><dt>Remaining</dt><dd>{remaining} days</dd></div>
+              <div><dt>Claim</dt><dd>{claim?.status || "Not claimed"}</dd></div>
+            </dl>
+            <div className="card-actions"><button onClick={() => setSelected(warranty)}>View details</button></div>
+          </article>;
         })}
-      </section>
-      <button className="secondary-wide dark-button" type="button" onClick={() => setView("WorkshopWarrantyDashboard")}>Open workshop inspections</button>
-    </section>
-  );
-}
-
-function WorkshopWarrantyDashboard({
-  claims,
-  setView,
-  updateInspection,
-  warranties,
-}: {
-  claims: WarrantyClaim[];
-  setView: (view: AppView) => void;
-  updateInspection: (claimId: string, status: WarrantyClaim["inspectionStatus"]) => void;
-  warranties: WarrantyRecord[];
-}) {
-  const inspectionClaims = claims.filter((claim) => claim.status === "Inspection Requested");
-  return (
-    <section className="warranty-shell dashboard-shell">
-      <BackButton label="Me" onClick={() => setView("Me")} />
-      <header className="warranty-hero">
-        <span>Workshop Portal</span>
-        <h1>Warranty inspections</h1>
-        <p>AutoFix receives inspection jobs only after supplier requests review.</p>
-      </header>
-      <section className="glass-section">
-        <h2>Inspection jobs</h2>
-        {inspectionClaims.length === 0 && <p>No inspection jobs yet. Ask supplier to request inspection from a pending claim.</p>}
-        {inspectionClaims.map((claim) => {
-          const warranty = warranties.find((item) => item.id === claim.warrantyId);
-          return (
-            <article className="dashboard-job" key={claim.id}>
-              <strong>{claim.id} - {warranty?.partBrand} {warranty?.partName}</strong>
-              <small>{claim.inspectionStatus ?? "New"} - {warranty?.workshop}</small>
-              {claim.report && <small>{claim.report}</small>}
-              <div className="inline-actions">
-                <button type="button" onClick={() => updateInspection(claim.id, "Accepted")}>Accept inspection</button>
-                <button type="button" onClick={() => updateInspection(claim.id, "Scheduled")}>Schedule</button>
-                <button type="button" onClick={() => updateInspection(claim.id, "Report uploaded")}>Upload report</button>
-                <button type="button" onClick={() => updateInspection(claim.id, "Replacement recommended")}>Recommend replacement</button>
-              </div>
-            </article>
-          );
-        })}
-      </section>
-      <button className="secondary-wide dark-button" type="button" onClick={() => setView("SupplierWarrantyDashboard")}>Back to supplier review</button>
-    </section>
-  );
-}
-
-function AdminWarrantyAnalytics({
-  claims,
-  setView,
-  warranties,
-}: {
-  claims: WarrantyClaim[];
-  setView: (view: AppView) => void;
-  warranties: WarrantyRecord[];
-}) {
-  const approved = claims.filter((claim) => claim.status === "Approved").length;
-  const reviewed = claims.filter((claim) => claim.status === "Approved" || claim.status === "Rejected").length;
-  const approvalRate = reviewed === 0 ? "0%" : `${Math.round((approved / reviewed) * 100)}%`;
-  const topPart = warranties[0] ? `${warranties[0].partBrand} ${warranties[0].partName}` : "No claimed parts yet";
-
-  return (
-    <section className="warranty-shell dashboard-shell">
-      <BackButton label="Me" onClick={() => setView("Me")} />
-      <header className="warranty-hero">
-        <span>Admin Portal</span>
-        <h1>Warranty Analytics</h1>
-        <p>Platform view across customers, suppliers, and workshops.</p>
-      </header>
-      <div className="metric-grid">
-        <article><strong>{warranties.filter((item) => item.status === "Active").length}</strong><span>Total active warranty</span></article>
-        <article><strong>{claims.filter((claim) => claim.status === "Pending Review").length}</strong><span>Pending claims</span></article>
-        <article><strong>{approvalRate}</strong><span>Approval rate</span></article>
-        <article><strong>1.8 days</strong><span>Avg processing</span></article>
+        {!warranties.loading && warranties.data.length === 0 && <Empty text="No warranties have been generated yet. A warranty is created when an eligible ManFix order or repair is completed." />}
       </div>
-      <section className="glass-section">
-        <h2>Top claimed parts</h2>
-        <p>{topPart}</p>
-        <h2>Top workshops</h2>
-        <p>{workshopName}</p>
-        <h2>Top suppliers</h2>
-        <p>{warranties[0]?.supplier ?? "PartsHub Trading Sdn Bhd"}</p>
-      </section>
-      <div className="button-stack">
-        <button className="wide-action" type="button" onClick={() => setView("SupplierWarrantyDashboard")}>Open supplier queue</button>
-        <button className="secondary-wide dark-button" type="button" onClick={() => setView("WarrantyList")}>Back to customer warranty</button>
-      </div>
-    </section>
+      {selected && <section className="warranty-detail">
+        <header><div><span>Digital warranty</span><h2>{selected.warranty_number}</h2></div><button aria-label="Close warranty details" onClick={() => { setSelected(null); setDescription(""); }}>Close</button></header>
+        <dl>
+          <div><dt>Vehicle</dt><dd>{selected.vehicle_label || "Not linked"}</dd></div>
+          <div><dt>Coverage</dt><dd>{selected.coverage_type}</dd></div>
+          <div><dt>Start</dt><dd>{new Date(selected.start_date).toLocaleDateString("en-MY")}</dd></div>
+          <div><dt>Expiry</dt><dd>{new Date(selected.expiry_date).toLocaleDateString("en-MY")}</dd></div>
+          <div><dt>Duration</dt><dd>{selected.duration_months} months</dd></div>
+          <div><dt>Invoice</dt><dd>{selected.invoice_number || "Not applicable"}</dd></div>
+        </dl>
+        <section className="result-list"><strong>Warranty terms</strong><ul>{selected.warranty_terms.map((term) => <li key={term}>{term}</li>)}</ul></section>
+        {selected.status === "Active" && !claims.data.some((item) => item.warranty_id === selected.id && item.status === "Pending Review") && <form className="customer-form" onSubmit={(event) => {
+          event.preventDefault();
+          void run(async () => {
+            await submitCustomerWarrantyClaim(supabase, selected.id, description);
+            setDescription("");
+            await claims.reload();
+          }, "Warranty claim submitted for review.");
+        }}>
+          <label>Describe the problem<textarea required rows={4} value={description} onChange={(event) => setDescription(event.target.value)} /></label>
+          <button className="primary-button" type="submit">Submit warranty claim</button>
+        </form>}
+      </section>}
+    </Page>
   );
 }
 
-function SupportCenterPage({
-  setSupportNotice,
-  setView,
-  supportNotice,
-}: {
-  setSupportNotice: (notice: string) => void;
-  setView: (view: AppView) => void;
-  supportNotice: string;
-}) {
-  const supportItems = [
-    { label: "My booking", detail: `Check Job #${jobNo}`, action: () => setView("OrderDetail") },
-    { label: "My quote", detail: `Open Quote #${quoteNo}`, action: () => setView("QuoteReview") },
-    { label: "Payment / refund", detail: "Open payment or receipt", action: () => setView("Payment") },
-    { label: "Parts reservation", detail: "Review reserved Bendix brake pad", action: () => setView("PartReservationSummary") },
-    { label: "Warranty+", detail: "Open digital warranty and claim options", action: () => setView("WarrantyList") },
-    { label: "Workshop issue", detail: "Message AutoFix Pro", action: () => setSupportNotice("Workshop issue note added to Job #MF-08471.") },
-    { label: "General question", detail: "Ask ManFix support", action: () => setSupportNotice("General question saved. ManFix support will reply in-app.") },
-  ];
-  return (
-    <>
-      <BackButton label="Me" onClick={() => setView("Me")} />
-      <header className="page-header"><h1>Support center</h1><p>Open the right customer record first.</p></header>
-      <div className="support-list">
-        {supportItems.map((item) => <button key={item.label} onClick={item.action} type="button"><strong>{item.label}</strong><span>{item.detail}</span></button>)}
-      </div>
-      <article className="emergency-card">
-        <span>Emergency assistance</span><strong>Need urgent help?</strong><p>Use these only for urgent roadside or safety issues.</p>
-        <div className="inline-actions">
-          <button type="button" onClick={() => setSupportNotice("WhatsApp assistance opened for emergency support.")}>WhatsApp</button>
-          <button type="button" onClick={() => setSupportNotice("Call request prepared for ManFix emergency line.")}>Call</button>
-        </div>
-      </article>
-      {supportNotice && <article className="notice-card">{supportNotice}</article>}
-    </>
-  );
-}
-
-function MeTab({
-  onSignOut,
-  onSwitchPortal,
-  profilePanel,
-  setProfilePanel,
-  setView,
-  signOutError,
-  signingOut,
-  unreadCount,
-  vehicleCount,
-}: {
+function Profile({ onProfileChange, onSignOut, onSwitchPortal, profile, run, supabase }: ActionProps & {
+  onProfileChange: (profile: ManHubProfile) => void;
   onSignOut: () => Promise<void>;
-  onSwitchPortal: () => Promise<void>;
-  profilePanel: string;
-  setProfilePanel: (panel: string) => void;
-  setView: (view: AppView) => void;
-  signOutError: string;
-  signingOut: boolean;
-  unreadCount: number;
-  vehicleCount: number;
+  onSwitchPortal?: () => Promise<void>;
+  profile: ManHubProfile;
 }) {
-  const menu = [
-    { label: "My vehicles", action: () => setView("MyVehicles") },
-    { label: "Digital service records", action: () => setView("ServiceRecord") },
-    { label: "Warranty+", action: () => setView("WarrantyList") },
-    { label: "Notifications", action: () => setView("Notifications") },
-    { label: "Payment methods", action: () => setView("Payment") },
-    { label: "Help & support", action: () => setView("SupportCenter") },
-    { label: "Supplier warranty", action: () => setView("SupplierWarrantyDashboard") },
-    { label: "Workshop inspections", action: () => setView("WorkshopWarrantyDashboard") },
-    { label: "Warranty analytics", action: () => setView("AdminWarrantyAnalytics") },
-  ];
-
+  const [name, setName] = useState(profile.full_name ?? "");
+  const [phone, setPhone] = useState(profile.phone ?? "");
+  const [avatar, setAvatar] = useState<File | null>(null);
   return (
-    <>
-      <section className="profile"><span>D</span><div><h1>Daniel Tan</h1><p>daniel.t@email.com</p></div></section>
-      <div className="stats">
-        <article><strong>{vehicleCount}</strong><span>Vehicles</span></article>
-        <article><strong>12</strong><span>Services</span></article>
-        <article><strong>{unreadCount}</strong><span>Alerts</span></article>
-      </div>
-      <div className="menu-list">
-        {menu.map((item) => (
-          <button className={profilePanel === item.label ? "active" : ""} key={item.label} onClick={() => { setProfilePanel(item.label); item.action(); }} type="button">
-            {item.label}<span>&gt;</span>
-          </button>
-        ))}
-      </div>
-      <article className="detail-panel"><strong>{profilePanel}</strong><span>Open a customer record to continue.</span></article>
-      <section className="logout-section">
-        <button onClick={() => void onSwitchPortal()} type="button">
-          Switch Portal
-        </button>
-        <button disabled={signingOut} onClick={() => void onSignOut()} type="button">
-          {signingOut ? "Logging out..." : "Log out"}
-        </button>
-        {signOutError && <p role="alert">{signOutError}</p>}
+    <Page title="Profile">
+      <section className="profile-identity">
+        {profile.avatar_url ? <img alt="Profile" src={profile.avatar_url} /> : <span>{(profile.full_name || profile.email || "U").slice(0, 1).toUpperCase()}</span>}
+        <div><strong>{profile.full_name || profile.email}</strong><small>{profile.email}</small></div>
       </section>
-    </>
+      <form className="customer-form" onSubmit={(event) => {
+        event.preventDefault();
+        void run(async () => {
+          let avatarUrl = profile.avatar_url;
+          if (avatar) avatarUrl = await uploadCustomerAvatar(supabase, avatar);
+          const updated = await updateCustomerProfile(supabase, { full_name: name, phone: phone || null, avatar_url: avatarUrl });
+          onProfileChange(updated);
+          setAvatar(null);
+        }, "Profile saved.");
+      }}>
+        <Input label="Full name" required value={name} onChange={setName} />
+        <Input label="Email" disabled value={profile.email ?? ""} onChange={() => undefined} />
+        <Input label="Phone" value={phone} onChange={setPhone} />
+        <label>Avatar<input accept="image/jpeg,image/png,image/webp" type="file" onChange={(event) => setAvatar(event.target.files?.[0] ?? null)} /></label>
+        <button className="primary-button" type="submit">Save profile</button>
+      </form>
+      <div className="profile-links">
+        <Link to="/payments">Payment history <b>&gt;</b></Link>
+        <Link to="/vehicles">My vehicles <b>&gt;</b></Link>
+        <Link to="/warranty">Warranty+ <b>&gt;</b></Link>
+        <Link to="/diagnosis">AI diagnosis <b>&gt;</b></Link>
+        {onSwitchPortal && <button onClick={() => void onSwitchPortal()}>Switch portal <b>&gt;</b></button>}
+        <button className="logout" onClick={() => void onSignOut()}>Log out</button>
+      </div>
+    </Page>
   );
 }
+
+function BottomNav({ unread }: { unread: number }) {
+  return <nav className="bottom-nav"><NavLink to="/">Home</NavLink><NavLink to="/parts">Parts</NavLink><NavLink to="/cart">Cart</NavLink><NavLink to="/orders">Orders</NavLink><NavLink to="/profile">Me{unread > 0 && <b>{unread}</b>}</NavLink></nav>;
+}
+
+function Page({ action, children, title }: { action?: ReactNode; children: ReactNode; title: string }) {
+  return <div className="customer-stack"><header className="page-title"><h1>{title}</h1>{action}</header>{children}</div>;
+}
+
+function Input({ disabled = false, label, onChange, required = false, type = "text", value }: { disabled?: boolean; label: string; onChange: (value: string) => void; required?: boolean; type?: string; value: string }) {
+  return <label>{label}<input disabled={disabled} required={required} type={type} value={value} onChange={(event) => onChange(event.target.value)} /></label>;
+}
+
+function Select({ label, onChange, options, value }: { label: string; onChange: (value: string) => void; options: Array<{ label: string; value: string }>; value: string }) {
+  return <label>{label}<select value={value} onChange={(event) => onChange(event.target.value)}>{options.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>;
+}
+
+function Status({ value }: { value: string }) {
+  const tone = ["Completed", "Paid", "Delivered", "Approved", "Accepted"].includes(value) ? "success" : ["Cancelled", "Rejected", "Refunded"].includes(value) ? "danger" : "pending";
+  return <span className={`status ${tone}`}>{value}</span>;
+}
+
+function Empty({ text }: { text: string }) { return <p className="empty-state">{text}</p>; }
+
+type Resource<T> = { data: T; error: string | null; loading: boolean; reload: () => Promise<void> };
+
+function useResource<T>(load: () => Promise<T>, dependencies: unknown[], initial: T): Resource<T> {
+  const [data, setData] = useState(initial);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const reload = useCallback(async () => {
+    setLoading(true); setError(null);
+    try { setData(await load()); } catch (caught) { setError(caught instanceof Error ? caught.message : "Unable to load data."); }
+    finally { setLoading(false); }
+  }, dependencies);
+  useEffect(() => { void reload(); }, [reload]);
+  return { data, error, loading, reload };
+}
+
+function ResourceMessage({ resources }: { resources: Array<Resource<unknown>> }) {
+  if (resources.some((resource) => resource.loading)) return <p className="resource-message">Loading...</p>;
+  const error = resources.find((resource) => resource.error)?.error;
+  return error ? <p className="resource-message error">{error}</p> : null;
+}
+
+type ActionProps = {
+  run: (task: () => Promise<void>, success: string) => Promise<void>;
+  supabase: SupabaseClient;
+};

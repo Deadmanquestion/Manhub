@@ -5,9 +5,11 @@ export type PortalRole = "customer" | "supplier" | "workshop" | "technician" | "
 export type ManHubRole = PortalRole | "super_admin";
 
 export type ManHubProfile = {
+  avatar_url: string | null;
   id: string;
   email: string | null;
   full_name: string | null;
+  phone: string | null;
   role: ManHubRole;
   status: string;
   last_portal_role: PortalRole | null;
@@ -103,14 +105,157 @@ export type SupplierOrder = {
   product_name: string;
   quantity: number;
   settled_at: string | null;
-  status: "New" | "Confirmed" | "Dispatched" | "Delivered" | "Cancelled";
+  status: "New" | "Accepted" | "Rejected" | "Preparing" | "Dispatched" | "Delivered" | "Cancelled";
   supplier_net_amount: number;
   supplier_id: string;
   workshop: string;
 };
 
+export type CustomerVehicle = {
+  color: string | null;
+  created_at: string;
+  engine: string | null;
+  id: string;
+  license_plate: string | null;
+  make: string;
+  mileage: number | null;
+  model: string;
+  notes: string | null;
+  updated_at: string;
+  user_id: string;
+  vin: string | null;
+  year: number | null;
+};
+
+export type CustomerVehicleInput = {
+  color?: string | null;
+  engine: string | null;
+  license_plate: string | null;
+  make: string;
+  mileage: number | null;
+  model: string;
+  notes?: string | null;
+  vin: string | null;
+  year: number | null;
+};
+
+export type CustomerCartItem = {
+  created_at: string;
+  id: string;
+  product: SupplierProduct;
+  quantity: number;
+};
+
+export type CustomerOrderItem = {
+  created_at: string;
+  id: string;
+  line_total: number;
+  order_id: string;
+  product_brand: string;
+  product_id: string | null;
+  product_name: string;
+  quantity: number;
+  sku: string | null;
+  status: "New" | "Accepted" | "Rejected" | "Preparing" | "Dispatched" | "Delivered" | "Cancelled";
+  supplier_id: string;
+  unit_price: number;
+};
+
+export type CustomerOrder = {
+  checked_out_at: string;
+  created_at: string;
+  currency: string;
+  customer_id: string;
+  id: string;
+  items: CustomerOrderItem[];
+  order_number: string;
+  payment_status: "Pending" | "Paid" | "Cancelled" | "Refunded";
+  status: "Pending Supplier Acceptance" | "Processing" | "Partially Rejected" | "Dispatched" | "Completed" | "Cancelled";
+  subtotal: number;
+  total: number;
+  updated_at: string;
+};
+
+export type CustomerPayment = {
+  amount: number;
+  created_at: string;
+  currency: string;
+  customer_id: string;
+  id: string;
+  method: string;
+  order_id: string;
+  paid_at: string | null;
+  payment_number: string;
+  status: "Pending" | "Paid" | "Cancelled" | "Refunded";
+  updated_at: string;
+};
+
+export type CustomerWarranty = {
+  coverage_type: "Part" | "Service";
+  created_at: string;
+  duration_months: number;
+  expiry_date: string;
+  id: string;
+  invoice_number: string | null;
+  mileage_limit: number | null;
+  part_brand: string | null;
+  part_name: string | null;
+  repair_date: string;
+  repair_history: Array<Record<string, unknown>>;
+  start_date: string;
+  status: "Active" | "Expired" | "Claimed" | "Cancelled";
+  supplier_name: string | null;
+  vehicle_label: string | null;
+  warranty_number: string;
+  warranty_terms: string[];
+  workshop_name: string | null;
+};
+
+export type CustomerWarrantyClaim = {
+  description: string;
+  id: string;
+  inspection_status: string | null;
+  status: "Pending Review" | "Approved" | "Rejected" | "Inspection Requested";
+  submitted_at: string;
+  warranty_id: string;
+};
+
+export type ManFixNotification = {
+  created_at: string;
+  entity_id: string | null;
+  entity_type: string | null;
+  id: string;
+  kind: string;
+  message: string;
+  read_at: string | null;
+  recipient_id: string;
+  title: string;
+};
+
+export type PlatformWorkshop = {
+  address: string;
+  brands_supported: string[];
+  city: string | null;
+  email: string | null;
+  id: string;
+  name: string;
+  operating_hours: string | null;
+  owner_id: string;
+  phone: string | null;
+  rating: number;
+  status: string;
+};
+
+export type ServiceCatalogItem = {
+  description: string | null;
+  estimated_duration_minutes: number;
+  estimated_price: number;
+  id: string;
+  name: string;
+};
+
 export type SupplierStockHistory = {
-  change_type: "Opening" | "Sale" | "Incoming" | "Adjustment";
+  change_type: "Opening" | "Sale" | "Restock" | "Incoming" | "Adjustment";
   created_at: string;
   id: string;
   note: string | null;
@@ -376,7 +521,7 @@ export async function getSessionProfile(supabase: SupabaseClient): Promise<ManHu
 
   const { data, error } = await supabase
     .from("profiles")
-    .select("id,email,full_name,role,status,last_portal_role")
+    .select("id,email,full_name,phone,avatar_url,role,status,last_portal_role")
     .eq("id", userData.user.id)
     .maybeSingle();
 
@@ -437,6 +582,15 @@ export function getAuthAppUrl() {
   return import.meta.env.VITE_MANFIX_AUTH_URL
     ?? import.meta.env.VITE_MANHUB_AUTH_URL
     ?? "http://localhost:4104";
+}
+
+export function getManFixApiUrl() {
+  if (typeof import.meta !== "undefined" && import.meta.env) {
+    return import.meta.env.VITE_MANFIX_API_URL
+      ?? import.meta.env.VITE_MANHUB_API_URL
+      ?? "https://manfix-platform.onrender.com";
+  }
+  return "https://manfix-platform.onrender.com";
 }
 
 export function isAuthAppUrl(value: string) {
@@ -536,6 +690,258 @@ export async function upsertCustomerProfile(supabase: SupabaseClient, fullName: 
   });
 
   if (error) throw error;
+}
+
+export async function updateCustomerProfile(
+  supabase: SupabaseClient,
+  values: { full_name: string; phone: string | null; avatar_url?: string | null },
+) {
+  const { data: userData, error: userError } = await supabase.auth.getUser();
+  if (userError || !userData.user) throw userError ?? new Error("Authentication required.");
+  const { data, error } = await supabase
+    .from("profiles")
+    .update(values)
+    .eq("id", userData.user.id)
+    .select("id,email,full_name,phone,avatar_url,role,status,last_portal_role")
+    .single();
+  if (error) throw error;
+  return data as ManHubProfile;
+}
+
+export async function uploadCustomerAvatar(supabase: SupabaseClient, file: File) {
+  const { data: userData, error: userError } = await supabase.auth.getUser();
+  if (userError || !userData.user) throw userError ?? new Error("Authentication required.");
+  const extension = file.name.split(".").pop()?.replace(/[^a-zA-Z0-9]/g, "").toLowerCase() || "jpg";
+  const path = `${userData.user.id}/avatar-${Date.now()}.${extension}`;
+  const { error } = await supabase.storage.from("profile-avatars").upload(path, file, {
+    contentType: file.type || "image/jpeg",
+    upsert: true,
+  });
+  if (error) throw error;
+  return supabase.storage.from("profile-avatars").getPublicUrl(path).data.publicUrl;
+}
+
+export async function listCustomerVehicles(supabase: SupabaseClient) {
+  const { data, error } = await supabase
+    .from("cars")
+    .select("*")
+    .order("created_at", { ascending: false });
+  if (error) throw error;
+  return (data ?? []) as CustomerVehicle[];
+}
+
+export async function saveCustomerVehicle(
+  supabase: SupabaseClient,
+  values: CustomerVehicleInput,
+  id?: string,
+) {
+  const { data: userData, error: userError } = await supabase.auth.getUser();
+  if (userError || !userData.user) throw userError ?? new Error("Authentication required.");
+  const query = id
+    ? supabase.from("cars").update(values).eq("id", id).eq("user_id", userData.user.id)
+    : supabase.from("cars").insert({ ...values, user_id: userData.user.id });
+  const { data, error } = await query.select("*").single();
+  if (error) throw error;
+  return data as CustomerVehicle;
+}
+
+export async function deleteCustomerVehicle(supabase: SupabaseClient, id: string) {
+  const { error } = await supabase.from("cars").delete().eq("id", id);
+  if (error) throw error;
+}
+
+export async function listCustomerCatalog(supabase: SupabaseClient) {
+  const { data, error } = await supabase
+    .from("supplier_products")
+    .select("*")
+    .eq("active", true)
+    .gt("stock", 0)
+    .order("created_at", { ascending: false });
+  if (error) throw error;
+  return (data ?? []) as SupplierProduct[];
+}
+
+export async function listCustomerCart(supabase: SupabaseClient) {
+  const { data: cart, error: cartError } = await supabase
+    .from("shopping_carts")
+    .select("id")
+    .eq("status", "Active")
+    .maybeSingle();
+  if (cartError) throw cartError;
+  if (!cart) return [];
+  const { data, error } = await supabase
+    .from("shopping_cart_items")
+    .select("id,quantity,created_at,product:supplier_products(*)")
+    .eq("cart_id", cart.id)
+    .order("created_at", { ascending: true });
+  if (error) throw error;
+  return (data ?? []) as unknown as CustomerCartItem[];
+}
+
+export async function addCustomerCartItem(supabase: SupabaseClient, productId: string, quantity = 1) {
+  const { data, error } = await supabase.rpc("manfix_add_cart_item", {
+    target_product_id: productId,
+    requested_quantity: quantity,
+  });
+  if (error) throw error;
+  return data as string;
+}
+
+export async function setCustomerCartQuantity(supabase: SupabaseClient, itemId: string, quantity: number) {
+  const { error } = await supabase.rpc("manfix_set_cart_quantity", {
+    target_item_id: itemId,
+    requested_quantity: quantity,
+  });
+  if (error) throw error;
+}
+
+export async function checkoutCustomerCart(supabase: SupabaseClient, paymentMethod: string) {
+  const { data, error } = await supabase.rpc("manfix_checkout_cart", {
+    payment_method: paymentMethod,
+  });
+  if (error) throw error;
+  return data as string;
+}
+
+export async function listCustomerOrders(supabase: SupabaseClient) {
+  const { data, error } = await supabase
+    .from("customer_orders")
+    .select("*,items:customer_order_items(*)")
+    .order("created_at", { ascending: false });
+  if (error) throw error;
+  return (data ?? []) as unknown as CustomerOrder[];
+}
+
+export async function listCustomerPayments(supabase: SupabaseClient) {
+  const { data, error } = await supabase
+    .from("customer_payments")
+    .select("*")
+    .order("created_at", { ascending: false });
+  if (error) throw error;
+  return (data ?? []) as CustomerPayment[];
+}
+
+export async function updateCustomerPayment(
+  supabase: SupabaseClient,
+  paymentId: string,
+  status: "Paid" | "Cancelled" | "Refunded",
+) {
+  const { error } = await supabase.rpc("manfix_update_customer_payment", {
+    target_payment_id: paymentId,
+    next_status: status,
+  });
+  if (error) throw error;
+}
+
+export async function listCustomerWarranties(supabase: SupabaseClient) {
+  const { data, error } = await supabase
+    .from("warranties")
+    .select("*")
+    .order("created_at", { ascending: false });
+  if (error) throw error;
+  return (data ?? []) as CustomerWarranty[];
+}
+
+export async function listCustomerWarrantyClaims(supabase: SupabaseClient) {
+  const { data, error } = await supabase
+    .from("warranty_claims")
+    .select("id,warranty_id,description,status,inspection_status,submitted_at")
+    .order("submitted_at", { ascending: false });
+  if (error) throw error;
+  return (data ?? []) as CustomerWarrantyClaim[];
+}
+
+export async function submitCustomerWarrantyClaim(
+  supabase: SupabaseClient,
+  warrantyId: string,
+  description: string,
+  photos: string[] = [],
+  videos: string[] = [],
+) {
+  const { data, error } = await supabase.rpc("manfix_submit_warranty_claim", {
+    photo_paths: photos,
+    problem_description: description,
+    target_warranty_id: warrantyId,
+    video_paths: videos,
+  });
+  if (error) throw error;
+  return data as string;
+}
+
+export async function listNotifications(supabase: SupabaseClient) {
+  const { data, error } = await supabase
+    .from("notifications")
+    .select("*")
+    .order("created_at", { ascending: false });
+  if (error) throw error;
+  return (data ?? []) as ManFixNotification[];
+}
+
+export async function markNotificationRead(supabase: SupabaseClient, notificationId: string) {
+  const { error } = await supabase.rpc("manfix_mark_notification_read", {
+    target_notification_id: notificationId,
+  });
+  if (error) throw error;
+}
+
+export function subscribeToNotifications(supabase: SupabaseClient, refresh: () => void) {
+  const channel = supabase
+    .channel("manfix-notifications")
+    .on("postgres_changes", { event: "*", schema: "public", table: "notifications" }, refresh)
+    .subscribe();
+  return () => { void supabase.removeChannel(channel); };
+}
+
+export async function listPlatformWorkshops(supabase: SupabaseClient) {
+  const { data, error } = await supabase
+    .from("platform_workshops")
+    .select("id,owner_id,name,address,city,phone,email,operating_hours,brands_supported,rating,status")
+    .in("status", ["Active", "Approved", "Verified"])
+    .order("rating", { ascending: false });
+  if (error) throw error;
+  return (data ?? []) as PlatformWorkshop[];
+}
+
+export async function listServiceCatalog(supabase: SupabaseClient) {
+  const { data, error } = await supabase
+    .from("service_catalog")
+    .select("id,name,description,estimated_price,estimated_duration_minutes")
+    .eq("is_active", true)
+    .order("name");
+  if (error) throw error;
+  return (data ?? []) as ServiceCatalogItem[];
+}
+
+export async function createCustomerServiceBooking(
+  supabase: SupabaseClient,
+  values: {
+    car_id: string;
+    customer_notes: string | null;
+    estimated_price: number;
+    service_catalog_id: string;
+    service_date: string;
+    service_type: string;
+    workshop_owner_id: string;
+  },
+) {
+  const { data: userData, error: userError } = await supabase.auth.getUser();
+  if (userError || !userData.user) throw userError ?? new Error("Authentication required.");
+  const { data, error } = await supabase
+    .from("service_bookings")
+    .insert({ ...values, user_id: userData.user.id, scheduled_at: values.service_date, vehicle_label: "Pending" })
+    .select("id")
+    .single();
+  if (error) throw error;
+  return data.id as string;
+}
+
+export async function listCustomerBookings(supabase: SupabaseClient) {
+  const { data, error } = await supabase
+    .from("service_bookings")
+    .select("*")
+    .order("created_at", { ascending: false });
+  if (error) throw error;
+  return (data ?? []) as Array<Record<string, unknown>>;
 }
 
 export async function fetchRows<T>(supabase: SupabaseClient, table: string, select = "*") {
@@ -732,6 +1138,18 @@ export async function setWorkshopRepairStatus(
   if (error) throw error;
 }
 
+export async function assignRepairTechnician(
+  supabase: SupabaseClient,
+  repairJobId: string,
+  technicianId: string,
+) {
+  const { error } = await supabase.rpc("manfix_assign_repair_technician", {
+    target_repair_job_id: repairJobId,
+    target_technician_id: technicianId,
+  });
+  if (error) throw error;
+}
+
 export function subscribeToWorkshopOperations(
   supabase: SupabaseClient,
   onChange: () => void,
@@ -820,6 +1238,12 @@ export async function listSupplierCommissions(supabase: SupabaseClient) {
   return fetchRows<SupplierCommission>(supabase, "supplier_commissions");
 }
 
+export async function getSupplierCommissionRate(supabase: SupabaseClient) {
+  const { data, error } = await supabase.rpc("manfix_get_supplier_commission_rate");
+  if (error) throw error;
+  return Number(data);
+}
+
 export async function adjustSupplierStock(
   supabase: SupabaseClient,
   productId: string,
@@ -871,6 +1295,20 @@ export async function reviewSupplierWarrantyClaim(
 ) {
   const { error } = await supabase.rpc("manhub_supplier_review_warranty_claim", {
     next_status: status,
+    target_claim_id: claimId,
+  });
+  if (error) throw error;
+}
+
+export async function updateWorkshopWarrantyClaim(
+  supabase: SupabaseClient,
+  claimId: string,
+  inspectionStatus: "Accepted" | "Scheduled" | "Report uploaded" | "Replacement recommended",
+  report?: string,
+) {
+  const { error } = await supabase.rpc("manfix_workshop_update_warranty_claim", {
+    next_inspection_status: inspectionStatus,
+    report_text: report?.trim() || null,
     target_claim_id: claimId,
   });
   if (error) throw error;
