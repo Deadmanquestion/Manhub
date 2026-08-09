@@ -9,3 +9,181 @@ services:
         value: 22.13.0
       - key: OPENAI_MODEL
         value: gpt-4.1-mini
+      - key: NEXT_PUBLIC_SUPABASE_URL
+        sync: false
+      - key: NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
+        sync: false
+      - key: NEXT_PUBLIC_MANFIX_AUTH_URL
+        value: https://manfix-auth.onrender.com
+      - key: NEXT_PUBLIC_MANFIX_CUSTOMER_URL
+        value: https://manfix-customer.onrender.com
+      - key: NEXT_PUBLIC_MANFIX_SUPPLIER_URL
+        value: https://manfix-supplier.onrender.com
+      - key: NEXT_PUBLIC_MANFIX_WORKSHOP_URL
+        value: https://manfix-workshop.onrender.com
+      - key: NEXT_PUBLIC_MANFIX_TECHNICIAN_URL
+        value: https://manfix-tech.onrender.com
+      - key: NEXT_PUBLIC_MANFIX_ADMIN_URL
+        value: https://manfix-admin.onrender.com
+  - type: static
+    name: manfix-auth
+    buildCommand: npm ci && npm run build --workspace @manhub/auth-app
+    staticPublishPath: ./apps/auth/dist
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    envVars:
+      - key: NODE_VERSION
+        value: 22.13.0
+      - key: VITE_SUPABASE_URL
+        sync: false
+      - key: VITE_SUPABASE_PUBLISHABLE_KEY
+        sync: false
+      - key: VITE_MANFIX_AUTH_URL
+        value: https://manfix-auth.onrender.com
+      - key: VITE_MANFIX_CUSTOMER_URL
+        value: https://manfix-customer.onrender.com
+      - key: VITE_MANFIX_SUPPLIER_URL
+        value: https://manfix-supplier.onrender.com
+      - key: VITE_MANFIX_WORKSHOP_URL
+        value: https://manfix-workshop.onrender.com
+      - key: VITE_MANFIX_TECHNICIAN_URL
+        value: https://manfix-tech.onrender.com
+      - key: VITE_MANFIX_ADMIN_URL
+        value: https://manfix-admin.onrender.com
+  - type: static
+    name: manfix-customer
+    buildCommand: npm ci && npm run build --workspace @manhub/customer-app
+    staticPublishPath: ./apps/customer/dist
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    envVars:
+      - key: NODE_VERSION
+        value: 22.13.0
+      - key: VITE_SUPABASE_URL
+        sync: false
+      - key: VITE_SUPABASE_PUBLISHABLE_KEY
+        sync: false
+      - key: VITE_MANFIX_AUTH_URL
+        value: https://manfix-auth.onrender.com
+      - key: VITE_MANFIX_CUSTOMER_URL
+        value: https://manfix-customer.onrender.com
+      - key: VITE_MANFIX_SUPPLIER_URL
+        value: https://manfix-supplier.onrender.com
+      - key: VITE_MANFIX_WORKSHOP_URL
+        value: https://manfix-workshop.onrender.com
+      - key: VITE_MANFIX_TECHNICIAN_URL
+        value: https://manfix-tech.onrender.com
+      - key: VITE_MANFIX_ADMIN_URL
+        value: https://manfix-admin.onrender.com
+  - type: static
+    name: manfix-supplier
+    buildCommand: npm ci && npm run build --workspace @manhub/supplier-portal
+    staticPublishPath: ./apps/supplier/dist
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    envVars:
+      - key: NODE_VERSION
+        value: 22.13.0
+      - key: VITE_SUPABASE_URL
+        sync: false
+      - key: VITE_SUPABASE_PUBLISHABLE_KEY
+        sync: false
+      - key: VITE_MANFIX_AUTH_URL
+        value: https://manfix-auth.onrender.com
+      - key: VITE_MANFIX_CUSTOMER_URL
+        value: https://manfix-customer.onrender.com
+      - key: VITE_MANFIX_SUPPLIER_URL
+        value: https://manfix-supplier.onrender.com
+      - key: VITE_MANFIX_WORKSHOP_URL
+        value: https://manfix-workshop.onrender.com
+      - key: VITE_MANFIX_TECHNICIAN_URL
+        value: https://manfix-tech.onrender.com
+      - key: VITE_MANFIX_ADMIN_URL
+        value: https://manfix-admin.onrender.com
+  - type: static
+    name: manfix-workshop
+    buildCommand: npm ci && npm run build --workspace @manhub/workshop-portal
+    staticPublishPath: ./apps/workshop/dist
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    envVars:
+      - key: NODE_VERSION
+        value: 22.13.0
+      - key: VITE_SUPABASE_URL
+        sync: false
+      - key: VITE_SUPABASE_PUBLISHABLE_KEY
+        sync: false
+      - key: VITE_MANFIX_AUTH_URL
+        value: https://manfix-auth.onrender.com
+      - key: VITE_MANFIX_CUSTOMER_URL
+        value: https://manfix-customer.onrender.com
+      - key: VITE_MANFIX_SUPPLIER_URL
+        value: https://manfix-supplier.onrender.com
+      - key: VITE_MANFIX_WORKSHOP_URL
+        value: https://manfix-workshop.onrender.com
+      - key: VITE_MANFIX_TECHNICIAN_URL
+        value: https://manfix-tech.onrender.com
+      - key: VITE_MANFIX_ADMIN_URL
+        value: https://manfix-admin.onrender.com
+  - type: static
+    name: manfix-tech
+    buildCommand: npm ci && npm run build --workspace @manhub/technician-portal
+    staticPublishPath: ./apps/technician/dist
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    envVars:
+      - key: NODE_VERSION
+        value: 22.13.0
+      - key: VITE_SUPABASE_URL
+        sync: false
+      - key: VITE_SUPABASE_PUBLISHABLE_KEY
+        sync: false
+      - key: VITE_MANFIX_AUTH_URL
+        value: https://manfix-auth.onrender.com
+      - key: VITE_MANFIX_CUSTOMER_URL
+        value: https://manfix-customer.onrender.com
+      - key: VITE_MANFIX_SUPPLIER_URL
+        value: https://manfix-supplier.onrender.com
+      - key: VITE_MANFIX_WORKSHOP_URL
+        value: https://manfix-workshop.onrender.com
+      - key: VITE_MANFIX_TECHNICIAN_URL
+        value: https://manfix-tech.onrender.com
+      - key: VITE_MANFIX_ADMIN_URL
+        value: https://manfix-admin.onrender.com
+  - type: static
+    name: manfix-admin
+    buildCommand: npm ci && npm run build --workspace @manhub/admin-dashboard
+    staticPublishPath: ./apps/admin/dist
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    envVars:
+      - key: NODE_VERSION
+        value: 22.13.0
+      - key: VITE_SUPABASE_URL
+        sync: false
+      - key: VITE_SUPABASE_PUBLISHABLE_KEY
+        sync: false
+      - key: VITE_MANFIX_AUTH_URL
+        value: https://manfix-auth.onrender.com
+      - key: VITE_MANFIX_CUSTOMER_URL
+        value: https://manfix-customer.onrender.com
+      - key: VITE_MANFIX_SUPPLIER_URL
+        value: https://manfix-supplier.onrender.com
+      - key: VITE_MANFIX_WORKSHOP_URL
+        value: https://manfix-workshop.onrender.com
+      - key: VITE_MANFIX_TECHNICIAN_URL
+        value: https://manfix-tech.onrender.com
+      - key: VITE_MANFIX_ADMIN_URL
+        value: https://manfix-admin.onrender.com

@@ -396,19 +396,57 @@ const localPortalUrlByRole: Record<PortalRole, string> = {
 
 const renderPortalUrlByRole: Partial<Record<PortalRole, string>> = {
   admin: "https://manfix-admin.onrender.com",
+  customer: "https://manfix-customer.onrender.com",
+  supplier: "https://manfix-supplier.onrender.com",
+  technician: "https://manfix-tech.onrender.com",
+  workshop: "https://manfix-workshop.onrender.com",
+};
+
+const legacyRenderPortalUrlByRole: Partial<Record<PortalRole, string>> = {
   customer: "https://manhub-customer.onrender.com",
   supplier: "https://manhub-supplier.onrender.com",
-  technician: "https://manfix-technician.onrender.com",
   workshop: "https://manhub-workshop.onrender.com",
 };
 
 const portalAliasesByRole: Partial<Record<PortalRole, string[]>> = {
+  customer: [
+    legacyRenderPortalUrlByRole.customer!,
+  ],
+  supplier: [
+    legacyRenderPortalUrlByRole.supplier!,
+  ],
   technician: [
+    "https://manfix-technician.onrender.com",
     "https://manfix-tech.onrender.com",
     "https://tech.manfix.my",
     "https://technician.manfix.my",
   ],
+  workshop: [
+    legacyRenderPortalUrlByRole.workshop!,
+  ],
 };
+
+function cleanUrl(value: string) {
+  return value.replace(/\/+$/, "");
+}
+
+function normalizeConfiguredPortalUrl(role: PortalRole, value?: string) {
+  if (!value) return undefined;
+  const normalized = cleanUrl(value);
+  if (legacyRenderPortalUrlByRole[role] && normalized === legacyRenderPortalUrlByRole[role]) {
+    return renderPortalUrlByRole[role];
+  }
+  return normalized;
+}
+
+function normalizeConfiguredAuthUrl(value?: string) {
+  if (!value) return undefined;
+  const normalized = cleanUrl(value);
+  if (normalized === "https://manhub-auth.onrender.com") {
+    return "https://manfix-auth.onrender.com";
+  }
+  return normalized;
+}
 
 const MANFIX_AUTH_COOKIE_NAME = "manfix-auth";
 const MANFIX_PRODUCTION_DOMAIN = "manfix.my";
@@ -590,9 +628,11 @@ export function isProfileEnabled(profile: ManHubProfile | null) {
 }
 
 export function getAuthAppUrl() {
-  return import.meta.env.VITE_MANFIX_AUTH_URL
-    ?? import.meta.env.VITE_MANHUB_AUTH_URL
-    ?? "http://localhost:4104";
+  return normalizeConfiguredAuthUrl(import.meta.env.VITE_MANFIX_AUTH_URL)
+    ?? normalizeConfiguredAuthUrl(import.meta.env.VITE_MANHUB_AUTH_URL)
+    ?? (typeof window !== "undefined" && ["localhost", "127.0.0.1"].includes(window.location.hostname)
+      ? "http://localhost:4104"
+      : "https://manfix-auth.onrender.com");
 }
 
 export function getManFixApiUrl() {
@@ -635,13 +675,29 @@ export function getLogoutUrl() {
 
 export function getPortalDestination(role: PortalRole) {
   const configured = {
-    admin: import.meta.env.VITE_MANFIX_ADMIN_URL ?? import.meta.env.VITE_MANHUB_ADMIN_URL,
-    customer: import.meta.env.VITE_MANFIX_CUSTOMER_URL ?? import.meta.env.VITE_MANHUB_CUSTOMER_URL,
-    supplier: import.meta.env.VITE_MANFIX_SUPPLIER_URL ?? import.meta.env.VITE_MANHUB_SUPPLIER_URL,
-    technician: import.meta.env.VITE_MANFIX_TECHNICIAN_URL
-      ?? import.meta.env.VITE_MANHUB_TECHNICIAN_URL,
-    workshop: import.meta.env.VITE_MANFIX_WORKSHOP_URL
-      ?? import.meta.env.VITE_MANHUB_WORKSHOP_URL,
+    admin: normalizeConfiguredPortalUrl(
+      "admin",
+      import.meta.env.VITE_MANFIX_ADMIN_URL ?? import.meta.env.VITE_MANHUB_ADMIN_URL,
+    ),
+    customer: normalizeConfiguredPortalUrl(
+      "customer",
+      import.meta.env.VITE_MANFIX_CUSTOMER_URL ?? import.meta.env.VITE_MANHUB_CUSTOMER_URL,
+    ),
+    supplier: normalizeConfiguredPortalUrl(
+      "supplier",
+      import.meta.env.VITE_MANFIX_SUPPLIER_URL ?? import.meta.env.VITE_MANHUB_SUPPLIER_URL,
+    ),
+    technician: normalizeConfiguredPortalUrl(
+      "technician",
+      import.meta.env.VITE_MANFIX_TECHNICIAN_URL
+        ?? import.meta.env.VITE_MANFIX_TECH_URL
+        ?? import.meta.env.VITE_MANHUB_TECHNICIAN_URL,
+    ),
+    workshop: normalizeConfiguredPortalUrl(
+      "workshop",
+      import.meta.env.VITE_MANFIX_WORKSHOP_URL
+        ?? import.meta.env.VITE_MANHUB_WORKSHOP_URL,
+    ),
   } satisfies Partial<Record<PortalRole, string | undefined>>;
 
   const localHost = typeof window !== "undefined"
