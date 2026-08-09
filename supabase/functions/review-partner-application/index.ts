@@ -137,7 +137,7 @@ Deno.serve(async (request: Request) => {
 
   const email = String(application.email ?? "").trim().toLowerCase();
   const fullName = applicantName(payload.applicationType, application);
-  const authUrl = Deno.env.get("MANFIX_AUTH_URL") ?? "https://manfix-auth.onrender.com";
+  const authUrl = Deno.env.get("MANFIX_AUTH_URL") ?? "https://manhub-auth.onrender.com";
   let invitedUserId: string | null = null;
   let createdNewUser = false;
 

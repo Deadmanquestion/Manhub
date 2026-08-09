@@ -396,10 +396,10 @@ const localPortalUrlByRole: Record<PortalRole, string> = {
 
 const renderPortalUrlByRole: Partial<Record<PortalRole, string>> = {
   admin: "https://manfix-admin.onrender.com",
-  customer: "https://manfix-customer.onrender.com",
+  customer: "https://manhub-customer.onrender.com",
   supplier: "https://manfix-supplier.onrender.com",
   technician: "https://manfix-tech.onrender.com",
-  workshop: "https://manfix-workshop.onrender.com",
+  workshop: "https://manhub-workshop.onrender.com",
 };
 
 const legacyRenderPortalUrlByRole: Partial<Record<PortalRole, string>> = {
@@ -433,8 +433,18 @@ function cleanUrl(value: string) {
 function normalizeConfiguredPortalUrl(role: PortalRole, value?: string) {
   if (!value) return undefined;
   const normalized = cleanUrl(value);
-  if (legacyRenderPortalUrlByRole[role] && normalized === legacyRenderPortalUrlByRole[role]) {
+  if (
+    role !== "supplier"
+    && legacyRenderPortalUrlByRole[role]
+    && normalized === legacyRenderPortalUrlByRole[role]
+  ) {
     return renderPortalUrlByRole[role];
+  }
+  if (role === "customer" && normalized === "https://manfix-customer.onrender.com") {
+    return renderPortalUrlByRole.customer;
+  }
+  if (role === "workshop" && normalized === "https://manfix-workshop.onrender.com") {
+    return renderPortalUrlByRole.workshop;
   }
   return normalized;
 }
@@ -442,8 +452,8 @@ function normalizeConfiguredPortalUrl(role: PortalRole, value?: string) {
 function normalizeConfiguredAuthUrl(value?: string) {
   if (!value) return undefined;
   const normalized = cleanUrl(value);
-  if (normalized === "https://manhub-auth.onrender.com") {
-    return "https://manfix-auth.onrender.com";
+  if (normalized === "https://manfix-auth.onrender.com") {
+    return "https://manhub-auth.onrender.com";
   }
   return normalized;
 }
@@ -632,7 +642,7 @@ export function getAuthAppUrl() {
     ?? normalizeConfiguredAuthUrl(import.meta.env.VITE_MANHUB_AUTH_URL)
     ?? (typeof window !== "undefined" && ["localhost", "127.0.0.1"].includes(window.location.hostname)
       ? "http://localhost:4104"
-      : "https://manfix-auth.onrender.com");
+      : "https://manhub-auth.onrender.com");
 }
 
 export function getManFixApiUrl() {

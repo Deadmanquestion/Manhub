@@ -1,10 +1,10 @@
 const manfixRenderUrls = {
   admin: "https://manfix-admin.onrender.com",
-  auth: "https://manfix-auth.onrender.com",
-  customer: "https://manfix-customer.onrender.com",
+  auth: "https://manhub-auth.onrender.com",
+  customer: "https://manhub-customer.onrender.com",
   supplier: "https://manfix-supplier.onrender.com",
   technician: "https://manfix-tech.onrender.com",
-  workshop: "https://manfix-workshop.onrender.com",
+  workshop: "https://manhub-workshop.onrender.com",
 };
 
 const legacyRenderUrls = {
@@ -22,7 +22,7 @@ function normalizeRenderUrl(value: string | undefined, legacyUrl: string | undef
 
 const authUrl = `${normalizeRenderUrl(
   process.env.NEXT_PUBLIC_MANFIX_AUTH_URL ?? process.env.NEXT_PUBLIC_MANHUB_AUTH_URL,
-  legacyRenderUrls.auth,
+  "https://manfix-auth.onrender.com",
   manfixRenderUrls.auth,
 )}/login`;
 const supplierUrl = normalizeRenderUrl(
@@ -32,7 +32,7 @@ const supplierUrl = normalizeRenderUrl(
 );
 const workshopUrl = normalizeRenderUrl(
   process.env.NEXT_PUBLIC_MANFIX_WORKSHOP_URL ?? process.env.NEXT_PUBLIC_MANHUB_WORKSHOP_URL,
-  legacyRenderUrls.workshop,
+  "https://manfix-workshop.onrender.com",
   manfixRenderUrls.workshop,
 );
 const technicianUrl = normalizeRenderUrl(
