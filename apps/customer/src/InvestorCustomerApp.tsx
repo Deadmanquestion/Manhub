@@ -19,7 +19,7 @@ import {
   listPlatformWorkshops,
   listServiceCatalog,
   listVehicleBrands,
-  listVehicleModels,
+  listVehicleVariants,
   markNotificationRead,
   saveCustomerVehicle,
   setCustomerCartQuantity,
@@ -41,7 +41,7 @@ import {
   type ServiceCatalogItem,
   type SupplierProduct,
   type VehicleBrand,
-  type VehicleModel,
+  type VehicleVariant,
 } from "@manhub/backend";
 import "./customer-app.css";
 
@@ -55,6 +55,19 @@ type Props = {
 type Notice = { message: string; tone: "success" | "error" } | null;
 
 const money = new Intl.NumberFormat("en-MY", { currency: "MYR", style: "currency" });
+
+function vehicleName(vehicle: CustomerVehicle) {
+  const model = vehicle.vehicle_variant.vehicle_model;
+  return `${model.brand.name} ${model.model_name}`;
+}
+
+function vehicleOptionLabel(vehicle: CustomerVehicle) {
+  return `${vehicleName(vehicle)} - ${vehicle.plate_number}`;
+}
+
+function variantName(variant: VehicleVariant) {
+  return `${variant.vehicle_model.brand.name} ${variant.vehicle_model.model_name}`;
+}
 
 export default function CustomerApp({ onSignOut, onSwitchPortal, profile: initialProfile, supabase }: Props) {
   const [profile, setProfile] = useState(initialProfile);
@@ -148,13 +161,13 @@ function Home({ profile, supabase }: { profile: ManHubProfile; supabase: Supabas
       <h1>Hi {firstName}</h1>
       <Link className={`home-vehicle-card ${vehicle ? "" : "empty"}`} to="/vehicles">
         <div>
-          <strong>{vehicle ? `${vehicle.vehicle_model.brand.name} ${vehicle.vehicle_model.model_name}` : "Add your vehicle"}</strong>
-          <span>{vehicle ? [vehicle.plate_number, vehicle.vehicle_model.year].join(" · ") : "Keep service and ownership details together"}</span>
+          <strong>{vehicle ? vehicleName(vehicle) : "Add your vehicle"}</strong>
+          <span>{vehicle ? [vehicle.plate_number, vehicle.vehicle_variant.year].join(" · ") : "Keep service and ownership details together"}</span>
           <small>{vehicle ? "Mileage" : "Vehicle profile"}</small>
           <b>{vehicle ? `${vehicle.mileage.toLocaleString()} km` : "Get started"}</b>
         </div>
         {vehicle
-          ? <img alt="" className="home-vehicle-image" src={vehicle.vehicle_model.image_url} />
+          ? <img alt="" className="home-vehicle-image" src={vehicle.vehicle_variant.vehicle_model.image_url} />
           : <span aria-hidden="true" className="vehicle-visual"><i /><i /></span>}
         <span className="home-chevron">&gt;</span>
       </Link>
@@ -240,7 +253,7 @@ function Diagnosis({ supabase }: { supabase: SupabaseClient }) {
         body: JSON.stringify({
           symptom,
           userVehicleId: vehicle.id,
-          vehicleModelId: vehicle.vehicle_model_id,
+          vehicleModelId: vehicle.vehicle_variant_id,
         }),
       });
       const payload = await response.json() as DiagnosisResult & { error?: string };
@@ -258,7 +271,7 @@ function Diagnosis({ supabase }: { supabase: SupabaseClient }) {
       <ResourceMessage resources={[vehicles]} />
       {vehicles.data.length === 0 ? <Empty text="Add a vehicle before starting a diagnosis." /> : (
         <form className="customer-form" onSubmit={(event) => void submit(event)}>
-          <Select label="Vehicle" value={vehicleId} onChange={setVehicleId} options={vehicles.data.map((item) => ({ label: `${item.vehicle_model.brand.name} ${item.vehicle_model.model_name} - ${item.plate_number}`, value: item.id }))} />
+          <Select label="Vehicle" value={vehicleId} onChange={setVehicleId} options={vehicles.data.map((item) => ({ label: vehicleOptionLabel(item), value: item.id }))} />
           {vehicle && <VehicleIdentity vehicle={vehicle} />}
           <label>Describe the problem<textarea required rows={5} value={symptom} onChange={(event) => setSymptom(event.target.value)} /></label>
           <button className="primary-button" disabled={loading || !symptom.trim()} type="submit">{loading ? "Analysing..." : "Run AI pre-diagnosis"}</button>
@@ -282,12 +295,13 @@ function ResultList({ title, values }: { title: string; values: string[] }) {
 }
 
 function VehicleIdentity({ vehicle }: { vehicle: CustomerVehicle }) {
+  const model = vehicle.vehicle_variant.vehicle_model;
   return (
     <div className="vehicle-identity">
-      <img alt={`${vehicle.vehicle_model.brand.name} ${vehicle.vehicle_model.model_name}`} src={vehicle.vehicle_model.image_url} />
+      <img alt={vehicleName(vehicle)} src={model.image_url} />
       <span>
-        <strong>{vehicle.nickname || `${vehicle.vehicle_model.brand.name} ${vehicle.vehicle_model.model_name}`}</strong>
-        <small>{vehicle.vehicle_model.year} · {vehicle.vehicle_model.engine} · {vehicle.plate_number}</small>
+        <strong>{vehicle.nickname || vehicleName(vehicle)}</strong>
+        <small>{vehicle.vehicle_variant.year} · {vehicle.vehicle_variant.engine} · {vehicle.plate_number}</small>
       </span>
     </div>
   );
@@ -297,30 +311,30 @@ const emptyVehicle: CustomerVehicleInput = {
   mileage: 0,
   nickname: null,
   plate_number: "",
-  vehicle_model_id: "",
+  vehicle_variant_id: "",
 };
 
 function Vehicles({ run, supabase }: ActionProps) {
   const vehicles = useResource(() => listCustomerVehicles(supabase), [supabase], [] as CustomerVehicle[]);
   const brands = useResource(() => listVehicleBrands(supabase), [supabase], [] as VehicleBrand[]);
-  const models = useResource(() => listVehicleModels(supabase), [supabase], [] as VehicleModel[]);
+  const models = useResource(() => listVehicleVariants(supabase), [supabase], [] as VehicleVariant[]);
   const [editing, setEditing] = useState<string | null>(null);
   const [form, setForm] = useState<CustomerVehicleInput>(emptyVehicle);
   const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
   const [brandId, setBrandId] = useState("");
   const [modelName, setModelName] = useState("");
 
-  const brandModels = useMemo(() => models.data.filter((model) => model.brand_id === brandId), [brandId, models.data]);
+  const brandModels = useMemo(() => models.data.filter((model) => model.vehicle_model.brand_id === brandId), [brandId, models.data]);
   const modelCards = useMemo(() => {
-    const latest = new Map<string, VehicleModel>();
-    for (const model of brandModels) if (!latest.has(model.model_name)) latest.set(model.model_name, model);
+    const latest = new Map<string, VehicleVariant>();
+    for (const model of brandModels) if (!latest.has(model.vehicle_model.model_name)) latest.set(model.vehicle_model.model_name, model);
     return Array.from(latest.values());
   }, [brandModels]);
   const modelYears = useMemo(
-    () => brandModels.filter((model) => model.model_name === modelName).sort((a, b) => b.year - a.year),
+    () => brandModels.filter((model) => model.vehicle_model.model_name === modelName).sort((a, b) => b.year - a.year),
     [brandModels, modelName],
   );
-  const selectedModel = models.data.find((model) => model.id === form.vehicle_model_id);
+  const selectedModel = models.data.find((model) => model.id === form.vehicle_variant_id);
 
   const reset = () => {
     setEditing(null);
@@ -350,10 +364,10 @@ function Vehicles({ run, supabase }: ActionProps) {
       mileage: vehicle.mileage,
       nickname: vehicle.nickname,
       plate_number: vehicle.plate_number,
-      vehicle_model_id: vehicle.vehicle_model_id,
+      vehicle_variant_id: vehicle.vehicle_variant_id,
     });
-    setBrandId(vehicle.vehicle_model.brand_id);
-    setModelName(vehicle.vehicle_model.model_name);
+    setBrandId(vehicle.vehicle_variant.vehicle_model.brand_id);
+    setModelName(vehicle.vehicle_variant.vehicle_model.model_name);
     setStep(4);
   };
 
@@ -375,7 +389,7 @@ function Vehicles({ run, supabase }: ActionProps) {
             {brands.data.map((brand) => <button key={brand.id} onClick={() => {
               setBrandId(brand.id);
               setModelName("");
-              setForm({ ...form, vehicle_model_id: "" });
+              setForm({ ...form, vehicle_variant_id: "" });
               setStep(2);
             }}>
               <img alt="" src={brand.logo_url} />
@@ -387,35 +401,35 @@ function Vehicles({ run, supabase }: ActionProps) {
         {step === 2 && <section className="selector-stage">
           <header><button aria-label="Back to brands" className="back-button" onClick={() => setStep(1)}>&lsaquo;</button><div><span className="eyebrow">Step 2</span><h2>Select model</h2></div></header>
           <div className="vehicle-model-grid">
-            {modelCards.map((model) => <button key={model.model_name} onClick={() => {
-              const years = brandModels.filter((item) => item.model_name === model.model_name).sort((a, b) => b.year - a.year);
-              setModelName(model.model_name);
-              setForm({ ...form, vehicle_model_id: years[0]?.id ?? "" });
+            {modelCards.map((model) => <button key={model.vehicle_model.model_name} onClick={() => {
+              const years = brandModels.filter((item) => item.vehicle_model.model_name === model.vehicle_model.model_name).sort((a, b) => b.year - a.year);
+              setModelName(model.vehicle_model.model_name);
+              setForm({ ...form, vehicle_variant_id: years[0]?.id ?? "" });
               setStep(3);
             }}>
-              <img alt={`${model.brand.name} ${model.model_name}`} src={model.image_url} />
-              <span><strong>{model.model_name}</strong><small>{model.engine} · {model.fuel}</small></span>
+              <img alt={`${model.vehicle_model.brand.name} ${model.vehicle_model.model_name}`} src={model.vehicle_model.image_url} />
+              <span><strong>{model.vehicle_model.model_name}</strong><small>{model.engine} · {model.fuel}</small></span>
             </button>)}
           </div>
         </section>}
 
         {step === 3 && <section className="selector-stage year-stage">
           <header><button aria-label="Back to models" className="back-button" onClick={() => setStep(2)}>&lsaquo;</button><div><span className="eyebrow">Step 3</span><h2>Choose vehicle year</h2></div></header>
-          {modelYears[0] && <img alt={`${modelYears[0].brand.name} ${modelYears[0].model_name}`} src={modelYears[0].image_url} />}
-          <Select label="Year" value={form.vehicle_model_id} onChange={(value) => setForm({ ...form, vehicle_model_id: value })} options={modelYears.map((model) => ({ label: String(model.year), value: model.id }))} />
-          <button className="primary-button" disabled={!form.vehicle_model_id} onClick={() => setStep(4)}>Continue</button>
+          {modelYears[0] && <img alt={variantName(modelYears[0])} src={modelYears[0].vehicle_model.image_url} />}
+          <Select label="Year" value={form.vehicle_variant_id} onChange={(value) => setForm({ ...form, vehicle_variant_id: value })} options={modelYears.map((model) => ({ label: String(model.year), value: model.id }))} />
+          <button className="primary-button" disabled={!form.vehicle_variant_id} onClick={() => setStep(4)}>Continue</button>
         </section>}
 
         {step === 4 && selectedModel && <form className="selector-stage vehicle-confirm" onSubmit={submit}>
           <header><button aria-label="Back to year" className="back-button" type="button" onClick={() => setStep(3)}>&lsaquo;</button><div><span className="eyebrow">Step 4</span><h2>Confirm your vehicle</h2></div></header>
-          <img alt={`${selectedModel.brand.name} ${selectedModel.model_name}`} className="confirm-vehicle-image" src={selectedModel.image_url} />
-          <div className="selected-vehicle-heading"><strong>{selectedModel.brand.name} {selectedModel.model_name}</strong><span>{selectedModel.year}</span></div>
+          <img alt={variantName(selectedModel)} className="confirm-vehicle-image" src={selectedModel.vehicle_model.image_url} />
+          <div className="selected-vehicle-heading"><strong>{variantName(selectedModel)}</strong><span>{selectedModel.year}</span></div>
           <dl className="vehicle-specs">
             <div><dt>Engine</dt><dd>{selectedModel.engine}</dd></div>
             <div><dt>Transmission</dt><dd>{selectedModel.transmission}</dd></div>
             <div><dt>Fuel</dt><dd>{selectedModel.fuel}</dd></div>
             <div><dt>Horsepower</dt><dd>{selectedModel.horsepower ? `${selectedModel.horsepower} hp` : "Not available"}</dd></div>
-            <div><dt>Torque</dt><dd>{selectedModel.torque_nm ? `${selectedModel.torque_nm} Nm` : "Not available"}</dd></div>
+            <div><dt>Torque</dt><dd>{selectedModel.torque ? `${selectedModel.torque} Nm` : "Not available"}</dd></div>
           </dl>
           <Input label="Plate number" required value={form.plate_number} onChange={(value) => setForm({ ...form, plate_number: value })} />
           <Input label="Mileage (km)" required type="number" value={form.mileage.toString()} onChange={(value) => setForm({ ...form, mileage: Math.max(0, Number(value) || 0) })} />
@@ -426,13 +440,13 @@ function Vehicles({ run, supabase }: ActionProps) {
       <div className="record-list">
         {vehicles.data.map((vehicle) => (
           <article className="record-card saved-vehicle-card" key={vehicle.id}>
-            <img alt={`${vehicle.vehicle_model.brand.name} ${vehicle.vehicle_model.model_name}`} src={vehicle.vehicle_model.image_url} />
-            <div><strong>{vehicle.nickname || `${vehicle.vehicle_model.brand.name} ${vehicle.vehicle_model.model_name}`}</strong><span>{vehicle.plate_number}</span></div>
+            <img alt={vehicleName(vehicle)} src={vehicle.vehicle_variant.vehicle_model.image_url} />
+            <div><strong>{vehicle.nickname || vehicleName(vehicle)}</strong><span>{vehicle.plate_number}</span></div>
             <dl>
-              <div><dt>Vehicle</dt><dd>{vehicle.vehicle_model.brand.name} {vehicle.vehicle_model.model_name}</dd></div>
-              <div><dt>Year</dt><dd>{vehicle.vehicle_model.year}</dd></div>
+              <div><dt>Vehicle</dt><dd>{vehicleName(vehicle)}</dd></div>
+              <div><dt>Year</dt><dd>{vehicle.vehicle_variant.year}</dd></div>
               <div><dt>Mileage</dt><dd>{vehicle.mileage.toLocaleString()} km</dd></div>
-              <div><dt>Engine</dt><dd>{vehicle.vehicle_model.engine}</dd></div>
+              <div><dt>Engine</dt><dd>{vehicle.vehicle_variant.engine}</dd></div>
             </dl>
             <div className="card-actions">
               <button onClick={() => edit(vehicle)}>Edit</button>
@@ -451,17 +465,17 @@ function Vehicles({ run, supabase }: ActionProps) {
 
 function Parts({ run, supabase }: ActionProps) {
   const vehicles = useResource(() => listCustomerVehicles(supabase), [supabase], [] as CustomerVehicle[]);
-  const [vehicleModelId, setVehicleModelId] = useState("");
-  const products = useResource(() => listCustomerCatalog(supabase, vehicleModelId || undefined), [supabase, vehicleModelId], [] as SupplierProduct[]);
+  const [vehicleVariantId, setVehicleVariantId] = useState("");
+  const products = useResource(() => listCustomerCatalog(supabase, vehicleVariantId || undefined), [supabase, vehicleVariantId], [] as SupplierProduct[]);
   const [query, setQuery] = useState("");
-  useEffect(() => { if (!vehicleModelId && vehicles.data[0]) setVehicleModelId(vehicles.data[0].vehicle_model_id); }, [vehicleModelId, vehicles.data]);
-  const selectedVehicle = vehicles.data.find((item) => item.vehicle_model_id === vehicleModelId);
+  useEffect(() => { if (!vehicleVariantId && vehicles.data[0]) setVehicleVariantId(vehicles.data[0].vehicle_variant_id); }, [vehicleVariantId, vehicles.data]);
+  const selectedVehicle = vehicles.data.find((item) => item.vehicle_variant_id === vehicleVariantId);
   const visible = products.data.filter((product) => `${product.name} ${product.brand} ${product.category}`.toLowerCase().includes(query.toLowerCase()));
   return (
     <Page title="Spare parts" action={<Link className="text-button" to="/cart">Cart</Link>}>
-      {vehicles.data.length > 0 && <Select label="Fit for vehicle" value={vehicleModelId} onChange={setVehicleModelId} options={[
+      {vehicles.data.length > 0 && <Select label="Fit for vehicle" value={vehicleVariantId} onChange={setVehicleVariantId} options={[
         { label: "Browse all parts", value: "" },
-        ...vehicles.data.map((item) => ({ label: `${item.vehicle_model.brand.name} ${item.vehicle_model.model_name} ${item.vehicle_model.year}`, value: item.vehicle_model_id })),
+        ...vehicles.data.map((item) => ({ label: `${vehicleName(item)} ${item.vehicle_variant.year}`, value: item.vehicle_variant_id })),
       ]} />}
       {selectedVehicle && <VehicleIdentity vehicle={selectedVehicle} />}
       <input className="search-input" placeholder="Search products" value={query} onChange={(event) => setQuery(event.target.value)} />
@@ -479,7 +493,7 @@ function Parts({ run, supabase }: ActionProps) {
             }, `${product.name} added to cart.`)}>Add</button></footer>
           </article>
         ))}
-        {!products.loading && visible.length === 0 && <Empty text={vehicleModelId ? "No compatible in-stock products are listed for this vehicle yet." : "No matching in-stock products."} />}
+        {!products.loading && visible.length === 0 && <Empty text={vehicleVariantId ? "No compatible in-stock products are listed for this vehicle yet." : "No matching in-stock products."} />}
       </div>
     </Page>
   );
@@ -589,7 +603,7 @@ function BookService({ run, supabase }: ActionProps) {
       <ResourceMessage resources={[vehicles, workshops, services, bookings]} />
       {vehicles.data.length === 0 ? <Empty text="Add a vehicle before creating a booking." /> : (
         <form className="customer-form" onSubmit={submit}>
-          <Select label="Vehicle" value={vehicleId} onChange={setVehicleId} options={vehicles.data.map((item) => ({ label: `${item.vehicle_model.brand.name} ${item.vehicle_model.model_name} - ${item.plate_number}`, value: item.id }))} />
+          <Select label="Vehicle" value={vehicleId} onChange={setVehicleId} options={vehicles.data.map((item) => ({ label: vehicleOptionLabel(item), value: item.id }))} />
           {selectedVehicle && <VehicleIdentity vehicle={selectedVehicle} />}
           <Select label="Workshop" value={workshopId} onChange={setWorkshopId} options={workshops.data.map((item) => ({ label: `${item.name}${item.city ? ` - ${item.city}` : ""}`, value: item.owner_id }))} />
           <Select label="Service" value={serviceId} onChange={setServiceId} options={services.data.map((item) => ({ label: `${item.name} - ${money.format(item.estimated_price)}`, value: item.id }))} />
@@ -795,3 +809,4 @@ type ActionProps = {
   run: (task: () => Promise<void>, success: string) => Promise<void>;
   supabase: SupabaseClient;
 };
+

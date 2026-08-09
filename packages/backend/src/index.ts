@@ -112,6 +112,7 @@ export type SupplierOrder = {
 };
 
 export type VehicleBrand = {
+  country: string | null;
   id: string;
   logo_url: string;
   name: string;
@@ -120,14 +121,28 @@ export type VehicleBrand = {
 export type VehicleModel = {
   brand: VehicleBrand;
   brand_id: string;
-  engine: string;
-  fuel: string;
-  horsepower: number | null;
+  body_type: string;
+  generation: string;
   id: string;
   image_url: string;
   model_name: string;
-  torque_nm: number | null;
+};
+
+export type VehicleVariant = {
+  coolant_capacity: number | null;
+  displacement: number | null;
+  drivetrain: string;
+  engine: string;
+  engine_oil_capacity: number | null;
+  fuel: string;
+  horsepower: number | null;
+  id: string;
+  torque: number | null;
   transmission: string;
+  transmission_oil_capacity: number | null;
+  tyre_size: string | null;
+  vehicle_model: VehicleModel;
+  vehicle_model_id: string;
   year: number;
 };
 
@@ -139,15 +154,15 @@ export type CustomerVehicle = {
   plate_number: string;
   updated_at: string;
   user_id: string;
-  vehicle_model: VehicleModel;
-  vehicle_model_id: string;
+  vehicle_variant: VehicleVariant;
+  vehicle_variant_id: string;
 };
 
 export type CustomerVehicleInput = {
   mileage: number;
   nickname: string | null;
   plate_number: string;
-  vehicle_model_id: string;
+  vehicle_variant_id: string;
 };
 
 export type CustomerCartItem = {
@@ -802,10 +817,13 @@ export async function listCustomerVehicles(supabase: SupabaseClient) {
   const { data, error } = await supabase
     .from("user_vehicles")
     .select(`
-      id,user_id,vehicle_model_id,plate_number,mileage,nickname,created_at,updated_at,
-      vehicle_model:vehicle_models!user_vehicles_vehicle_model_id_fkey(
-        id,brand_id,model_name,year,engine,fuel,transmission,horsepower,torque_nm,image_url,
-        brand:brands!vehicle_models_brand_id_fkey(id,name,logo_url)
+      id,user_id,vehicle_variant_id,plate_number,mileage,nickname,created_at,updated_at,
+      vehicle_variant:vehicle_variants!user_vehicles_vehicle_variant_id_fkey(
+        id,vehicle_model_id,year,engine,displacement,fuel,transmission,drivetrain,horsepower,torque,tyre_size,engine_oil_capacity,transmission_oil_capacity,coolant_capacity,
+        vehicle_model:vehicle_models!vehicle_variants_vehicle_model_id_fkey(
+          id,brand_id,model_name,generation,body_type,image_url,
+          brand:brands!vehicle_models_brand_id_fkey(id,name,logo_url,country)
+        )
       )
     `)
     .order("created_at", { ascending: false });
@@ -816,26 +834,31 @@ export async function listCustomerVehicles(supabase: SupabaseClient) {
 export async function listVehicleBrands(supabase: SupabaseClient) {
   const { data, error } = await supabase
     .from("brands")
-    .select("id,name,logo_url")
+    .select("id,name,logo_url,country")
     .order("name");
   if (error) throw error;
   return (data ?? []) as VehicleBrand[];
 }
 
-export async function listVehicleModels(supabase: SupabaseClient, brandId?: string) {
+export async function listVehicleVariants(supabase: SupabaseClient, brandId?: string) {
   let query = supabase
-    .from("vehicle_models")
+    .from("vehicle_variants")
     .select(`
-      id,brand_id,model_name,year,engine,fuel,transmission,horsepower,torque_nm,image_url,
-      brand:brands!vehicle_models_brand_id_fkey(id,name,logo_url)
+      id,vehicle_model_id,year,engine,displacement,fuel,transmission,drivetrain,horsepower,torque,tyre_size,engine_oil_capacity,transmission_oil_capacity,coolant_capacity,
+      vehicle_model:vehicle_models!vehicle_variants_vehicle_model_id_fkey(
+        id,brand_id,model_name,generation,body_type,image_url,
+        brand:brands!vehicle_models_brand_id_fkey(id,name,logo_url,country)
+      )
     `)
-    .order("model_name")
+    .order("vehicle_model_id")
     .order("year", { ascending: false });
-  if (brandId) query = query.eq("brand_id", brandId);
+  if (brandId) query = query.eq("vehicle_model.brand_id", brandId);
   const { data, error } = await query;
   if (error) throw error;
-  return (data ?? []) as unknown as VehicleModel[];
+  return (data ?? []) as unknown as VehicleVariant[];
 }
+
+export const listVehicleModels = listVehicleVariants;
 
 export async function saveCustomerVehicle(
   supabase: SupabaseClient,
@@ -848,10 +871,13 @@ export async function saveCustomerVehicle(
     ? supabase.from("user_vehicles").update(values).eq("id", id).eq("user_id", userData.user.id)
     : supabase.from("user_vehicles").insert({ ...values, user_id: userData.user.id });
   const { data, error } = await query.select(`
-    id,user_id,vehicle_model_id,plate_number,mileage,nickname,created_at,updated_at,
-    vehicle_model:vehicle_models!user_vehicles_vehicle_model_id_fkey(
-      id,brand_id,model_name,year,engine,fuel,transmission,horsepower,torque_nm,image_url,
-      brand:brands!vehicle_models_brand_id_fkey(id,name,logo_url)
+    id,user_id,vehicle_variant_id,plate_number,mileage,nickname,created_at,updated_at,
+    vehicle_variant:vehicle_variants!user_vehicles_vehicle_variant_id_fkey(
+      id,vehicle_model_id,year,engine,displacement,fuel,transmission,drivetrain,horsepower,torque,tyre_size,engine_oil_capacity,transmission_oil_capacity,coolant_capacity,
+      vehicle_model:vehicle_models!vehicle_variants_vehicle_model_id_fkey(
+        id,brand_id,model_name,generation,body_type,image_url,
+        brand:brands!vehicle_models_brand_id_fkey(id,name,logo_url,country)
+      )
     )
   `).single();
   if (error) throw error;
@@ -863,14 +889,14 @@ export async function deleteCustomerVehicle(supabase: SupabaseClient, id: string
   if (error) throw error;
 }
 
-export async function listCustomerCatalog(supabase: SupabaseClient, vehicleModelId?: string) {
+export async function listCustomerCatalog(supabase: SupabaseClient, vehicleVariantId?: string) {
   let compatibleProductIds: string[] | undefined;
 
-  if (vehicleModelId) {
+  if (vehicleVariantId) {
     const { data: compatibility, error: compatibilityError } = await supabase
       .from("product_vehicle_models")
       .select("product_id")
-      .eq("vehicle_model_id", vehicleModelId);
+      .eq("vehicle_variant_id", vehicleVariantId);
     if (compatibilityError) throw compatibilityError;
 
     compatibleProductIds = (compatibility ?? []).map(
@@ -1060,19 +1086,24 @@ export async function createCustomerServiceBooking(
     .from("user_vehicles")
     .select(`
       plate_number,
-      vehicle_model:vehicle_models!user_vehicles_vehicle_model_id_fkey(
-        model_name,year,brand:brands!vehicle_models_brand_id_fkey(name)
+      vehicle_variant:vehicle_variants!user_vehicles_vehicle_variant_id_fkey(
+        year,
+        vehicle_model:vehicle_models!vehicle_variants_vehicle_model_id_fkey(
+          model_name,brand:brands!vehicle_models_brand_id_fkey(name)
+        )
       )
     `)
     .eq("id", values.user_vehicle_id)
     .single();
   if (vehicleError) throw vehicleError;
-  const model = vehicle.vehicle_model as unknown as {
-    brand: { name: string };
-    model_name: string;
+  const variant = vehicle.vehicle_variant as unknown as {
     year: number;
+    vehicle_model: {
+      brand: { name: string };
+      model_name: string;
+    };
   };
-  const vehicleLabel = `${model.brand.name} ${model.model_name} ${model.year} - ${vehicle.plate_number}`;
+  const vehicleLabel = `${variant.vehicle_model.brand.name} ${variant.vehicle_model.model_name} ${variant.year} - ${vehicle.plate_number}`;
   const { data, error } = await supabase
     .from("service_bookings")
     .insert({ ...values, user_id: userData.user.id, scheduled_at: values.service_date, vehicle_label: vehicleLabel })
