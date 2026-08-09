@@ -19,7 +19,6 @@ import {
   type ManHubProfile,
   type ManHubRole,
   portalLabelByRole,
-  portalRoles,
 } from "@manhub/backend";
 import { adminRoutes } from "@manhub/platform-config";
 import { Button, Card, DataTable, EmptyState, FormField, MiniChart, NotificationsPanel, PageHeader, PortalShell, StatGrid, TextAreaField } from "@manhub/ui";
@@ -73,7 +72,7 @@ function AdminApp() {
       <Routes>
         <Route path="/" element={<Overview supabase={supabase} />} />
         <Route path="/partner-applications" element={<PartnerApplications run={run} supabase={supabase} />} />
-        <Route path="/users" element={<Users currentRoles={auth.roles} run={run} supabase={supabase} />} />
+        <Route path="/users" element={<Users currentRoles={auth.roles} supabase={supabase} />} />
         <Route path="/workshops" element={<StatusPage run={run} supabase={supabase} table="platform_workshops" title="Workshops" columns={["name", "city", "status", "rating"]} actions={["Verified", "Suspended"]} />} />
         <Route path="/suppliers" element={<StatusPage run={run} supabase={supabase} table="supplier_profiles" title="Suppliers" columns={["company_name", "status", "rating", "bank_name"]} actions={["Verified", "Suspended"]} />} />
         <Route path="/orders" element={<TablePage supabase={supabase} table="customer_orders" title="Customer Orders" columns={["order_number", "total", "payment_status", "status", "created_at"]} />} />
@@ -157,13 +156,10 @@ function Overview({ supabase }: { supabase: Client }) {
 
 function Users({
   currentRoles,
-  run,
   supabase,
-}: ActionProps & { currentRoles: ManHubRole[] }) {
+}: { currentRoles: ManHubRole[]; supabase: Client }) {
   const [profiles, setProfiles] = useState<Row[]>([]);
   const [memberships, setMemberships] = useState<Row[]>([]);
-  const [selectedUser, setSelectedUser] = useState("");
-  const [selectedRole, setSelectedRole] = useState<ManHubRole>("customer");
 
   const refresh = useCallback(async () => {
     const [profileRows, membershipRows] = await Promise.all([
@@ -172,7 +168,6 @@ function Users({
     ]);
     setProfiles(profileRows);
     setMemberships(membershipRows);
-    setSelectedUser((current) => current || String(profileRows[0]?.id ?? ""));
   }, [supabase]);
 
   useEffect(() => {
@@ -185,10 +180,6 @@ function Users({
     return () => window.clearTimeout(timer);
   }, [refresh]);
 
-  const assignableRoles: ManHubRole[] = currentRoles.includes("super_admin")
-    ? [...portalRoles, "super_admin"]
-    : portalRoles.filter((role) => role !== "admin");
-
   const roleLabel = (role: ManHubRole) => role === "super_admin"
     ? "Super Admin"
     : portalLabelByRole[role];
@@ -196,42 +187,16 @@ function Users({
   return (
     <div className="mh-form-stack">
       <Card tone="blue">
-        <h2 className="mh-card-title">Role Memberships</h2>
-        <p>Accounts may hold multiple roles. Admin and Super Admin access can only be granted by a Super Admin.</p>
-        <div className="mh-form-row">
-          <label className="mh-field">
-            Account
-            <select value={selectedUser} onChange={(event) => setSelectedUser(event.target.value)}>
-              {profiles.map((profile) => (
-                <option key={String(profile.id)} value={String(profile.id)}>
-                  {String(profile.full_name || profile.email || profile.id)}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="mh-field">
-            Role
-            <select value={selectedRole} onChange={(event) => setSelectedRole(event.target.value as ManHubRole)}>
-              {assignableRoles.map((role) => <option key={role} value={role}>{roleLabel(role)}</option>)}
-            </select>
-          </label>
-          <Button disabled={!selectedUser} onClick={() => void run(async () => {
-            const { error } = await supabase.from("user_roles").upsert({
-              role: selectedRole,
-              status: "Active",
-              user_id: selectedUser,
-            }, { onConflict: "user_id,role" });
-            if (error) throw error;
-            await refresh();
-          }, `${roleLabel(selectedRole)} access assigned.`)}>
-            Assign role
-          </Button>
-        </div>
+        <h2 className="mh-card-title">Role Access Overview</h2>
+        <p>Partner roles are granted only from Partner Applications after approval. This page is read-only for access control.</p>
+        {currentRoles.includes("super_admin") && (
+          <p>Super Admin can view every account here, but approval still flows through Partner Applications.</p>
+        )}
       </Card>
       <Card>
         <h2 className="mh-card-title">Platform Accounts</h2>
         <DataTable
-          headers={["Name", "Email", "Roles", "Status", "Actions"]}
+          headers={["Name", "Email", "Roles", "Status", "Last Portal"]}
           rows={profiles.map((profile) => {
             const accountMemberships = memberships.filter((membership) => membership.user_id === profile.id);
             return [
@@ -239,43 +204,7 @@ function Users({
               String(profile.email || "-"),
               accountMemberships.map((membership) => roleLabel(String(membership.role) as ManHubRole)).join(", ") || "No role",
               String(profile.status || "-"),
-              <div className="mh-actions" key={`actions-${String(profile.id)}`}>
-                {["Verified", "Suspended", "Banned"].map((status) => (
-                  <Button
-                    key={status}
-                    tone={status === "Verified" ? "ghost" : "danger"}
-                    onClick={() => profile.id && void run(async () => {
-                      await updateStatus(supabase, "profiles", String(profile.id), status);
-                      await refresh();
-                    }, `Account marked ${status}.`)}
-                  >
-                    {status}
-                  </Button>
-                ))}
-                {accountMemberships
-                  .filter((membership) => (
-                    currentRoles.includes("super_admin")
-                    || !["admin", "super_admin"].includes(String(membership.role))
-                  ))
-                  .map((membership) => (
-                    <Button
-                      key={`remove-${String(membership.role)}`}
-                      tone="danger"
-                      disabled={accountMemberships.length === 1}
-                      onClick={() => void run(async () => {
-                        const { error } = await supabase
-                          .from("user_roles")
-                          .delete()
-                          .eq("user_id", String(profile.id))
-                          .eq("role", String(membership.role));
-                        if (error) throw error;
-                        await refresh();
-                      }, `${roleLabel(String(membership.role) as ManHubRole)} access removed.`)}
-                    >
-                      Remove {roleLabel(String(membership.role) as ManHubRole)}
-                    </Button>
-                  ))}
-              </div>,
+              String(profile.last_portal_role ? roleLabel(String(profile.last_portal_role) as ManHubRole) : "-"),
             ];
           })}
         />
