@@ -18,6 +18,7 @@
     "test": "npm run build && node --test tests/rendered-html.test.mjs",
     "lint": "eslint . --ignore-pattern dist --ignore-pattern .next",
     "db:generate": "drizzle-kit generate",
+    "db:seed:vehicles": "node scripts/generate-vehicle-catalog-seed.mjs",
     "dev:landing": "npm run dev",
     "dev:customer": "npm run dev --workspace @manhub/customer-app",
     "dev:auth": "npm run dev --workspace @manhub/auth-app",
