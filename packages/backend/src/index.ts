@@ -841,6 +841,19 @@ export async function listVehicleBrands(supabase: SupabaseClient) {
 }
 
 export async function listVehicleVariants(supabase: SupabaseClient, brandId?: string) {
+  let modelIds: string[] | undefined;
+
+  if (brandId) {
+    const { data: modelRows, error: modelError } = await supabase
+      .from("vehicle_models")
+      .select("id")
+      .eq("brand_id", brandId);
+    if (modelError) throw modelError;
+
+    modelIds = (modelRows ?? []).map((model) => model.id as string);
+    if (modelIds.length === 0) return [];
+  }
+
   let query = supabase
     .from("vehicle_variants")
     .select(`
@@ -852,7 +865,7 @@ export async function listVehicleVariants(supabase: SupabaseClient, brandId?: st
     `)
     .order("vehicle_model_id")
     .order("year", { ascending: false });
-  if (brandId) query = query.eq("vehicle_model.brand_id", brandId);
+  if (modelIds) query = query.in("vehicle_model_id", modelIds);
   const { data, error } = await query;
   if (error) throw error;
   return (data ?? []) as unknown as VehicleVariant[];
@@ -922,6 +935,8 @@ export async function listCustomerCart(supabase: SupabaseClient) {
     .from("shopping_carts")
     .select("id")
     .eq("status", "Active")
+    .order("created_at", { ascending: false })
+    .limit(1)
     .maybeSingle();
   if (cartError) throw cartError;
   if (!cart) return [];

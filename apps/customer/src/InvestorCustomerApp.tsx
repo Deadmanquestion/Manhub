@@ -93,6 +93,12 @@ export default function CustomerApp({ onSignOut, onSwitchPortal, profile: initia
     }
   }, []);
 
+  useEffect(() => {
+    if (!notice) return undefined;
+    const timer = window.setTimeout(() => setNotice(null), 4_000);
+    return () => window.clearTimeout(timer);
+  }, [notice]);
+
   return (
     <main className="customer-stage">
       <section className="customer-phone">
@@ -147,10 +153,10 @@ function Header({ unread }: { unread: number }) {
 }
 
 function Home({ profile, supabase }: { profile: ManHubProfile; supabase: SupabaseClient }) {
-  const vehicles = useResource(() => listCustomerVehicles(supabase), [supabase], [] as CustomerVehicle[]);
-  const products = useResource(() => listCustomerCatalog(supabase), [supabase], [] as SupplierProduct[]);
-  const orders = useResource(() => listCustomerOrders(supabase), [supabase], [] as CustomerOrder[]);
-  const cart = useResource(() => listCustomerCart(supabase), [supabase], [] as CustomerCartItem[]);
+  const vehicles = useResource(() => listCustomerVehicles(supabase), [supabase], [] as CustomerVehicle[], "vehicles");
+  const products = useResource(() => listCustomerCatalog(supabase), [supabase], [] as SupplierProduct[], "parts catalog");
+  const orders = useResource(() => listCustomerOrders(supabase), [supabase], [] as CustomerOrder[], "orders");
+  const cart = useResource(() => listCustomerCart(supabase), [supabase], [] as CustomerCartItem[], "cart");
   const firstName = (profile.full_name || profile.email || "Customer").trim().split(/\s+/)[0];
   const vehicle = vehicles.data[0];
   const latestOrder = orders.data[0];
@@ -315,14 +321,19 @@ const emptyVehicle: CustomerVehicleInput = {
 };
 
 function Vehicles({ run, supabase }: ActionProps) {
-  const vehicles = useResource(() => listCustomerVehicles(supabase), [supabase], [] as CustomerVehicle[]);
-  const brands = useResource(() => listVehicleBrands(supabase), [supabase], [] as VehicleBrand[]);
-  const models = useResource(() => listVehicleVariants(supabase), [supabase], [] as VehicleVariant[]);
+  const vehicles = useResource(() => listCustomerVehicles(supabase), [supabase], [] as CustomerVehicle[], "saved vehicles");
+  const brands = useResource(() => listVehicleBrands(supabase), [supabase], [] as VehicleBrand[], "vehicle brands");
   const [editing, setEditing] = useState<string | null>(null);
   const [form, setForm] = useState<CustomerVehicleInput>(emptyVehicle);
   const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
   const [brandId, setBrandId] = useState("");
   const [modelName, setModelName] = useState("");
+  const models = useResource(
+    () => brandId ? listVehicleVariants(supabase, brandId) : Promise.resolve([] as VehicleVariant[]),
+    [supabase, brandId],
+    [] as VehicleVariant[],
+    "vehicle models",
+  );
 
   const brandModels = useMemo(() => models.data.filter((model) => model.vehicle_model.brand_id === brandId), [brandId, models.data]);
   const modelCards = useMemo(() => {
@@ -373,7 +384,7 @@ function Vehicles({ run, supabase }: ActionProps) {
 
   return (
     <Page title="My vehicles" action={<button className="text-button" onClick={reset}>New</button>}>
-      <ResourceMessage resources={[vehicles, brands, models]} />
+      <ResourceMessage resources={brandId ? [vehicles, brands, models] : [vehicles, brands]} />
       <section className="vehicle-selector">
         <ol className="vehicle-steps" aria-label="Vehicle setup progress">
           {["Brand", "Model", "Year", "Details"].map((label, index) => (
@@ -411,6 +422,7 @@ function Vehicles({ run, supabase }: ActionProps) {
               <span><strong>{model.vehicle_model.model_name}</strong><small>{model.engine} · {model.fuel}</small></span>
             </button>)}
           </div>
+          {!models.loading && !models.error && modelCards.length === 0 && <Empty text="No vehicle models are available for this brand yet." />}
         </section>}
 
         {step === 3 && <section className="selector-stage year-stage">
@@ -786,13 +798,16 @@ function Empty({ text }: { text: string }) { return <p className="empty-state">{
 
 type Resource<T> = { data: T; error: string | null; loading: boolean; reload: () => Promise<void> };
 
-function useResource<T>(load: () => Promise<T>, dependencies: unknown[], initial: T): Resource<T> {
+function useResource<T>(load: () => Promise<T>, dependencies: unknown[], initial: T, label = "data"): Resource<T> {
   const [data, setData] = useState(initial);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const reload = useCallback(async () => {
     setLoading(true); setError(null);
-    try { setData(await load()); } catch (caught) { setError(caught instanceof Error ? caught.message : "Unable to load data."); }
+    try { setData(await load()); } catch (caught) {
+      const message = caught instanceof Error ? caught.message : "Unable to load data.";
+      setError(`Unable to load ${label}: ${message}`);
+    }
     finally { setLoading(false); }
   }, dependencies);
   useEffect(() => { void reload(); }, [reload]);
