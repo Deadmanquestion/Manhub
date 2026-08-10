@@ -124,6 +124,7 @@ export type VehicleModel = {
   body_type: string;
   generation: string;
   id: string;
+  image_status: "missing" | "queued" | "processing" | "cached" | "external" | "failed" | null;
   image_url: string;
   model_name: string;
 };
@@ -821,7 +822,7 @@ export async function listCustomerVehicles(supabase: SupabaseClient) {
       vehicle_variant:vehicle_variants(
         id,vehicle_model_id,year,engine,displacement,fuel,transmission,drivetrain,horsepower,torque,tyre_size,engine_oil_capacity,transmission_oil_capacity,coolant_capacity,
         vehicle_model:vehicle_models(
-          id,brand_id,model_name,generation,body_type,image_url,
+          id,brand_id,model_name,generation,body_type,image_url,image_status,
           brand:brands(id,name,logo_url,country)
         )
       )
@@ -859,7 +860,7 @@ export async function listVehicleVariants(supabase: SupabaseClient, brandId?: st
     .select(`
       id,vehicle_model_id,year,engine,displacement,fuel,transmission,drivetrain,horsepower,torque,tyre_size,engine_oil_capacity,transmission_oil_capacity,coolant_capacity,
       vehicle_model:vehicle_models(
-        id,brand_id,model_name,generation,body_type,image_url,
+        id,brand_id,model_name,generation,body_type,image_url,image_status,
         brand:brands(id,name,logo_url,country)
       )
     `)
@@ -888,7 +889,7 @@ export async function saveCustomerVehicle(
     vehicle_variant:vehicle_variants(
       id,vehicle_model_id,year,engine,displacement,fuel,transmission,drivetrain,horsepower,torque,tyre_size,engine_oil_capacity,transmission_oil_capacity,coolant_capacity,
       vehicle_model:vehicle_models(
-        id,brand_id,model_name,generation,body_type,image_url,
+        id,brand_id,model_name,generation,body_type,image_url,image_status,
         brand:brands(id,name,logo_url,country)
       )
     )

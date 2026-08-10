@@ -1,0 +1,15 @@
+name = "manfix-vehicle-image-service"
+main = "src/index.ts"
+compatibility_date = "2026-08-10"
+
+[[r2_buckets]]
+binding = "VEHICLE_IMAGES"
+bucket_name = "manfix-vehicle-images"
+
+[triggers]
+crons = ["*/15 * * * *"]
+
+[vars]
+MAX_IMAGE_BYTES = "6000000"
+MAX_ATTEMPTS = "5"
+PROCESS_BATCH_SIZE = "10"

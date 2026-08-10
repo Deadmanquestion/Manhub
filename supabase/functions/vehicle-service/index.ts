@@ -37,6 +37,15 @@ type VehicleVariantInput = {
   year: number;
 };
 
+type ExistingVehicleRow = {
+  id: string;
+  image_source_url?: string | null;
+  image_status?: string | null;
+  image_storage_key?: string | null;
+  image_url?: string | null;
+  source_hash: string | null;
+};
+
 type SyncStats = {
   brandsChanged: number;
   brandsSeen: number;
@@ -161,7 +170,7 @@ async function listBrands(supabase: SupabaseClient) {
 async function listModels(supabase: SupabaseClient, brandId: string) {
   const { data, error } = await supabase
     .from("vehicle_models")
-    .select("id,brand_id,model_name,generation,body_type,image_url,image_source_url,synced_at,discontinued_at")
+    .select("id,brand_id,model_name,generation,body_type,image_url,image_source_url,image_status,synced_at,discontinued_at")
     .eq("brand_id", brandId)
     .is("discontinued_at", null)
     .order("model_name");
@@ -187,7 +196,7 @@ async function getVariant(supabase: SupabaseClient, variantId: string) {
       id,vehicle_model_id,year,engine,displacement,fuel,transmission,drivetrain,
       horsepower,torque,tyre_size,engine_oil_capacity,transmission_oil_capacity,coolant_capacity,
       vehicle_model:vehicle_models(
-        id,model_name,generation,body_type,image_url,
+        id,model_name,generation,body_type,image_url,image_status,
         brand:brands(id,name,logo_url,country)
       )
     `)
@@ -234,11 +243,7 @@ async function runSync(supabase: SupabaseClient) {
         ?? await findBrandId(supabase, provider.id, model.brandExternalId);
       if (!brandId) continue;
 
-      const image = await resolveModelImage(model);
-      const result = await upsertModel(supabase, provider.id, brandId, {
-        ...model,
-        imageUrl: image.publicUrl ?? model.imageUrl ?? "",
-      }, image);
+      const result = await upsertModel(supabase, provider.id, brandId, model);
       modelIdByExternalId.set(model.externalId, result.id);
       if (result.changed) stats.modelsChanged += 1;
 
@@ -261,6 +266,7 @@ async function runSync(supabase: SupabaseClient) {
       })
       .eq("provider", provider.id);
 
+    await triggerVehicleImagePipeline();
     await finishSyncRun(supabase, runId, "completed", stats, startedAt);
     return { provider: provider.id, runId, status: "completed", ...stats };
   } catch (error) {
@@ -501,16 +507,20 @@ async function upsertModel(
   provider: string,
   brandId: string,
   model: VehicleModelInput,
-  image: { originalUrl?: string | null; publicUrl?: string | null; storageKey?: string | null },
 ) {
-  const sourceHash = await hashJson({ ...model, image });
+  const sourceHash = await hashJson(model);
   const now = new Date().toISOString();
   const existing = await findExisting(
     supabase,
     "vehicle_models",
     provider,
     model.externalId,
-    "id,source_hash",
+    "id,source_hash,image_url,image_status,image_source_url,image_storage_key",
+  );
+  const hasProviderImage = Boolean(model.imageUrl?.trim());
+  const keepExistingImage = !hasProviderImage && hasPersistentImage(
+    existing?.image_url,
+    existing?.image_status,
   );
 
   const record = {
@@ -520,9 +530,10 @@ async function upsertModel(
     external_id: model.externalId,
     external_provider: provider,
     generation: model.generation ?? "Provider catalog",
-    image_source_url: image.originalUrl ?? model.imageUrl ?? null,
-    image_storage_key: image.storageKey ?? null,
-    image_url: image.publicUrl ?? model.imageUrl ?? "",
+    image_source_url: hasProviderImage ? model.imageUrl : existing?.image_source_url ?? null,
+    image_status: hasProviderImage ? "external" : keepExistingImage ? existing?.image_status ?? "cached" : "queued",
+    image_storage_key: hasProviderImage ? null : existing?.image_storage_key ?? null,
+    image_url: hasProviderImage ? model.imageUrl : existing?.image_url ?? getPlaceholderImageUrl(),
     model_name: model.modelName,
     source_hash: sourceHash,
     synced_at: now,
@@ -531,7 +542,6 @@ async function upsertModel(
   if (!existing) {
     const { data, error } = await supabase.from("vehicle_models").insert(record).select("id").single();
     if (error) throw error;
-    await updateImageCache(supabase, data.id, image);
     return { changed: true, id: data.id as string };
   }
 
@@ -544,7 +554,6 @@ async function upsertModel(
     .select("id")
     .single();
   if (error) throw error;
-  await updateImageCache(supabase, data.id, image);
   return { changed: true, id: data.id as string };
 }
 
@@ -618,7 +627,7 @@ async function findExisting(
     .eq("external_id", externalId)
     .maybeSingle();
   if (error) throw error;
-  if (data) return data as { id: string; source_hash: string | null };
+  if (data) return data as ExistingVehicleRow;
 
   if (table === "brands" && name) {
     const { data: named, error: namedError } = await supabase
@@ -627,7 +636,7 @@ async function findExisting(
       .ilike("name", name)
       .maybeSingle();
     if (namedError) throw namedError;
-    return named as { id: string; source_hash: string | null } | null;
+    return named as ExistingVehicleRow | null;
   }
 
   return null;
@@ -645,149 +654,14 @@ function isUsableVariant(variant: VehicleVariantInput) {
   );
 }
 
-async function resolveModelImage(model: VehicleModelInput) {
-  if (model.imageUrl) return { originalUrl: model.imageUrl, publicUrl: model.imageUrl, storageKey: null };
-
-  const resolverUrl = Deno.env.get("VEHICLE_IMAGE_SEARCH_API_URL");
-  const resolverKey = Deno.env.get("VEHICLE_IMAGE_SEARCH_API_KEY");
-  if (!resolverUrl) return {};
-
-  const query = `${model.modelName} ${model.generation ?? ""} official vehicle image`.trim();
-  const url = resolverUrl.includes("{query}")
-    ? resolverUrl.replace("{query}", encodeURIComponent(query))
-    : `${resolverUrl}${resolverUrl.includes("?") ? "&" : "?"}q=${encodeURIComponent(query)}`;
-  const response = await fetch(url, {
-    headers: resolverKey ? { Authorization: `Bearer ${resolverKey}` } : undefined,
-  });
-  if (!response.ok) return {};
-
-  const body = await response.json() as {
-    imageUrl?: string;
-    results?: Array<{ imageUrl?: string; url?: string }>;
-    url?: string;
-  };
-  const imageUrl = body.imageUrl ?? body.url ?? body.results?.[0]?.imageUrl ?? body.results?.[0]?.url;
-  if (!imageUrl) return {};
-
-  const cached = await cacheImageInR2(imageUrl, model);
-  return cached.publicUrl
-    ? { originalUrl: imageUrl, publicUrl: cached.publicUrl, storageKey: cached.storageKey }
-    : { originalUrl: imageUrl, publicUrl: imageUrl, storageKey: null };
-}
-
-async function cacheImageInR2(imageUrl: string, model: VehicleModelInput) {
-  const accountId = Deno.env.get("CF_R2_ACCOUNT_ID");
-  const bucket = Deno.env.get("CF_R2_BUCKET");
-  const accessKeyId = Deno.env.get("CF_R2_ACCESS_KEY_ID");
-  const secretAccessKey = Deno.env.get("CF_R2_SECRET_ACCESS_KEY");
-  const publicBaseUrl = Deno.env.get("CF_R2_PUBLIC_BASE_URL");
-  if (!accountId || !bucket || !accessKeyId || !secretAccessKey || !publicBaseUrl) return {};
-
-  const imageResponse = await fetch(imageUrl);
-  if (!imageResponse.ok) return {};
-
-  const contentType = imageResponse.headers.get("content-type") ?? "image/jpeg";
-  const extension = contentType.includes("png") ? "png" : contentType.includes("webp") ? "webp" : "jpg";
-  const storageKey = `vehicles/${safeSlug(model.brandExternalId)}/${safeSlug(model.modelName)}-${safeSlug(model.externalId)}.${extension}`;
-  const bytes = new Uint8Array(await imageResponse.arrayBuffer());
-  const endpoint = `https://${accountId}.r2.cloudflarestorage.com/${bucket}/${storageKey}`;
-  const signedHeaders = await signR2Put(endpoint, bytes, contentType, accessKeyId, secretAccessKey);
-  const upload = await fetch(endpoint, { body: bytes, headers: signedHeaders, method: "PUT" });
-  if (!upload.ok) return {};
-
-  return {
-    publicUrl: `${publicBaseUrl.replace(/\/$/, "")}/${storageKey}`,
-    storageKey,
-  };
-}
-
-async function updateImageCache(
-  supabase: SupabaseClient,
-  vehicleModelId: string,
-  image: { originalUrl?: string | null; publicUrl?: string | null; storageKey?: string | null },
-) {
-  const { error } = await supabase.from("vehicle_image_cache").upsert({
-    fetched_at: image.publicUrl ? new Date().toISOString() : null,
-    original_url: image.originalUrl ?? null,
-    public_url: image.publicUrl ?? null,
-    source_hash: await hashJson(image),
-    status: image.publicUrl ? "cached" : "pending",
-    storage_key: image.storageKey ?? null,
-    updated_at: new Date().toISOString(),
-    vehicle_model_id: vehicleModelId,
-  }, { onConflict: "vehicle_model_id,provider" });
-  if (error) console.error("vehicle image cache update failed", error);
-}
-
-async function signR2Put(
-  endpoint: string,
-  body: Uint8Array,
-  contentType: string,
-  accessKeyId: string,
-  secretAccessKey: string,
-) {
-  const url = new URL(endpoint);
-  const now = new Date();
-  const amzDate = now.toISOString().replace(/[:-]|\.\d{3}/g, "");
-  const dateStamp = amzDate.slice(0, 8);
-  const payloadHash = await sha256Hex(body);
-  const canonicalHeaders = [
-    `content-type:${contentType}`,
-    `host:${url.host}`,
-    `x-amz-content-sha256:${payloadHash}`,
-    `x-amz-date:${amzDate}`,
-  ].join("\n") + "\n";
-  const signedHeaders = "content-type;host;x-amz-content-sha256;x-amz-date";
-  const canonicalRequest = [
-    "PUT",
-    encodeURI(url.pathname),
-    "",
-    canonicalHeaders,
-    signedHeaders,
-    payloadHash,
-  ].join("\n");
-  const credentialScope = `${dateStamp}/auto/s3/aws4_request`;
-  const stringToSign = [
-    "AWS4-HMAC-SHA256",
-    amzDate,
-    credentialScope,
-    await sha256Hex(new TextEncoder().encode(canonicalRequest)),
-  ].join("\n");
-  const signingKey = await getSigningKey(secretAccessKey, dateStamp);
-  const signature = toHex(new Uint8Array(await hmac(signingKey, stringToSign)));
-  const authorization = `AWS4-HMAC-SHA256 Credential=${accessKeyId}/${credentialScope}, SignedHeaders=${signedHeaders}, Signature=${signature}`;
-  return {
-    Authorization: authorization,
-    "Content-Type": contentType,
-    "x-amz-content-sha256": payloadHash,
-    "x-amz-date": amzDate,
-  };
-}
-
-async function getSigningKey(secretAccessKey: string, dateStamp: string) {
-  const dateKey = await hmac(new TextEncoder().encode(`AWS4${secretAccessKey}`), dateStamp);
-  const dateRegionKey = await hmac(dateKey, "auto");
-  const dateRegionServiceKey = await hmac(dateRegionKey, "s3");
-  return await hmac(dateRegionServiceKey, "aws4_request");
-}
-
-async function hmac(key: ArrayBuffer | Uint8Array, message: string) {
-  const cryptoKey = await crypto.subtle.importKey(
-    "raw",
-    key,
-    { hash: "SHA-256", name: "HMAC" },
-    false,
-    ["sign"],
-  );
-  return await crypto.subtle.sign("HMAC", cryptoKey, new TextEncoder().encode(message));
-}
-
-async function sha256Hex(input: Uint8Array) {
-  return toHex(new Uint8Array(await crypto.subtle.digest("SHA-256", input)));
+async function sha256Hex(input: string) {
+  const data = new TextEncoder().encode(input);
+  const bytes = data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength);
+  return toHex(new Uint8Array(await crypto.subtle.digest("SHA-256", bytes)));
 }
 
 async function hashJson(value: unknown) {
-  return await sha256Hex(new TextEncoder().encode(JSON.stringify(value, Object.keys(value as object).sort())));
+  return await sha256Hex(JSON.stringify(value, Object.keys(value as object).sort()));
 }
 
 function toHex(bytes: Uint8Array) {
@@ -799,10 +673,36 @@ function getNumberEnv(name: string, fallback: number) {
   return Number.isFinite(value) ? value : fallback;
 }
 
-function normalizeName(value: string) {
-  return value.toLowerCase().replace(/\b\w/g, (char) => char.toUpperCase()).trim();
+function getPlaceholderImageUrl() {
+  return Deno.env.get("VEHICLE_PLACEHOLDER_IMAGE_URL") ?? "/vehicle-placeholder.svg";
 }
 
-function safeSlug(value: string) {
-  return value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
+function hasPersistentImage(imageUrl?: string | null, imageStatus?: string | null) {
+  const value = imageUrl?.trim();
+  if (!value || value.includes("vehicle-placeholder")) return false;
+  return imageStatus === "cached" || imageStatus === "external";
+}
+
+async function triggerVehicleImagePipeline() {
+  const imageServiceUrl = Deno.env.get("VEHICLE_IMAGE_SERVICE_URL");
+  const imageServiceSecret = Deno.env.get("VEHICLE_IMAGE_SERVICE_SECRET");
+  if (!imageServiceUrl || !imageServiceSecret) return;
+
+  const url = new URL("/enqueue-missing", imageServiceUrl);
+  const response = await fetch(url, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${imageServiceSecret}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ limit: getNumberEnv("VEHICLE_IMAGE_ENQUEUE_LIMIT", 500) }),
+  });
+
+  if (!response.ok) {
+    console.error("vehicle image pipeline enqueue failed", response.status, await response.text());
+  }
+}
+
+function normalizeName(value: string) {
+  return value.toLowerCase().replace(/\b\w/g, (char) => char.toUpperCase()).trim();
 }

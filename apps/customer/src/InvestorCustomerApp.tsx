@@ -69,6 +69,11 @@ function variantName(variant: VehicleVariant) {
   return `${variant.vehicle_model.brand.name} ${variant.vehicle_model.model_name}`;
 }
 
+function vehicleImageSrc(imageUrl?: string | null) {
+  const value = imageUrl?.trim();
+  return value ? value : "/vehicle-placeholder.svg";
+}
+
 export default function CustomerApp({ onSignOut, onSwitchPortal, profile: initialProfile, supabase }: Props) {
   const [profile, setProfile] = useState(initialProfile);
   const [notice, setNotice] = useState<Notice>(null);
@@ -173,7 +178,7 @@ function Home({ profile, supabase }: { profile: ManHubProfile; supabase: Supabas
           <b>{vehicle ? `${vehicle.mileage.toLocaleString()} km` : "Get started"}</b>
         </div>
         {vehicle
-          ? <img alt="" className="home-vehicle-image" src={vehicle.vehicle_variant.vehicle_model.image_url} />
+          ? <img alt="" className="home-vehicle-image" src={vehicleImageSrc(vehicle.vehicle_variant.vehicle_model.image_url)} />
           : <span aria-hidden="true" className="vehicle-visual"><i /><i /></span>}
         <span className="home-chevron">&gt;</span>
       </Link>
@@ -304,7 +309,7 @@ function VehicleIdentity({ vehicle }: { vehicle: CustomerVehicle }) {
   const model = vehicle.vehicle_variant.vehicle_model;
   return (
     <div className="vehicle-identity">
-      <img alt={vehicleName(vehicle)} src={model.image_url} />
+      <img alt={vehicleName(vehicle)} src={vehicleImageSrc(model.image_url)} />
       <span>
         <strong>{vehicle.nickname || vehicleName(vehicle)}</strong>
         <small>{vehicle.vehicle_variant.year} · {vehicle.vehicle_variant.engine} · {vehicle.plate_number}</small>
@@ -418,7 +423,7 @@ function Vehicles({ run, supabase }: ActionProps) {
               setForm({ ...form, vehicle_variant_id: years[0]?.id ?? "" });
               setStep(3);
             }}>
-              <img alt={`${model.vehicle_model.brand.name} ${model.vehicle_model.model_name}`} src={model.vehicle_model.image_url} />
+              <img alt={`${model.vehicle_model.brand.name} ${model.vehicle_model.model_name}`} src={vehicleImageSrc(model.vehicle_model.image_url)} />
               <span><strong>{model.vehicle_model.model_name}</strong><small>{model.engine} · {model.fuel}</small></span>
             </button>)}
           </div>
@@ -427,14 +432,14 @@ function Vehicles({ run, supabase }: ActionProps) {
 
         {step === 3 && <section className="selector-stage year-stage">
           <header><button aria-label="Back to models" className="back-button" onClick={() => setStep(2)}>&lsaquo;</button><div><span className="eyebrow">Step 3</span><h2>Choose vehicle year</h2></div></header>
-          {modelYears[0] && <img alt={variantName(modelYears[0])} src={modelYears[0].vehicle_model.image_url} />}
+          {modelYears[0] && <img alt={variantName(modelYears[0])} src={vehicleImageSrc(modelYears[0].vehicle_model.image_url)} />}
           <Select label="Year" value={form.vehicle_variant_id} onChange={(value) => setForm({ ...form, vehicle_variant_id: value })} options={modelYears.map((model) => ({ label: String(model.year), value: model.id }))} />
           <button className="primary-button" disabled={!form.vehicle_variant_id} onClick={() => setStep(4)}>Continue</button>
         </section>}
 
         {step === 4 && selectedModel && <form className="selector-stage vehicle-confirm" onSubmit={submit}>
           <header><button aria-label="Back to year" className="back-button" type="button" onClick={() => setStep(3)}>&lsaquo;</button><div><span className="eyebrow">Step 4</span><h2>Confirm your vehicle</h2></div></header>
-          <img alt={variantName(selectedModel)} className="confirm-vehicle-image" src={selectedModel.vehicle_model.image_url} />
+          <img alt={variantName(selectedModel)} className="confirm-vehicle-image" src={vehicleImageSrc(selectedModel.vehicle_model.image_url)} />
           <div className="selected-vehicle-heading"><strong>{variantName(selectedModel)}</strong><span>{selectedModel.year}</span></div>
           <dl className="vehicle-specs">
             <div><dt>Engine</dt><dd>{selectedModel.engine}</dd></div>
@@ -452,7 +457,7 @@ function Vehicles({ run, supabase }: ActionProps) {
       <div className="record-list">
         {vehicles.data.map((vehicle) => (
           <article className="record-card saved-vehicle-card" key={vehicle.id}>
-            <img alt={vehicleName(vehicle)} src={vehicle.vehicle_variant.vehicle_model.image_url} />
+            <img alt={vehicleName(vehicle)} src={vehicleImageSrc(vehicle.vehicle_variant.vehicle_model.image_url)} />
             <div><strong>{vehicle.nickname || vehicleName(vehicle)}</strong><span>{vehicle.plate_number}</span></div>
             <dl>
               <div><dt>Vehicle</dt><dd>{vehicleName(vehicle)}</dd></div>

@@ -20,6 +20,8 @@ Returned records are stored in:
 - `vehicle_image_cache`
 - `vehicle_sync_runs`
 - `vehicle_data_sources`
+- `vehicle_image_jobs`
+- `vehicle_image_logs`
 
 Rows are compared by `source_hash`, so existing data is only updated when the provider data changes.
 
@@ -58,19 +60,59 @@ supabase secrets set VEHICLE_SYNC_START_YEAR=1990
 supabase secrets set VEHICLE_SYNC_END_YEAR=2027
 ```
 
-Optional image cache secrets:
+Optional image pipeline secrets:
 
 ```bash
-supabase secrets set VEHICLE_IMAGE_SEARCH_API_URL=https://your-image-resolver.example.com/search
-supabase secrets set VEHICLE_IMAGE_SEARCH_API_KEY=your-image-api-key
-supabase secrets set CF_R2_ACCOUNT_ID=your-cloudflare-account-id
-supabase secrets set CF_R2_BUCKET=your-r2-bucket
-supabase secrets set CF_R2_ACCESS_KEY_ID=your-r2-access-key
-supabase secrets set CF_R2_SECRET_ACCESS_KEY=your-r2-secret-key
-supabase secrets set CF_R2_PUBLIC_BASE_URL=https://your-r2-public-domain
+supabase secrets set VEHICLE_IMAGE_SERVICE_URL=https://manfix-vehicle-image-service.YOUR_WORKER_SUBDOMAIN.workers.dev
+supabase secrets set VEHICLE_IMAGE_SERVICE_SECRET=your-secure-random-secret
+supabase secrets set VEHICLE_IMAGE_ENQUEUE_LIMIT=500
+supabase secrets set VEHICLE_PLACEHOLDER_IMAGE_URL=/vehicle-placeholder.svg
 ```
 
-If no image is supplied by the provider and no image resolver is configured, the service leaves the image as pending. It does not use random placeholder images.
+If no image is supplied by the provider, the service stores the local placeholder and queues the vehicle model for the Cloudflare Worker image pipeline. It does not use random third-party images.
+
+## Vehicle Image Service
+
+The Cloudflare Worker in `workers/vehicle-image-service` searches trusted official sources with Google Custom Search, downloads the selected image, uploads it to Cloudflare R2, then updates `vehicle_models.image_url`.
+
+Required Worker secrets and bindings:
+
+- R2 bucket binding: `VEHICLE_IMAGES`
+- `SUPABASE_URL`
+- `SUPABASE_SERVICE_ROLE_KEY`
+- `IMAGE_SERVICE_SECRET`
+- `GOOGLE_CSE_API_KEY`
+- `GOOGLE_CSE_ID`
+- `R2_PUBLIC_BASE_URL`
+
+Optional Worker variables:
+
+- `TRUSTED_IMAGE_SITES`
+- `PLACEHOLDER_IMAGE_URL`
+- `MAX_ATTEMPTS`
+- `MAX_IMAGE_BYTES`
+- `PROCESS_BATCH_SIZE`
+
+Useful commands:
+
+```bash
+npm run image-worker:typecheck
+npm run image-worker:deploy
+```
+
+The Worker runs every 15 minutes and can also be called manually:
+
+```bash
+curl -X POST https://YOUR_WORKER_URL/enqueue-missing \
+  -H "Authorization: Bearer YOUR_IMAGE_SERVICE_SECRET" \
+  -H "Content-Type: application/json" \
+  -d "{\"limit\":500}"
+
+curl -X POST https://YOUR_WORKER_URL/process \
+  -H "Authorization: Bearer YOUR_IMAGE_SERVICE_SECRET" \
+  -H "Content-Type: application/json" \
+  -d "{\"batchSize\":10}"
+```
 
 ## Daily Sync
 

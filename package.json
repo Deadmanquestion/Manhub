@@ -26,7 +26,10 @@
     "dev:technician": "npm run dev --workspace @manhub/technician-portal",
     "dev:admin": "npm run dev --workspace @manhub/admin-dashboard",
     "build:platform": "npm run build --workspaces --if-present",
-    "typecheck:platform": "tsc --noEmit -p tsconfig.platform.json"
+    "typecheck:platform": "tsc --noEmit -p tsconfig.platform.json",
+    "image-worker:dev": "npm run dev --prefix workers/vehicle-image-service",
+    "image-worker:typecheck": "npm run typecheck --prefix workers/vehicle-image-service",
+    "image-worker:deploy": "npm run deploy --prefix workers/vehicle-image-service"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.3",
