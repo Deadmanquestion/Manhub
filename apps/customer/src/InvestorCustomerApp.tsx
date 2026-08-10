@@ -253,7 +253,7 @@ function Diagnosis({ supabase }: { supabase: SupabaseClient }) {
         body: JSON.stringify({
           symptom,
           userVehicleId: vehicle.id,
-          vehicleModelId: vehicle.vehicle_variant_id,
+          vehicleVariantId: vehicle.vehicle_variant_id,
         }),
       });
       const payload = await response.json() as DiagnosisResult & { error?: string };

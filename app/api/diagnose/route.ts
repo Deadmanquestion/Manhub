@@ -2,6 +2,7 @@ type DiagnoseRequest = {
   symptom?: string;
   userVehicleId?: string;
   vehicleModelId?: string;
+  vehicleVariantId?: string;
 };
 
 type DiagnosisResult = {
@@ -63,7 +64,8 @@ export async function POST(request: Request) {
     return json({ error: "Invalid diagnosis request." }, 400);
   }
 
-  if (!body.symptom?.trim() || !body.userVehicleId?.trim() || !body.vehicleModelId?.trim()) {
+  const vehicleVariantId = body.vehicleVariantId?.trim() || body.vehicleModelId?.trim();
+  if (!body.symptom?.trim() || !body.userVehicleId?.trim() || !vehicleVariantId) {
     return json(
       { error: "Symptom and a saved vehicle are required." },
       400,
@@ -73,26 +75,32 @@ export async function POST(request: Request) {
   const { data: vehicle, error: vehicleError } = await supabase
     .from("user_vehicles")
     .select(`
-      mileage,vehicle_model_id,
-      vehicle_model:vehicle_models!user_vehicles_vehicle_model_id_fkey(
-        model_name,year,engine,fuel,transmission,horsepower,torque_nm,
-        brand:brands!vehicle_models_brand_id_fkey(name)
+      mileage,vehicle_variant_id,
+      vehicle_variant:vehicle_variants(
+        id,year,engine,fuel,transmission,horsepower,torque,
+        vehicle_model:vehicle_models(
+          model_name,
+          brand:brands(name)
+        )
       )
     `)
     .eq("id", body.userVehicleId)
-    .eq("vehicle_model_id", body.vehicleModelId)
+    .eq("vehicle_variant_id", vehicleVariantId)
     .single();
   if (vehicleError || !vehicle) {
     return json({ error: "The selected vehicle could not be verified." }, 404);
   }
-  const model = vehicle.vehicle_model as unknown as {
-    brand: { name: string };
+  const variant = vehicle.vehicle_variant as unknown as {
     engine: string;
     fuel: string;
     horsepower: number | null;
-    model_name: string;
-    torque_nm: number | null;
+    id: string;
+    torque: number | null;
     transmission: string;
+    vehicle_model: {
+      brand: { name: string };
+      model_name: string;
+    };
     year: number;
   };
 
@@ -122,13 +130,13 @@ export async function POST(request: Request) {
           {
             role: "user",
             content: JSON.stringify({
-              vehicle_model_id: body.vehicleModelId,
-              vehicle: `${model.brand.name} ${model.model_name} ${model.year}`,
-              engine: model.engine,
-              fuel: model.fuel,
-              transmission: model.transmission,
-              horsepower: model.horsepower,
-              torque_nm: model.torque_nm,
+              vehicle_variant_id: vehicleVariantId,
+              vehicle: `${variant.vehicle_model.brand.name} ${variant.vehicle_model.model_name} ${variant.year}`,
+              engine: variant.engine,
+              fuel: variant.fuel,
+              transmission: variant.transmission,
+              horsepower: variant.horsepower,
+              torque_nm: variant.torque,
               mileage_km: vehicle.mileage,
               symptom: body.symptom ?? "No symptom provided",
             }),

@@ -818,11 +818,11 @@ export async function listCustomerVehicles(supabase: SupabaseClient) {
     .from("user_vehicles")
     .select(`
       id,user_id,vehicle_variant_id,plate_number,mileage,nickname,created_at,updated_at,
-      vehicle_variant:vehicle_variants!user_vehicles_vehicle_variant_id_fkey(
+      vehicle_variant:vehicle_variants(
         id,vehicle_model_id,year,engine,displacement,fuel,transmission,drivetrain,horsepower,torque,tyre_size,engine_oil_capacity,transmission_oil_capacity,coolant_capacity,
-        vehicle_model:vehicle_models!vehicle_variants_vehicle_model_id_fkey(
+        vehicle_model:vehicle_models(
           id,brand_id,model_name,generation,body_type,image_url,
-          brand:brands!vehicle_models_brand_id_fkey(id,name,logo_url,country)
+          brand:brands(id,name,logo_url,country)
         )
       )
     `)
@@ -845,9 +845,9 @@ export async function listVehicleVariants(supabase: SupabaseClient, brandId?: st
     .from("vehicle_variants")
     .select(`
       id,vehicle_model_id,year,engine,displacement,fuel,transmission,drivetrain,horsepower,torque,tyre_size,engine_oil_capacity,transmission_oil_capacity,coolant_capacity,
-      vehicle_model:vehicle_models!vehicle_variants_vehicle_model_id_fkey(
+      vehicle_model:vehicle_models(
         id,brand_id,model_name,generation,body_type,image_url,
-        brand:brands!vehicle_models_brand_id_fkey(id,name,logo_url,country)
+        brand:brands(id,name,logo_url,country)
       )
     `)
     .order("vehicle_model_id")
@@ -872,11 +872,11 @@ export async function saveCustomerVehicle(
     : supabase.from("user_vehicles").insert({ ...values, user_id: userData.user.id });
   const { data, error } = await query.select(`
     id,user_id,vehicle_variant_id,plate_number,mileage,nickname,created_at,updated_at,
-    vehicle_variant:vehicle_variants!user_vehicles_vehicle_variant_id_fkey(
+    vehicle_variant:vehicle_variants(
       id,vehicle_model_id,year,engine,displacement,fuel,transmission,drivetrain,horsepower,torque,tyre_size,engine_oil_capacity,transmission_oil_capacity,coolant_capacity,
-      vehicle_model:vehicle_models!vehicle_variants_vehicle_model_id_fkey(
+      vehicle_model:vehicle_models(
         id,brand_id,model_name,generation,body_type,image_url,
-        brand:brands!vehicle_models_brand_id_fkey(id,name,logo_url,country)
+        brand:brands(id,name,logo_url,country)
       )
     )
   `).single();
@@ -1086,10 +1086,10 @@ export async function createCustomerServiceBooking(
     .from("user_vehicles")
     .select(`
       plate_number,
-      vehicle_variant:vehicle_variants!user_vehicles_vehicle_variant_id_fkey(
+      vehicle_variant:vehicle_variants(
         year,
-        vehicle_model:vehicle_models!vehicle_variants_vehicle_model_id_fkey(
-          model_name,brand:brands!vehicle_models_brand_id_fkey(name)
+        vehicle_model:vehicle_models(
+          model_name,brand:brands(name)
         )
       )
     `)
