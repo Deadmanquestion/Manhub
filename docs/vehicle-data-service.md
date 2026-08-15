@@ -4,13 +4,42 @@ ManFix no longer maintains a hand-written vehicle catalog. Vehicle data is synce
 
 ## Data Source
 
-The default adapter uses the official NHTSA vPIC API for vehicle makes, models, and future VIN decoding support. For complete global trims, engines, transmissions, official images, and regional variants, configure a full vehicle-data provider through `VEHICLE_DATA_PROVIDER_URL`.
+The production catalog is synced from a provider feed configured with `VEHICLE_DATA_PROVIDER_URL`. Public reference sources such as the official NHTSA vPIC API are useful for makes, models, and future VIN decoding, but they do not provide the complete global trim, engine, transmission, fluid-capacity, and official-media coverage ManFix needs for production spare-parts compatibility.
+
+Without a production provider URL, the sync endpoint fails by default instead of creating incomplete catalog data. You can explicitly allow the limited NHTSA adapter for reference testing with `VEHICLE_ALLOW_PUBLIC_REFERENCE_PROVIDER=true`, but it should not be used as the production catalog.
 
 The provider adapter expects:
 
 - `GET /brands`
-- `GET /models?limit=60&cursor=...`
+- `GET /models?limit=250&cursor=...`
 - `GET /models/:externalId/variants`
+
+Model records must include:
+
+- `externalId`
+- `brandExternalId`
+- `modelName`
+- `generation`
+- `bodyType`
+- `productionStartYear`
+- `productionEndYear`
+- `imageUrl` or `officialUrl`
+
+Variant records must include:
+
+- `externalId`
+- `modelExternalId`
+- `year`
+- `engine`
+- `displacement`
+- `fuel`
+- `transmission`
+- `drivetrain`
+- `horsepower`
+- `torque`
+- `engineOilCapacity`
+- `transmissionOilCapacity`
+- `coolantCapacity`
 
 Returned records are stored in:
 
@@ -23,7 +52,7 @@ Returned records are stored in:
 - `vehicle_image_jobs`
 - `vehicle_image_logs`
 
-Rows are compared by `source_hash`, so existing data is only updated when the provider data changes.
+Rows are compared by `source_hash`, so existing data is only updated when the provider data changes. Every sync also records `last_seen_sync_run_id`; when the provider returns a complete snapshot, missing rows are marked with `discontinued_at` instead of being duplicated.
 
 ## Platform API
 
@@ -50,14 +79,21 @@ Required Supabase secrets:
 supabase secrets set VEHICLE_SYNC_SECRET=your-secure-random-secret
 ```
 
-Optional provider secrets:
+Required production provider secrets:
 
 ```bash
 supabase secrets set VEHICLE_DATA_PROVIDER_URL=https://your-provider.example.com
 supabase secrets set VEHICLE_DATA_PROVIDER_KEY=your-provider-api-key
-supabase secrets set VEHICLE_SYNC_BATCH_SIZE=60
-supabase secrets set VEHICLE_SYNC_START_YEAR=1990
-supabase secrets set VEHICLE_SYNC_END_YEAR=2027
+supabase secrets set VEHICLE_DATA_PROVIDER_ID=production_vehicle_provider
+supabase secrets set VEHICLE_SYNC_BATCH_SIZE=250
+supabase secrets set VEHICLE_SYNC_MAX_BATCHES_PER_RUN=20
+```
+
+Optional reference/testing secrets:
+
+```bash
+supabase secrets set VEHICLE_ALLOW_PUBLIC_REFERENCE_PROVIDER=true
+supabase secrets set VEHICLE_SYNC_REQUIRE_COMPLETE_VARIANTS=false
 ```
 
 Optional image pipeline secrets:
@@ -114,9 +150,9 @@ curl -X POST https://YOUR_WORKER_URL/process \
   -d "{\"batchSize\":10}"
 ```
 
-## Daily Sync
+## Weekly Sync
 
-After applying migrations and deploying the Edge Function, schedule daily sync in Supabase SQL Editor:
+After applying migrations and deploying the Edge Function, schedule weekly sync in Supabase SQL Editor:
 
 ```sql
 select public.manfix_schedule_vehicle_sync(
@@ -125,7 +161,13 @@ select public.manfix_schedule_vehicle_sync(
 );
 ```
 
-The cron job runs daily at `18:00 UTC`, stores a sync run record, and advances the provider cursor.
+The cron job runs weekly at `18:00 UTC` on Sunday, stores a sync run record, and advances the provider cursor. Pass a third cron expression argument if you need a different schedule.
+
+Sync status is available at:
+
+```text
+GET /sync/status
+```
 
 ## Render Environment
 

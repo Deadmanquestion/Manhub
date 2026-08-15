@@ -15,7 +15,7 @@ export async function GET(_request: Request, context: RouteContext) {
 
   const { data, error } = await supabase
     .from("vehicle_models")
-    .select("id,brand_id,model_name,generation,body_type,image_url,image_source_url,image_status,synced_at,discontinued_at")
+    .select("id,brand_id,model_name,generation,body_type,image_url,image_source_url,image_status,production_start_year,production_end_year,synced_at,discontinued_at")
     .eq("brand_id", id)
     .is("discontinued_at", null)
     .order("model_name");

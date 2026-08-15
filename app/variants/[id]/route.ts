@@ -19,7 +19,7 @@ export async function GET(_request: Request, context: RouteContext) {
       id,vehicle_model_id,year,engine,displacement,fuel,transmission,drivetrain,
       horsepower,torque,tyre_size,engine_oil_capacity,transmission_oil_capacity,coolant_capacity,
       vehicle_model:vehicle_models(
-        id,model_name,generation,body_type,image_url,image_status,
+        id,model_name,generation,body_type,image_url,image_status,production_start_year,production_end_year,
         brand:brands(id,name,logo_url,country)
       )
     `)
