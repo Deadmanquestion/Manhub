@@ -124,7 +124,7 @@ export type VehicleModel = {
   body_type: string;
   generation: string;
   id: string;
-  image_status: "missing" | "queued" | "processing" | "cached" | "external" | "failed" | null;
+  image_status?: "missing" | "queued" | "processing" | "cached" | "external" | "failed" | null;
   image_url: string;
   model_name: string;
 };
@@ -822,7 +822,7 @@ export async function listCustomerVehicles(supabase: SupabaseClient) {
       vehicle_variant:vehicle_variants(
         id,vehicle_model_id,year,engine,displacement,fuel,transmission,drivetrain,horsepower,torque,tyre_size,engine_oil_capacity,transmission_oil_capacity,coolant_capacity,
         vehicle_model:vehicle_models(
-          id,brand_id,model_name,generation,body_type,image_url,image_status,
+          id,brand_id,model_name,generation,body_type,image_url,
           brand:brands(id,name,logo_url,country)
         )
       )
@@ -860,7 +860,7 @@ export async function listVehicleVariants(supabase: SupabaseClient, brandId?: st
     .select(`
       id,vehicle_model_id,year,engine,displacement,fuel,transmission,drivetrain,horsepower,torque,tyre_size,engine_oil_capacity,transmission_oil_capacity,coolant_capacity,
       vehicle_model:vehicle_models(
-        id,brand_id,model_name,generation,body_type,image_url,image_status,
+        id,brand_id,model_name,generation,body_type,image_url,
         brand:brands(id,name,logo_url,country)
       )
     `)
@@ -889,7 +889,7 @@ export async function saveCustomerVehicle(
     vehicle_variant:vehicle_variants(
       id,vehicle_model_id,year,engine,displacement,fuel,transmission,drivetrain,horsepower,torque,tyre_size,engine_oil_capacity,transmission_oil_capacity,coolant_capacity,
       vehicle_model:vehicle_models(
-        id,brand_id,model_name,generation,body_type,image_url,image_status,
+        id,brand_id,model_name,generation,body_type,image_url,
         brand:brands(id,name,logo_url,country)
       )
     )
@@ -907,10 +907,10 @@ export async function listCustomerCatalog(supabase: SupabaseClient, vehicleVaria
   let compatibleProductIds: string[] | undefined;
 
   if (vehicleVariantId) {
-    const { data: compatibility, error: compatibilityError } = await supabase
-      .from("product_vehicle_models")
-      .select("product_id")
-      .eq("vehicle_variant_id", vehicleVariantId);
+    const { data: compatibility, error: compatibilityError } = await queryProductCompatibility(
+      supabase,
+      vehicleVariantId,
+    );
     if (compatibilityError) throw compatibilityError;
 
     compatibleProductIds = (compatibility ?? []).map(
@@ -929,6 +929,39 @@ export async function listCustomerCatalog(supabase: SupabaseClient, vehicleVaria
   const { data, error } = await query;
   if (error) throw error;
   return (data ?? []) as SupplierProduct[];
+}
+
+async function queryProductCompatibility(supabase: SupabaseClient, vehicleVariantId: string) {
+  const variantCompatibility = await supabase
+    .from("product_vehicle_models")
+    .select("product_id")
+    .eq("vehicle_variant_id", vehicleVariantId);
+  if (!isMissingColumnError(variantCompatibility.error, "vehicle_variant_id")) return variantCompatibility;
+
+  const { data: variant, error: variantError } = await supabase
+    .from("vehicle_variants")
+    .select("vehicle_model_id")
+    .eq("id", vehicleVariantId)
+    .maybeSingle();
+  if (variantError) return { data: null, error: variantError };
+  if (!variant?.vehicle_model_id) return { data: [], error: null };
+
+  return supabase
+    .from("product_vehicle_models")
+    .select("product_id")
+    .eq("vehicle_model_id", variant.vehicle_model_id);
+}
+
+function isMissingColumnError(error: unknown, column: string) {
+  if (!error || typeof error !== "object") return false;
+  const details = [
+    "code" in error ? String(error.code) : "",
+    "message" in error ? String(error.message) : "",
+    "details" in error ? String(error.details) : "",
+    "hint" in error ? String(error.hint) : "",
+  ].join(" ");
+  return (details.includes(column) && (details.includes("PGRST204") || details.includes("42703") || details.includes("schema cache")))
+    || details.includes(`column ${column} does not exist`);
 }
 
 export async function listCustomerCart(supabase: SupabaseClient) {

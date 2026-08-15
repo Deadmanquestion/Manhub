@@ -810,13 +810,24 @@ function useResource<T>(load: () => Promise<T>, dependencies: unknown[], initial
   const reload = useCallback(async () => {
     setLoading(true); setError(null);
     try { setData(await load()); } catch (caught) {
-      const message = caught instanceof Error ? caught.message : "Unable to load data.";
+      const message = getErrorMessage(caught);
       setError(`Unable to load ${label}: ${message}`);
     }
     finally { setLoading(false); }
   }, dependencies);
   useEffect(() => { void reload(); }, [reload]);
   return { data, error, loading, reload };
+}
+
+function getErrorMessage(error: unknown) {
+  if (error instanceof Error) return error.message;
+  if (error && typeof error === "object") {
+    const record = error as Record<string, unknown>;
+    for (const key of ["message", "details", "hint"]) {
+      if (typeof record[key] === "string" && record[key]) return record[key];
+    }
+  }
+  return "Unable to load data.";
 }
 
 function ResourceMessage({ resources }: { resources: Array<Resource<unknown>> }) {
