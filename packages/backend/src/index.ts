@@ -845,29 +845,52 @@ export async function listVehicleVariants(supabase: SupabaseClient, brandId?: st
   let modelIds: string[] | undefined;
 
   if (brandId) {
-    const { data: modelRows, error: modelError } = await supabase
+    let modelQuery = supabase
       .from("vehicle_models")
       .select("id")
-      .eq("brand_id", brandId);
+      .eq("brand_id", brandId)
+      .is("discontinued_at", null);
+    let { data: modelRows, error: modelError } = await modelQuery;
+    if (isMissingColumnError(modelError, "discontinued_at")) {
+      const retry = await supabase
+        .from("vehicle_models")
+        .select("id")
+        .eq("brand_id", brandId);
+      modelRows = retry.data;
+      modelError = retry.error;
+    }
     if (modelError) throw modelError;
 
     modelIds = (modelRows ?? []).map((model) => model.id as string);
     if (modelIds.length === 0) return [];
   }
 
+  const select = `
+    id,vehicle_model_id,year,engine,displacement,fuel,transmission,drivetrain,horsepower,torque,tyre_size,engine_oil_capacity,transmission_oil_capacity,coolant_capacity,
+    vehicle_model:vehicle_models(
+      id,brand_id,model_name,generation,body_type,image_url,
+      brand:brands(id,name,logo_url,country)
+    )
+  `;
   let query = supabase
     .from("vehicle_variants")
-    .select(`
-      id,vehicle_model_id,year,engine,displacement,fuel,transmission,drivetrain,horsepower,torque,tyre_size,engine_oil_capacity,transmission_oil_capacity,coolant_capacity,
-      vehicle_model:vehicle_models(
-        id,brand_id,model_name,generation,body_type,image_url,
-        brand:brands(id,name,logo_url,country)
-      )
-    `)
+    .select(select)
+    .is("discontinued_at", null)
     .order("vehicle_model_id")
     .order("year", { ascending: false });
   if (modelIds) query = query.in("vehicle_model_id", modelIds);
-  const { data, error } = await query;
+  let { data, error } = await query;
+  if (isMissingColumnError(error, "discontinued_at")) {
+    let retryQuery = supabase
+      .from("vehicle_variants")
+      .select(select)
+      .order("vehicle_model_id")
+      .order("year", { ascending: false });
+    if (modelIds) retryQuery = retryQuery.in("vehicle_model_id", modelIds);
+    const retry = await retryQuery;
+    data = retry.data;
+    error = retry.error;
+  }
   if (error) throw error;
   return (data ?? []) as unknown as VehicleVariant[];
 }

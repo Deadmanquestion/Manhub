@@ -130,51 +130,6 @@ values
   ('Nissan', 'https://www.google.com/s2/favicons?domain=nissan.com.my&sz=128')
 on conflict (name) do update set logo_url = excluded.logo_url;
 
-with catalog (brand_name, model_name, model_year, engine, fuel, transmission, horsepower, torque_nm, image_url) as (
-  values
-    ('Toyota', 'Camry', 2025, '2.5L Hybrid', 'Petrol hybrid', 'e-CVT', 230, 221, '/assets/vehicle-catalog/sedan.webp'),
-    ('Toyota', 'Vios', 2023, '1.5L', 'Petrol', 'CVT', 106, 138, '/assets/vehicle-catalog/sedan.webp'),
-    ('Toyota', 'Vios', 2024, '1.5L', 'Petrol', 'CVT', 106, 138, '/assets/vehicle-catalog/sedan.webp'),
-    ('Toyota', 'Vios', 2025, '1.5L', 'Petrol', 'CVT', 106, 138, '/assets/vehicle-catalog/sedan.webp'),
-    ('Toyota', 'Corolla Cross', 2024, '1.8L Hybrid', 'Petrol hybrid', 'e-CVT', 122, 142, '/assets/vehicle-catalog/suv.webp'),
-    ('Toyota', 'Corolla Cross', 2025, '1.8L Hybrid', 'Petrol hybrid', 'e-CVT', 122, 142, '/assets/vehicle-catalog/suv.webp'),
-    ('Toyota', 'Hilux', 2024, '2.8L Turbo Diesel', 'Diesel', '6-speed automatic', 204, 500, '/assets/vehicle-catalog/pickup.webp'),
-    ('Toyota', 'Hilux', 2025, '2.8L Turbo Diesel', 'Diesel', '6-speed automatic', 204, 500, '/assets/vehicle-catalog/pickup.webp'),
-    ('Toyota', 'Alphard', 2024, '2.5L', 'Petrol', 'CVT', 182, 235, '/assets/vehicle-catalog/mpv.webp'),
-    ('Toyota', 'Alphard', 2025, '2.5L', 'Petrol', 'CVT', 182, 235, '/assets/vehicle-catalog/mpv.webp'),
-    ('Honda', 'City', 2024, '1.5L', 'Petrol', 'CVT', 121, 145, '/assets/vehicle-catalog/sedan.webp'),
-    ('Honda', 'City', 2025, '1.5L', 'Petrol', 'CVT', 121, 145, '/assets/vehicle-catalog/sedan.webp'),
-    ('Honda', 'Civic', 2024, '1.5L Turbo', 'Petrol', 'CVT', 182, 240, '/assets/vehicle-catalog/sedan.webp'),
-    ('Honda', 'Civic', 2025, '1.5L Turbo', 'Petrol', 'CVT', 182, 240, '/assets/vehicle-catalog/sedan.webp'),
-    ('Honda', 'HR-V', 2025, '1.5L Turbo', 'Petrol', 'CVT', 181, 240, '/assets/vehicle-catalog/suv.webp'),
-    ('BMW', '3 Series', 2025, '2.0L Turbo', 'Petrol', '8-speed automatic', 184, 300, '/assets/vehicle-catalog/sedan.webp'),
-    ('BMW', 'X3', 2025, '2.0L Turbo', 'Petrol', '8-speed automatic', 184, 300, '/assets/vehicle-catalog/suv.webp'),
-    ('Mercedes-Benz', 'C-Class', 2025, '1.5L Turbo Mild Hybrid', 'Petrol hybrid', '9-speed automatic', 204, 300, '/assets/vehicle-catalog/sedan.webp'),
-    ('Mercedes-Benz', 'GLC', 2025, '2.0L Turbo Mild Hybrid', 'Petrol hybrid', '9-speed automatic', 258, 400, '/assets/vehicle-catalog/suv.webp'),
-    ('Proton', 'Saga', 2025, '1.3L', 'Petrol', '4-speed automatic', 95, 120, '/assets/vehicle-catalog/sedan.webp'),
-    ('Proton', 'X50', 2025, '1.5L Turbo', 'Petrol', '7-speed DCT', 177, 255, '/assets/vehicle-catalog/suv.webp'),
-    ('Proton', 'X70', 2025, '1.5L Turbo', 'Petrol', '7-speed DCT', 177, 255, '/assets/vehicle-catalog/suv.webp'),
-    ('Perodua', 'Myvi', 2025, '1.5L', 'Petrol', 'D-CVT', 102, 137, '/assets/vehicle-catalog/hatchback.webp'),
-    ('Perodua', 'Axia', 2025, '1.0L', 'Petrol', 'D-CVT', 67, 91, '/assets/vehicle-catalog/hatchback.webp'),
-    ('Perodua', 'Ativa', 2025, '1.0L Turbo', 'Petrol', 'D-CVT', 98, 140, '/assets/vehicle-catalog/suv.webp'),
-    ('Mazda', 'Mazda3', 2025, '2.0L', 'Petrol', '6-speed automatic', 162, 213, '/assets/vehicle-catalog/hatchback.webp'),
-    ('Mazda', 'CX-5', 2025, '2.0L', 'Petrol', '6-speed automatic', 162, 213, '/assets/vehicle-catalog/suv.webp'),
-    ('Nissan', 'Almera', 2025, '1.0L Turbo', 'Petrol', 'Xtronic CVT', 100, 152, '/assets/vehicle-catalog/sedan.webp'),
-    ('Nissan', 'X-Trail', 2025, '2.5L', 'Petrol', 'Xtronic CVT', 181, 244, '/assets/vehicle-catalog/suv.webp')
-)
-insert into public.vehicle_models (
-  brand_id, model_name, year, engine, fuel, transmission, horsepower, torque_nm, image_url
-)
-select brand.id, catalog.model_name, catalog.model_year, catalog.engine, catalog.fuel,
-  catalog.transmission, catalog.horsepower, catalog.torque_nm, catalog.image_url
-from catalog
-join public.brands brand on brand.name = catalog.brand_name
-on conflict (brand_id, model_name, year, engine, transmission) do update
-set fuel = excluded.fuel,
-    horsepower = excluded.horsepower,
-    torque_nm = excluded.torque_nm,
-    image_url = excluded.image_url;
-
 insert into public.brands (name, logo_url)
 select distinct btrim(car.make), 'https://www.google.com/s2/favicons?domain=car.info&sz=128'
 from public.cars car
