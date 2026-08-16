@@ -19,6 +19,7 @@ import {
   listPlatformWorkshops,
   listServiceCatalog,
   listVehicleBrands,
+  listVehicleModels,
   listVehicleVariants,
   markNotificationRead,
   saveCustomerVehicle,
@@ -41,6 +42,7 @@ import {
   type ServiceCatalogItem,
   type SupplierProduct,
   type VehicleBrand,
+  type VehicleModel,
   type VehicleVariant,
 } from "@manhub/backend";
 import "./customer-app.css";
@@ -69,9 +71,37 @@ function variantName(variant: VehicleVariant) {
   return `${variant.vehicle_model.brand.name} ${variant.vehicle_model.model_name}`;
 }
 
-function vehicleImageSrc(imageUrl?: string | null) {
-  const value = imageUrl?.trim();
-  return value ? value : "/vehicle-placeholder.svg";
+function vehicleImageUrl(imageUrl?: string | null) {
+  return imageUrl?.trim() || null;
+}
+
+function VehicleModelImage({ alt, className = "", imageUrl }: { alt: string; className?: string; imageUrl?: string | null }) {
+  const src = vehicleImageUrl(imageUrl);
+  if (!src) return <div aria-label="Vehicle image unavailable" className={`vehicle-image-missing ${className}`.trim()}>Image unavailable</div>;
+  return <img alt={alt} className={className || undefined} src={src} />;
+}
+
+function sortedVehicleVariants(variants: VehicleVariant[]) {
+  return [...variants].sort((first, second) => {
+    if (second.year !== first.year) return second.year - first.year;
+    return [
+      first.engine.localeCompare(second.engine),
+      first.transmission.localeCompare(second.transmission),
+      first.drivetrain.localeCompare(second.drivetrain),
+    ].find((result) => result !== 0) ?? 0;
+  });
+}
+
+function distinctYearVariants(variants: VehicleVariant[], preferredVariantId?: string) {
+  const byYear = new Map<number, VehicleVariant>();
+  for (const variant of sortedVehicleVariants(variants)) {
+    if (!byYear.has(variant.year)) byYear.set(variant.year, variant);
+  }
+  if (preferredVariantId) {
+    const preferred = variants.find((variant) => variant.id === preferredVariantId);
+    if (preferred) byYear.set(preferred.year, preferred);
+  }
+  return Array.from(byYear.values()).sort((first, second) => second.year - first.year);
 }
 
 export default function CustomerApp({ onSignOut, onSwitchPortal, profile: initialProfile, supabase }: Props) {
@@ -178,7 +208,7 @@ function Home({ profile, supabase }: { profile: ManHubProfile; supabase: Supabas
           <b>{vehicle ? `${vehicle.mileage.toLocaleString()} km` : "Get started"}</b>
         </div>
         {vehicle
-          ? <img alt="" className="home-vehicle-image" src={vehicleImageSrc(vehicle.vehicle_variant.vehicle_model.image_url)} />
+          ? <VehicleModelImage alt="" className="home-vehicle-image" imageUrl={vehicle.vehicle_variant.vehicle_model.image_url} />
           : <span aria-hidden="true" className="vehicle-visual"><i /><i /></span>}
         <span className="home-chevron">&gt;</span>
       </Link>
@@ -309,7 +339,7 @@ function VehicleIdentity({ vehicle }: { vehicle: CustomerVehicle }) {
   const model = vehicle.vehicle_variant.vehicle_model;
   return (
     <div className="vehicle-identity">
-      <img alt={vehicleName(vehicle)} src={vehicleImageSrc(model.image_url)} />
+      <VehicleModelImage alt={vehicleName(vehicle)} imageUrl={model.image_url} />
       <span>
         <strong>{vehicle.nickname || vehicleName(vehicle)}</strong>
         <small>{vehicle.vehicle_variant.year} · {vehicle.vehicle_variant.engine} · {vehicle.plate_number}</small>
@@ -332,37 +362,42 @@ function Vehicles({ run, supabase }: ActionProps) {
   const [form, setForm] = useState<CustomerVehicleInput>(emptyVehicle);
   const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
   const [brandId, setBrandId] = useState("");
-  const [modelName, setModelName] = useState("");
+  const [modelId, setModelId] = useState("");
   const models = useResource(
+    () => brandId ? listVehicleModels(supabase, brandId) : Promise.resolve([] as VehicleModel[]),
+    [supabase, brandId],
+    [] as VehicleModel[],
+    "vehicle models",
+  );
+  const variants = useResource(
     () => brandId ? listVehicleVariants(supabase, brandId) : Promise.resolve([] as VehicleVariant[]),
     [supabase, brandId],
     [] as VehicleVariant[],
-    "vehicle models",
+    "vehicle variants",
   );
 
-  const brandModels = useMemo(() => models.data.filter((model) => model.vehicle_model.brand_id === brandId), [brandId, models.data]);
-  const modelCards = useMemo(() => {
-    const latest = new Map<string, VehicleVariant>();
-    for (const model of brandModels) if (!latest.has(model.vehicle_model.model_name)) latest.set(model.vehicle_model.model_name, model);
-    return Array.from(latest.values());
-  }, [brandModels]);
-  const modelYears = useMemo(
-    () => brandModels.filter((model) => model.vehicle_model.model_name === modelName).sort((a, b) => b.year - a.year),
-    [brandModels, modelName],
+  const modelVariants = useMemo(
+    () => variants.data.filter((model) => model.vehicle_model_id === modelId),
+    [modelId, variants.data],
   );
-  const selectedModel = models.data.find((model) => model.id === form.vehicle_variant_id);
+  const modelYearOptions = useMemo(
+    () => distinctYearVariants(modelVariants, form.vehicle_variant_id),
+    [form.vehicle_variant_id, modelVariants],
+  );
+  const selectedVehicleModel = models.data.find((model) => model.id === modelId);
+  const selectedVariant = variants.data.find((model) => model.id === form.vehicle_variant_id);
 
   const reset = () => {
     setEditing(null);
     setForm(emptyVehicle);
     setBrandId("");
-    setModelName("");
+    setModelId("");
     setStep(1);
   };
 
   const submit = (event: FormEvent) => {
     event.preventDefault();
-    if (!selectedModel) return;
+    if (!selectedVariant) return;
     void run(async () => {
       await saveCustomerVehicle(supabase, {
         ...form,
@@ -383,13 +418,13 @@ function Vehicles({ run, supabase }: ActionProps) {
       vehicle_variant_id: vehicle.vehicle_variant_id,
     });
     setBrandId(vehicle.vehicle_variant.vehicle_model.brand_id);
-    setModelName(vehicle.vehicle_variant.vehicle_model.model_name);
+    setModelId(vehicle.vehicle_variant.vehicle_model.id);
     setStep(4);
   };
 
   return (
     <Page title="My vehicles" action={<button className="text-button" onClick={reset}>New</button>}>
-      <ResourceMessage resources={brandId ? [vehicles, brands, models] : [vehicles, brands]} />
+      <ResourceMessage resources={brandId ? [vehicles, brands, models, variants] : [vehicles, brands]} />
       <section className="vehicle-selector">
         <ol className="vehicle-steps" aria-label="Vehicle setup progress">
           {["Brand", "Model", "Year", "Details"].map((label, index) => (
@@ -404,7 +439,7 @@ function Vehicles({ run, supabase }: ActionProps) {
           <div className="brand-grid">
             {brands.data.map((brand) => <button key={brand.id} onClick={() => {
               setBrandId(brand.id);
-              setModelName("");
+              setModelId("");
               setForm({ ...form, vehicle_variant_id: "" });
               setStep(2);
             }}>
@@ -417,36 +452,40 @@ function Vehicles({ run, supabase }: ActionProps) {
         {step === 2 && <section className="selector-stage">
           <header><button aria-label="Back to brands" className="back-button" onClick={() => setStep(1)}>&lsaquo;</button><div><span className="eyebrow">Step 2</span><h2>Select model</h2></div></header>
           <div className="vehicle-model-grid">
-            {modelCards.map((model) => <button key={model.vehicle_model.model_name} onClick={() => {
-              const years = brandModels.filter((item) => item.vehicle_model.model_name === model.vehicle_model.model_name).sort((a, b) => b.year - a.year);
-              setModelName(model.vehicle_model.model_name);
+            {models.data.map((model) => <button key={model.id} onClick={() => {
+              const years = distinctYearVariants(variants.data.filter((item) => item.vehicle_model_id === model.id));
+              setModelId(model.id);
               setForm({ ...form, vehicle_variant_id: years[0]?.id ?? "" });
               setStep(3);
             }}>
-              <img alt={`${model.vehicle_model.brand.name} ${model.vehicle_model.model_name}`} src={vehicleImageSrc(model.vehicle_model.image_url)} />
-              <span><strong>{model.vehicle_model.model_name}</strong><small>{model.engine} · {model.fuel}</small></span>
+              <VehicleModelImage alt={`${model.brand.name} ${model.model_name}`} imageUrl={model.image_url} />
+              <span><strong>{model.model_name}</strong><small>{[model.generation, model.body_type].filter(Boolean).join(" · ") || "Model catalogue"}</small></span>
             </button>)}
           </div>
-          {!models.loading && !models.error && modelCards.length === 0 && <Empty text="No vehicle models are available for this brand yet." />}
+          {!models.loading && !models.error && models.data.length === 0 && <Empty text="No vehicle models are available for this brand yet." />}
         </section>}
 
         {step === 3 && <section className="selector-stage year-stage">
           <header><button aria-label="Back to models" className="back-button" onClick={() => setStep(2)}>&lsaquo;</button><div><span className="eyebrow">Step 3</span><h2>Choose vehicle year</h2></div></header>
-          {modelYears[0] && <img alt={variantName(modelYears[0])} src={vehicleImageSrc(modelYears[0].vehicle_model.image_url)} />}
-          <Select label="Year" value={form.vehicle_variant_id} onChange={(value) => setForm({ ...form, vehicle_variant_id: value })} options={modelYears.map((model) => ({ label: String(model.year), value: model.id }))} />
+          {selectedVehicleModel && <VehicleModelImage alt={`${selectedVehicleModel.brand.name} ${selectedVehicleModel.model_name}`} imageUrl={selectedVehicleModel.image_url} />}
+          {modelYearOptions.length > 0
+            ? <Select label="Year" value={form.vehicle_variant_id} onChange={(value) => setForm({ ...form, vehicle_variant_id: value })} options={modelYearOptions.map((model) => ({ label: String(model.year), value: model.id }))} />
+            : <Empty text="No vehicle variants are available for this model yet." />}
           <button className="primary-button" disabled={!form.vehicle_variant_id} onClick={() => setStep(4)}>Continue</button>
         </section>}
 
-        {step === 4 && selectedModel && <form className="selector-stage vehicle-confirm" onSubmit={submit}>
+        {step === 4 && selectedVariant && <form className="selector-stage vehicle-confirm" onSubmit={submit}>
           <header><button aria-label="Back to year" className="back-button" type="button" onClick={() => setStep(3)}>&lsaquo;</button><div><span className="eyebrow">Step 4</span><h2>Confirm your vehicle</h2></div></header>
-          <img alt={variantName(selectedModel)} className="confirm-vehicle-image" src={vehicleImageSrc(selectedModel.vehicle_model.image_url)} />
-          <div className="selected-vehicle-heading"><strong>{variantName(selectedModel)}</strong><span>{selectedModel.year}</span></div>
+          <VehicleModelImage alt={variantName(selectedVariant)} className="confirm-vehicle-image" imageUrl={selectedVariant.vehicle_model.image_url} />
+          <div className="selected-vehicle-heading"><strong>{variantName(selectedVariant)}</strong><span>{selectedVariant.year}</span></div>
           <dl className="vehicle-specs">
-            <div><dt>Engine</dt><dd>{selectedModel.engine}</dd></div>
-            <div><dt>Transmission</dt><dd>{selectedModel.transmission}</dd></div>
-            <div><dt>Fuel</dt><dd>{selectedModel.fuel}</dd></div>
-            <div><dt>Horsepower</dt><dd>{selectedModel.horsepower ? `${selectedModel.horsepower} hp` : "Not available"}</dd></div>
-            <div><dt>Torque</dt><dd>{selectedModel.torque ? `${selectedModel.torque} Nm` : "Not available"}</dd></div>
+            <div><dt>Engine</dt><dd>{selectedVariant.engine}</dd></div>
+            <div><dt>Displacement</dt><dd>{selectedVariant.displacement ? `${selectedVariant.displacement.toLocaleString()} cc` : "Not available"}</dd></div>
+            <div><dt>Transmission</dt><dd>{selectedVariant.transmission}</dd></div>
+            <div><dt>Drivetrain</dt><dd>{selectedVariant.drivetrain}</dd></div>
+            <div><dt>Fuel</dt><dd>{selectedVariant.fuel}</dd></div>
+            <div><dt>Horsepower</dt><dd>{selectedVariant.horsepower ? `${selectedVariant.horsepower} hp` : "Not available"}</dd></div>
+            <div><dt>Torque</dt><dd>{selectedVariant.torque ? `${selectedVariant.torque} Nm` : "Not available"}</dd></div>
           </dl>
           <Input label="Plate number" required value={form.plate_number} onChange={(value) => setForm({ ...form, plate_number: value })} />
           <Input label="Mileage (km)" required type="number" value={form.mileage.toString()} onChange={(value) => setForm({ ...form, mileage: Math.max(0, Number(value) || 0) })} />
@@ -457,7 +496,7 @@ function Vehicles({ run, supabase }: ActionProps) {
       <div className="record-list">
         {vehicles.data.map((vehicle) => (
           <article className="record-card saved-vehicle-card" key={vehicle.id}>
-            <img alt={vehicleName(vehicle)} src={vehicleImageSrc(vehicle.vehicle_variant.vehicle_model.image_url)} />
+            <VehicleModelImage alt={vehicleName(vehicle)} imageUrl={vehicle.vehicle_variant.vehicle_model.image_url} />
             <div><strong>{vehicle.nickname || vehicleName(vehicle)}</strong><span>{vehicle.plate_number}</span></div>
             <dl>
               <div><dt>Vehicle</dt><dd>{vehicleName(vehicle)}</dd></div>
@@ -544,7 +583,7 @@ function Cart({ run, supabase }: ActionProps) {
       {cart.data.length > 0 && (
         <section className="checkout-panel">
           <label>Payment method<select value={method} onChange={(event) => setMethod(event.target.value)}>
-            <option>Online banking</option><option>Touch 'n Go eWallet</option><option>Card</option><option>Pay at workshop</option>
+            <option>Online banking</option><option>Touch &apos;n Go eWallet</option><option>Card</option><option>Pay at workshop</option>
           </select></label>
           <div><span>Total</span><strong>{money.format(total)}</strong></div>
           <button className="primary-button" onClick={() => void run(async () => {

@@ -1,11 +1,11 @@
-import { createSupabaseServiceClient } from "@/lib/supabase/server";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export function OPTIONS() {
   return new Response(null, { status: 204, headers: corsHeaders });
 }
 
 export async function GET() {
-  const supabase = createSupabaseServiceClient();
+  const supabase = createSupabaseServerClient();
   if (!supabase) return vehicleJson({ error: "Vehicle service is not configured." }, 503);
 
   const { data, error } = await supabase

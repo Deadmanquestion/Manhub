@@ -1,4 +1,4 @@
-import { createSupabaseServiceClient } from "@/lib/supabase/server";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 type RouteContext = {
   params: Promise<{ id: string }>;
@@ -10,7 +10,7 @@ export function OPTIONS() {
 
 export async function GET(_request: Request, context: RouteContext) {
   const { id } = await context.params;
-  const supabase = createSupabaseServiceClient();
+  const supabase = createSupabaseServerClient();
   if (!supabase) return vehicleJson({ error: "Vehicle service is not configured." }, 503);
 
   const { data, error } = await supabase

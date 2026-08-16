@@ -414,33 +414,18 @@ const localPortalUrlByRole: Record<PortalRole, string> = {
 
 const renderPortalUrlByRole: Partial<Record<PortalRole, string>> = {
   admin: "https://manfix-admin.onrender.com",
-  customer: "https://manhub-customer.onrender.com",
+  customer: "https://manfix-customer.onrender.com",
   supplier: "https://manfix-supplier.onrender.com",
   technician: "https://manfix-tech.onrender.com",
-  workshop: "https://manhub-workshop.onrender.com",
-};
-
-const legacyRenderPortalUrlByRole: Partial<Record<PortalRole, string>> = {
-  customer: "https://manhub-customer.onrender.com",
-  supplier: "https://manhub-supplier.onrender.com",
-  workshop: "https://manhub-workshop.onrender.com",
+  workshop: "https://manfix-workshop.onrender.com",
 };
 
 const portalAliasesByRole: Partial<Record<PortalRole, string[]>> = {
-  customer: [
-    legacyRenderPortalUrlByRole.customer!,
-  ],
-  supplier: [
-    legacyRenderPortalUrlByRole.supplier!,
-  ],
   technician: [
     "https://manfix-technician.onrender.com",
     "https://manfix-tech.onrender.com",
     "https://tech.manfix.my",
     "https://technician.manfix.my",
-  ],
-  workshop: [
-    legacyRenderPortalUrlByRole.workshop!,
   ],
 };
 
@@ -451,13 +436,6 @@ function cleanUrl(value: string) {
 function normalizeConfiguredPortalUrl(role: PortalRole, value?: string) {
   if (!value) return undefined;
   const normalized = cleanUrl(value);
-  if (
-    role !== "supplier"
-    && legacyRenderPortalUrlByRole[role]
-    && normalized === legacyRenderPortalUrlByRole[role]
-  ) {
-    return renderPortalUrlByRole[role];
-  }
   if (role === "customer" && normalized === "https://manfix-customer.onrender.com") {
     return renderPortalUrlByRole.customer;
   }
@@ -469,11 +447,7 @@ function normalizeConfiguredPortalUrl(role: PortalRole, value?: string) {
 
 function normalizeConfiguredAuthUrl(value?: string) {
   if (!value) return undefined;
-  const normalized = cleanUrl(value);
-  if (normalized === "https://manfix-auth.onrender.com") {
-    return "https://manhub-auth.onrender.com";
-  }
-  return normalized;
+  return cleanUrl(value);
 }
 
 const MANFIX_AUTH_COOKIE_NAME = "manfix-auth";
@@ -660,7 +634,7 @@ export function getAuthAppUrl() {
     ?? normalizeConfiguredAuthUrl(import.meta.env.VITE_MANHUB_AUTH_URL)
     ?? (typeof window !== "undefined" && ["localhost", "127.0.0.1"].includes(window.location.hostname)
       ? "http://localhost:4104"
-      : "https://manhub-auth.onrender.com");
+      : "https://manfix-auth.onrender.com");
 }
 
 export function getManFixApiUrl() {
@@ -843,11 +817,38 @@ export async function listVehicleBrands(supabase: SupabaseClient) {
   return (data ?? []) as VehicleBrand[];
 }
 
+export async function listVehicleModels(supabase: SupabaseClient, brandId: string) {
+  const select = `
+    id,brand_id,model_name,generation,body_type,image_url,production_start_year,production_end_year,
+    brand:brands(id,name,logo_url,country)
+  `;
+  const query = supabase
+    .from("vehicle_models")
+    .select(select)
+    .eq("brand_id", brandId)
+    .is("discontinued_at", null)
+    .order("model_name")
+    .order("generation");
+  let { data, error } = await query;
+  if (isMissingColumnError(error, "discontinued_at")) {
+    const retry = await supabase
+      .from("vehicle_models")
+      .select(select)
+      .eq("brand_id", brandId)
+      .order("model_name")
+      .order("generation");
+    data = retry.data;
+    error = retry.error;
+  }
+  if (error) throw error;
+  return (data ?? []) as unknown as VehicleModel[];
+}
+
 export async function listVehicleVariants(supabase: SupabaseClient, brandId?: string) {
   let modelIds: string[] | undefined;
 
   if (brandId) {
-    let modelQuery = supabase
+    const modelQuery = supabase
       .from("vehicle_models")
       .select("id")
       .eq("brand_id", brandId)
@@ -896,8 +897,6 @@ export async function listVehicleVariants(supabase: SupabaseClient, brandId?: st
   if (error) throw error;
   return (data ?? []) as unknown as VehicleVariant[];
 }
-
-export const listVehicleModels = listVehicleVariants;
 
 export async function saveCustomerVehicle(
   supabase: SupabaseClient,
@@ -1424,7 +1423,9 @@ export async function listSupplierProducts(supabase: SupabaseClient) {
 
 export async function saveSupplierProduct(supabase: SupabaseClient, values: SupplierProductInput, id?: string) {
   if (id) {
-    const { incoming_stock: _incomingStock, stock: _stock, ...editableValues } = values;
+    const editableValues: Partial<SupplierProductInput> = { ...values };
+    delete editableValues.incoming_stock;
+    delete editableValues.stock;
     const { data, error } = await supabase
       .from("supplier_products")
       .update(editableValues)

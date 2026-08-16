@@ -1,48 +1,35 @@
 const manfixRenderUrls = {
   admin: "https://manfix-admin.onrender.com",
-  auth: "https://manhub-auth.onrender.com",
-  customer: "https://manhub-customer.onrender.com",
+  auth: "https://manfix-auth.onrender.com",
+  customer: "https://manfix-customer.onrender.com",
   supplier: "https://manfix-supplier.onrender.com",
   technician: "https://manfix-tech.onrender.com",
-  workshop: "https://manhub-workshop.onrender.com",
+  workshop: "https://manfix-workshop.onrender.com",
 };
 
-const legacyRenderUrls = {
-  auth: "https://manhub-auth.onrender.com",
-  customer: "https://manhub-customer.onrender.com",
-  supplier: "https://manhub-supplier.onrender.com",
-  workshop: "https://manhub-workshop.onrender.com",
-};
-
-function normalizeRenderUrl(value: string | undefined, legacyUrl: string | undefined, fallbackUrl: string) {
+function normalizeRenderUrl(value: string | undefined, fallbackUrl: string) {
   if (!value) return fallbackUrl;
-  const normalized = value.replace(/\/+$/, "");
-  return legacyUrl && normalized === legacyUrl ? fallbackUrl : normalized;
+  return value.replace(/\/+$/, "");
 }
 
 const authUrl = `${normalizeRenderUrl(
   process.env.NEXT_PUBLIC_MANFIX_AUTH_URL ?? process.env.NEXT_PUBLIC_MANHUB_AUTH_URL,
-  "https://manfix-auth.onrender.com",
   manfixRenderUrls.auth,
 )}/login`;
 const supplierUrl = normalizeRenderUrl(
   process.env.NEXT_PUBLIC_MANFIX_SUPPLIER_URL ?? process.env.NEXT_PUBLIC_MANHUB_SUPPLIER_URL,
-  legacyRenderUrls.supplier,
   manfixRenderUrls.supplier,
 );
 const workshopUrl = normalizeRenderUrl(
   process.env.NEXT_PUBLIC_MANFIX_WORKSHOP_URL ?? process.env.NEXT_PUBLIC_MANHUB_WORKSHOP_URL,
-  "https://manfix-workshop.onrender.com",
   manfixRenderUrls.workshop,
 );
 const technicianUrl = normalizeRenderUrl(
   process.env.NEXT_PUBLIC_MANFIX_TECHNICIAN_URL ?? process.env.NEXT_PUBLIC_MANFIX_TECH_URL,
-  undefined,
   manfixRenderUrls.technician,
 );
 const adminUrl = normalizeRenderUrl(
   process.env.NEXT_PUBLIC_MANFIX_ADMIN_URL ?? process.env.NEXT_PUBLIC_MANHUB_ADMIN_URL,
-  undefined,
   manfixRenderUrls.admin,
 );
 

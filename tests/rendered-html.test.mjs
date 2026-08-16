@@ -36,8 +36,8 @@ test("keeps the single-login and role portal links in the server output", async 
   const html = await response.text();
 
   assert.match(html, /Open Single Login/);
-  assert.match(html, /manhub-auth\.onrender\.com\/login/);
-  assert.match(html, /manhub-workshop\.onrender\.com/);
+  assert.match(html, /manfix-auth\.onrender\.com\/login/);
+  assert.match(html, /manfix-workshop\.onrender\.com/);
   assert.match(html, /manfix-tech\.onrender\.com/);
   assert.match(html, /Supabase Auth, PostgreSQL, Row Level Security, storage, and API access are shared/);
 });
