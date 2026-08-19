@@ -18,6 +18,7 @@ function AuthApp() {
     <Routes>
       <Route path="/" element={<Navigate to="/login" replace />} />
       <Route path="/login" element={<SingleSignOnPage />} />
+      <Route path="/register" element={<SingleSignOnPage initialMode="customer-register" />} />
       <Route path="/logout" element={<LogoutPage />} />
       <Route path="/select-portal" element={<PortalSelectionPage />} />
       <Route path="/partners" element={<PartnerLandingPage />} />

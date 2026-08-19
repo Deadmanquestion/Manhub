@@ -148,12 +148,16 @@ export function usePortalAuth(supabase: SupabaseClient | null, portalRole: Porta
   return { ...state, refresh };
 }
 
-export function SingleSignOnPage() {
+export function SingleSignOnPage({
+  initialMode = "login",
+}: {
+  initialMode?: "login" | "customer-register";
+}) {
   const supabase = useMemo(() => createManHubSupabaseClient(), []);
   const nextUrl = useMemo(() => getAuthRouteParams().get("next"), []);
   const [email, setEmail] = useState("");
   const [fullName, setFullName] = useState("");
-  const [mode, setMode] = useState<"login" | "customer-register">("login");
+  const [mode, setMode] = useState<"login" | "customer-register">(initialMode);
   const [password, setPassword] = useState("");
   const [status, setStatus] = useState("Use your ManFix account. The platform will open the correct portal automatically.");
 

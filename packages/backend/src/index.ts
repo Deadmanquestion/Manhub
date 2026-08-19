@@ -442,6 +442,9 @@ function normalizeConfiguredPortalUrl(role: PortalRole, value?: string) {
   if (role === "workshop" && normalized === "https://manfix-workshop.onrender.com") {
     return renderPortalUrlByRole.workshop;
   }
+  if (role === "supplier" && normalized === "https://manhub-supplier.onrender.com") {
+    return renderPortalUrlByRole.supplier;
+  }
   return normalized;
 }
 
