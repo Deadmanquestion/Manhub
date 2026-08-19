@@ -641,10 +641,13 @@ export function isProfileEnabled(profile: ManHubProfile | null) {
 }
 
 export function getAuthAppUrl() {
-  return normalizeConfiguredAuthUrl(import.meta.env.VITE_MANFIX_AUTH_URL)
+  return normalizeConfiguredAuthUrl(
+    import.meta.env.VITE_MANFIX_AUTH_URL
+      ?? import.meta.env.VITE_MANHUB_AUTH_URL,
+  )
     ?? (typeof window !== "undefined" && ["localhost", "127.0.0.1"].includes(window.location.hostname)
       ? "http://localhost:4104"
-      : "https://manfix-auth.onrender.com");
+      : "https://manhub-auth.onrender.com");
 }
 
 export function getManFixApiUrl() {
@@ -693,24 +696,30 @@ export function getPortalDestination(role: PortalRole) {
   const configured = {
     admin: normalizeConfiguredPortalUrl(
       "admin",
-      import.meta.env.VITE_MANFIX_ADMIN_URL,
+      import.meta.env.VITE_MANFIX_ADMIN_URL
+        ?? import.meta.env.VITE_MANHUB_ADMIN_URL,
     ),
     customer: normalizeConfiguredPortalUrl(
       "customer",
-      import.meta.env.VITE_MANFIX_CUSTOMER_URL,
+      import.meta.env.VITE_MANFIX_CUSTOMER_URL
+        ?? import.meta.env.VITE_MANHUB_CUSTOMER_URL,
     ),
     supplier: normalizeConfiguredPortalUrl(
       "supplier",
-      import.meta.env.VITE_MANFIX_SUPPLIER_URL,
+      import.meta.env.VITE_MANFIX_SUPPLIER_URL
+        ?? import.meta.env.VITE_MANHUB_SUPPLIER_URL,
     ),
     technician: normalizeConfiguredPortalUrl(
       "technician",
       import.meta.env.VITE_MANFIX_TECHNICIAN_URL
-        ?? import.meta.env.VITE_MANFIX_TECH_URL,
+        ?? import.meta.env.VITE_MANFIX_TECH_URL
+        ?? import.meta.env.VITE_MANHUB_TECHNICIAN_URL
+        ?? import.meta.env.VITE_MANHUB_TECH_URL,
     ),
     workshop: normalizeConfiguredPortalUrl(
       "workshop",
-      import.meta.env.VITE_MANFIX_WORKSHOP_URL,
+      import.meta.env.VITE_MANFIX_WORKSHOP_URL
+        ?? import.meta.env.VITE_MANHUB_WORKSHOP_URL,
     ),
   } satisfies Partial<Record<PortalRole, string | undefined>>;
 
