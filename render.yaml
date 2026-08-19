@@ -29,6 +29,8 @@ services:
         value: https://manfix-tech.onrender.com
       - key: NEXT_PUBLIC_MANFIX_ADMIN_URL
         value: https://manfix-admin.onrender.com
+      - key: NEXT_PUBLIC_MANFIX_API_URL
+        value: https://manhub.onrender.com
   - type: static
     name: manfix-auth
     buildCommand: npm ci && npm run build --workspace @manhub/auth-app
@@ -56,6 +58,8 @@ services:
         value: https://manfix-tech.onrender.com
       - key: VITE_MANFIX_ADMIN_URL
         value: https://manfix-admin.onrender.com
+      - key: VITE_MANFIX_API_URL
+        value: https://manhub.onrender.com
   - type: static
     name: manfix-customer
     buildCommand: npm ci && npm run build --workspace @manhub/customer-app
@@ -83,6 +87,8 @@ services:
         value: https://manfix-tech.onrender.com
       - key: VITE_MANFIX_ADMIN_URL
         value: https://manfix-admin.onrender.com
+      - key: VITE_MANFIX_API_URL
+        value: https://manhub.onrender.com
   - type: static
     name: manfix-supplier
     buildCommand: npm ci && npm run build --workspace @manhub/supplier-portal
@@ -110,6 +116,8 @@ services:
         value: https://manfix-tech.onrender.com
       - key: VITE_MANFIX_ADMIN_URL
         value: https://manfix-admin.onrender.com
+      - key: VITE_MANFIX_API_URL
+        value: https://manhub.onrender.com
   - type: static
     name: manfix-workshop
     buildCommand: npm ci && npm run build --workspace @manhub/workshop-portal
@@ -137,6 +145,8 @@ services:
         value: https://manfix-tech.onrender.com
       - key: VITE_MANFIX_ADMIN_URL
         value: https://manfix-admin.onrender.com
+      - key: VITE_MANFIX_API_URL
+        value: https://manhub.onrender.com
   - type: static
     name: manfix-tech
     buildCommand: npm ci && npm run build --workspace @manhub/technician-portal
@@ -164,6 +174,8 @@ services:
         value: https://manfix-tech.onrender.com
       - key: VITE_MANFIX_ADMIN_URL
         value: https://manfix-admin.onrender.com
+      - key: VITE_MANFIX_API_URL
+        value: https://manhub.onrender.com
   - type: static
     name: manfix-admin
     buildCommand: npm ci && npm run build --workspace @manhub/admin-dashboard
@@ -191,3 +203,5 @@ services:
         value: https://manfix-tech.onrender.com
       - key: VITE_MANFIX_ADMIN_URL
         value: https://manfix-admin.onrender.com
+      - key: VITE_MANFIX_API_URL
+        value: https://manhub.onrender.com

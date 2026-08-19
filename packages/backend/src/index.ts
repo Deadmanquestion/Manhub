@@ -656,9 +656,9 @@ export function getAuthAppUrl() {
 export function getManFixApiUrl() {
   if (typeof import.meta !== "undefined" && import.meta.env) {
     return import.meta.env.VITE_MANFIX_API_URL
-      ?? "https://manfix-platform.onrender.com";
+      ?? "https://manhub.onrender.com";
   }
-  return "https://manfix-platform.onrender.com";
+  return "https://manhub.onrender.com";
 }
 
 export function isAuthAppUrl(value: string) {
