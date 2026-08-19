@@ -414,10 +414,10 @@ const localPortalUrlByRole: Record<PortalRole, string> = {
 
 const renderPortalUrlByRole: Partial<Record<PortalRole, string>> = {
   admin: "https://manfix-admin.onrender.com",
-  customer: "https://manfix-customer.onrender.com",
+  customer: "https://manhub-customer.onrender.com",
   supplier: "https://manfix-supplier.onrender.com",
   technician: "https://manfix-tech.onrender.com",
-  workshop: "https://manfix-workshop.onrender.com",
+  workshop: "https://manhub-workshop.onrender.com",
 };
 
 const portalAliasesByRole: Partial<Record<PortalRole, string[]>> = {
@@ -447,7 +447,11 @@ function normalizeConfiguredPortalUrl(role: PortalRole, value?: string) {
 
 function normalizeConfiguredAuthUrl(value?: string) {
   if (!value) return undefined;
-  return cleanUrl(value);
+  const normalized = cleanUrl(value);
+  if (normalized === "https://manfix-auth.onrender.com") {
+    return "https://manhub-auth.onrender.com";
+  }
+  return normalized;
 }
 
 const MANFIX_AUTH_COOKIE_NAME = "manfix-auth";

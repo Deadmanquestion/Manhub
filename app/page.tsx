@@ -1,15 +1,23 @@
 const manfixRenderUrls = {
   admin: "https://manfix-admin.onrender.com",
-  auth: "https://manfix-auth.onrender.com",
-  customer: "https://manfix-customer.onrender.com",
+  auth: "https://manhub-auth.onrender.com",
+  customer: "https://manhub-customer.onrender.com",
   supplier: "https://manfix-supplier.onrender.com",
   technician: "https://manfix-tech.onrender.com",
-  workshop: "https://manfix-workshop.onrender.com",
+  workshop: "https://manhub-workshop.onrender.com",
 };
 
 function normalizeRenderUrl(value: string | undefined, fallbackUrl: string) {
   if (!value) return fallbackUrl;
-  return value.replace(/\/+$/, "");
+  const normalized = value.replace(/\/+$/, "");
+  if ([
+    "https://manfix-auth.onrender.com",
+    "https://manfix-customer.onrender.com",
+    "https://manfix-workshop.onrender.com",
+  ].includes(normalized)) {
+    return fallbackUrl;
+  }
+  return normalized;
 }
 
 const authUrl = `${normalizeRenderUrl(
