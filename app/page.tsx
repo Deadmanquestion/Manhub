@@ -23,7 +23,7 @@ function normalizeRenderUrl(value: string | undefined, fallbackUrl: string) {
 const authUrl = `${normalizeRenderUrl(
   process.env.NEXT_PUBLIC_MANFIX_AUTH_URL,
   manfixRenderUrls.auth,
-)}/login`;
+)}/#/login`;
 const supplierUrl = normalizeRenderUrl(
   process.env.NEXT_PUBLIC_MANFIX_SUPPLIER_URL,
   manfixRenderUrls.supplier,
