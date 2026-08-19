@@ -18,13 +18,13 @@ services:
       - key: SUPABASE_SERVICE_ROLE_KEY
         sync: false
       - key: NEXT_PUBLIC_MANFIX_AUTH_URL
-        value: https://manfix-auth.onrender.com
+        value: https://manhub-auth.onrender.com
       - key: NEXT_PUBLIC_MANFIX_CUSTOMER_URL
-        value: https://manfix-customer.onrender.com
+        value: https://manhub-customer.onrender.com
       - key: NEXT_PUBLIC_MANFIX_SUPPLIER_URL
         value: https://manfix-supplier.onrender.com
       - key: NEXT_PUBLIC_MANFIX_WORKSHOP_URL
-        value: https://manfix-workshop.onrender.com
+        value: https://manhub-workshop.onrender.com
       - key: NEXT_PUBLIC_MANFIX_TECHNICIAN_URL
         value: https://manfix-tech.onrender.com
       - key: NEXT_PUBLIC_MANFIX_ADMIN_URL
@@ -45,13 +45,13 @@ services:
       - key: VITE_SUPABASE_PUBLISHABLE_KEY
         sync: false
       - key: VITE_MANFIX_AUTH_URL
-        value: https://manfix-auth.onrender.com
+        value: https://manhub-auth.onrender.com
       - key: VITE_MANFIX_CUSTOMER_URL
-        value: https://manfix-customer.onrender.com
+        value: https://manhub-customer.onrender.com
       - key: VITE_MANFIX_SUPPLIER_URL
         value: https://manfix-supplier.onrender.com
       - key: VITE_MANFIX_WORKSHOP_URL
-        value: https://manfix-workshop.onrender.com
+        value: https://manhub-workshop.onrender.com
       - key: VITE_MANFIX_TECHNICIAN_URL
         value: https://manfix-tech.onrender.com
       - key: VITE_MANFIX_ADMIN_URL
@@ -72,13 +72,13 @@ services:
       - key: VITE_SUPABASE_PUBLISHABLE_KEY
         sync: false
       - key: VITE_MANFIX_AUTH_URL
-        value: https://manfix-auth.onrender.com
+        value: https://manhub-auth.onrender.com
       - key: VITE_MANFIX_CUSTOMER_URL
-        value: https://manfix-customer.onrender.com
+        value: https://manhub-customer.onrender.com
       - key: VITE_MANFIX_SUPPLIER_URL
         value: https://manfix-supplier.onrender.com
       - key: VITE_MANFIX_WORKSHOP_URL
-        value: https://manfix-workshop.onrender.com
+        value: https://manhub-workshop.onrender.com
       - key: VITE_MANFIX_TECHNICIAN_URL
         value: https://manfix-tech.onrender.com
       - key: VITE_MANFIX_ADMIN_URL
@@ -99,13 +99,13 @@ services:
       - key: VITE_SUPABASE_PUBLISHABLE_KEY
         sync: false
       - key: VITE_MANFIX_AUTH_URL
-        value: https://manfix-auth.onrender.com
+        value: https://manhub-auth.onrender.com
       - key: VITE_MANFIX_CUSTOMER_URL
-        value: https://manfix-customer.onrender.com
+        value: https://manhub-customer.onrender.com
       - key: VITE_MANFIX_SUPPLIER_URL
         value: https://manfix-supplier.onrender.com
       - key: VITE_MANFIX_WORKSHOP_URL
-        value: https://manfix-workshop.onrender.com
+        value: https://manhub-workshop.onrender.com
       - key: VITE_MANFIX_TECHNICIAN_URL
         value: https://manfix-tech.onrender.com
       - key: VITE_MANFIX_ADMIN_URL
@@ -126,13 +126,13 @@ services:
       - key: VITE_SUPABASE_PUBLISHABLE_KEY
         sync: false
       - key: VITE_MANFIX_AUTH_URL
-        value: https://manfix-auth.onrender.com
+        value: https://manhub-auth.onrender.com
       - key: VITE_MANFIX_CUSTOMER_URL
-        value: https://manfix-customer.onrender.com
+        value: https://manhub-customer.onrender.com
       - key: VITE_MANFIX_SUPPLIER_URL
         value: https://manfix-supplier.onrender.com
       - key: VITE_MANFIX_WORKSHOP_URL
-        value: https://manfix-workshop.onrender.com
+        value: https://manhub-workshop.onrender.com
       - key: VITE_MANFIX_TECHNICIAN_URL
         value: https://manfix-tech.onrender.com
       - key: VITE_MANFIX_ADMIN_URL
@@ -153,13 +153,13 @@ services:
       - key: VITE_SUPABASE_PUBLISHABLE_KEY
         sync: false
       - key: VITE_MANFIX_AUTH_URL
-        value: https://manfix-auth.onrender.com
+        value: https://manhub-auth.onrender.com
       - key: VITE_MANFIX_CUSTOMER_URL
-        value: https://manfix-customer.onrender.com
+        value: https://manhub-customer.onrender.com
       - key: VITE_MANFIX_SUPPLIER_URL
         value: https://manfix-supplier.onrender.com
       - key: VITE_MANFIX_WORKSHOP_URL
-        value: https://manfix-workshop.onrender.com
+        value: https://manhub-workshop.onrender.com
       - key: VITE_MANFIX_TECHNICIAN_URL
         value: https://manfix-tech.onrender.com
       - key: VITE_MANFIX_ADMIN_URL
@@ -180,13 +180,13 @@ services:
       - key: VITE_SUPABASE_PUBLISHABLE_KEY
         sync: false
       - key: VITE_MANFIX_AUTH_URL
-        value: https://manfix-auth.onrender.com
+        value: https://manhub-auth.onrender.com
       - key: VITE_MANFIX_CUSTOMER_URL
-        value: https://manfix-customer.onrender.com
+        value: https://manhub-customer.onrender.com
       - key: VITE_MANFIX_SUPPLIER_URL
         value: https://manfix-supplier.onrender.com
       - key: VITE_MANFIX_WORKSHOP_URL
-        value: https://manfix-workshop.onrender.com
+        value: https://manhub-workshop.onrender.com
       - key: VITE_MANFIX_TECHNICIAN_URL
         value: https://manfix-tech.onrender.com
       - key: VITE_MANFIX_ADMIN_URL
