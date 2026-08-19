@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { Link, Navigate, NavLink, Route, Routes, useNavigate } from "react-router-dom";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
@@ -148,6 +148,7 @@ export default function CustomerApp({ onSignOut, onSwitchPortal, profile: initia
             <Route path="/cart" element={<Cart run={run} supabase={supabase} />} />
             <Route path="/orders" element={<Orders supabase={supabase} />} />
             <Route path="/book-service" element={<BookService run={run} supabase={supabase} />} />
+            <Route path="/workshops" element={<BookService run={run} supabase={supabase} />} />
             <Route path="/notifications" element={<Notifications onUnreadChange={setUnread} supabase={supabase} />} />
             <Route path="/payments" element={<Payments run={run} supabase={supabase} />} />
             <Route path="/warranty" element={<Warranty run={run} supabase={supabase} />} />
@@ -522,9 +523,15 @@ function Vehicles({ run, supabase }: ActionProps) {
 function Parts({ run, supabase }: ActionProps) {
   const vehicles = useResource(() => listCustomerVehicles(supabase), [supabase], [] as CustomerVehicle[]);
   const [vehicleVariantId, setVehicleVariantId] = useState("");
+  const didSelectDefaultVehicle = useRef(false);
   const products = useResource(() => listCustomerCatalog(supabase, vehicleVariantId || undefined), [supabase, vehicleVariantId], [] as SupplierProduct[]);
   const [query, setQuery] = useState("");
-  useEffect(() => { if (!vehicleVariantId && vehicles.data[0]) setVehicleVariantId(vehicles.data[0].vehicle_variant_id); }, [vehicleVariantId, vehicles.data]);
+  useEffect(() => {
+    if (!didSelectDefaultVehicle.current && vehicles.data[0]) {
+      didSelectDefaultVehicle.current = true;
+      setVehicleVariantId(vehicles.data[0].vehicle_variant_id);
+    }
+  }, [vehicles.data]);
   const selectedVehicle = vehicles.data.find((item) => item.vehicle_variant_id === vehicleVariantId);
   const visible = products.data.filter((product) => `${product.name} ${product.brand} ${product.category}`.toLowerCase().includes(query.toLowerCase()));
   return (
