@@ -1225,6 +1225,22 @@ export async function fetchRows<T>(supabase: SupabaseClient, table: string, sele
   return (data ?? []) as T[];
 }
 
+async function getRequiredUserId(supabase: SupabaseClient) {
+  const { data, error } = await supabase.auth.getUser();
+  if (error || !data.user) throw error ?? new Error("Authentication required.");
+  return data.user.id;
+}
+
+async function fetchSupplierRows<T>(supabase: SupabaseClient, table: string, select = "*") {
+  const roles = await getSessionRoles(supabase);
+  if (roles.includes("super_admin")) return fetchRows<T>(supabase, table, select);
+
+  const userId = await getRequiredUserId(supabase);
+  const { data, error } = await supabase.from(table).select(select).eq("supplier_id", userId);
+  if (error) throw error;
+  return (data ?? []) as T[];
+}
+
 export async function updateStatus(supabase: SupabaseClient, table: string, id: string, status: string) {
   const { error } = await supabase.from(table).update({ status }).eq("id", id);
   if (error) throw error;
@@ -1442,10 +1458,11 @@ export function subscribeToWorkshopOperations(
 }
 
 export async function listSupplierProducts(supabase: SupabaseClient) {
-  return fetchRows<SupplierProduct>(supabase, "supplier_products");
+  return fetchSupplierRows<SupplierProduct>(supabase, "supplier_products");
 }
 
 export async function saveSupplierProduct(supabase: SupabaseClient, values: SupplierProductInput, id?: string) {
+  const userId = await getRequiredUserId(supabase);
   if (id) {
     const editableValues: Partial<SupplierProductInput> = { ...values };
     delete editableValues.incoming_stock;
@@ -1454,6 +1471,7 @@ export async function saveSupplierProduct(supabase: SupabaseClient, values: Supp
       .from("supplier_products")
       .update(editableValues)
       .eq("id", id)
+      .eq("supplier_id", userId)
       .select()
       .single();
     if (error) throw error;
@@ -1462,7 +1480,7 @@ export async function saveSupplierProduct(supabase: SupabaseClient, values: Supp
 
   const { data, error } = await supabase
     .from("supplier_products")
-    .insert(values)
+    .insert({ ...values, supplier_id: userId })
     .select()
     .single();
   if (error) throw error;
@@ -1470,7 +1488,9 @@ export async function saveSupplierProduct(supabase: SupabaseClient, values: Supp
 }
 
 export async function deleteSupplierProduct(supabase: SupabaseClient, id: string) {
-  await deleteRow(supabase, "supplier_products", id);
+  const userId = await getRequiredUserId(supabase);
+  const { error } = await supabase.from("supplier_products").delete().eq("id", id).eq("supplier_id", userId);
+  if (error) throw error;
 }
 
 export async function uploadSupplierProductImage(supabase: SupabaseClient, productId: string, file: File) {
@@ -1486,7 +1506,7 @@ export async function uploadSupplierProductImage(supabase: SupabaseClient, produ
 
   const { data } = supabase.storage.from("supplier-product-images").getPublicUrl(path);
   const imageUrl = data.publicUrl;
-  const { error: updateError } = await supabase.from("supplier_products").update({ image_url: imageUrl }).eq("id", productId);
+  const { error: updateError } = await supabase.from("supplier_products").update({ image_url: imageUrl }).eq("id", productId).eq("supplier_id", userData.user.id);
   if (updateError) throw updateError;
   return imageUrl;
 }
@@ -1496,7 +1516,7 @@ export async function listProductCategories(supabase: SupabaseClient) {
 }
 
 export async function listSupplierOrders(supabase: SupabaseClient) {
-  return fetchRows<SupplierOrder>(supabase, "supplier_orders");
+  return fetchSupplierRows<SupplierOrder>(supabase, "supplier_orders");
 }
 
 export async function setSupplierOrderStatus(supabase: SupabaseClient, orderId: string, status: SupplierOrder["status"]) {
@@ -1508,11 +1528,11 @@ export async function setSupplierOrderStatus(supabase: SupabaseClient, orderId: 
 }
 
 export async function listSupplierStockHistory(supabase: SupabaseClient) {
-  return fetchRows<SupplierStockHistory>(supabase, "supplier_stock_history");
+  return fetchSupplierRows<SupplierStockHistory>(supabase, "supplier_stock_history");
 }
 
 export async function listSupplierCommissions(supabase: SupabaseClient) {
-  return fetchRows<SupplierCommission>(supabase, "supplier_commissions");
+  return fetchSupplierRows<SupplierCommission>(supabase, "supplier_commissions");
 }
 
 export async function getSupplierCommissionRate(supabase: SupabaseClient) {
@@ -1538,13 +1558,14 @@ export async function adjustSupplierStock(
 }
 
 export async function getSupplierWallet(supabase: SupabaseClient) {
-  const { data, error } = await supabase.from("supplier_wallets").select("*").maybeSingle();
+  const userId = await getRequiredUserId(supabase);
+  const { data, error } = await supabase.from("supplier_wallets").select("*").eq("supplier_id", userId).maybeSingle();
   if (error) throw error;
   return data as SupplierWallet | null;
 }
 
 export async function listSupplierWithdrawals(supabase: SupabaseClient) {
-  return fetchRows<SupplierWithdrawal>(supabase, "supplier_withdrawals");
+  return fetchSupplierRows<SupplierWithdrawal>(supabase, "supplier_withdrawals");
 }
 
 export async function submitSupplierWithdrawal(supabase: SupabaseClient, amount: number, bank: string, accountNumber: string) {
@@ -1558,11 +1579,17 @@ export async function submitSupplierWithdrawal(supabase: SupabaseClient, amount:
 }
 
 export async function listSupplierInvoices(supabase: SupabaseClient) {
-  return fetchRows<SupplierInvoice>(supabase, "supplier_invoices");
+  return fetchSupplierRows<SupplierInvoice>(supabase, "supplier_invoices");
 }
 
 export async function listSupplierWarrantyClaims(supabase: SupabaseClient) {
-  return fetchRows<SupplierWarrantyClaim>(supabase, "warranty_claims");
+  const roles = await getSessionRoles(supabase);
+  if (roles.includes("super_admin")) return fetchRows<SupplierWarrantyClaim>(supabase, "warranty_claims");
+
+  const userId = await getRequiredUserId(supabase);
+  const { data, error } = await supabase.from("warranty_claims").select("*").eq("supplier_id", userId);
+  if (error) throw error;
+  return (data ?? []) as SupplierWarrantyClaim[];
 }
 
 export async function reviewSupplierWarrantyClaim(

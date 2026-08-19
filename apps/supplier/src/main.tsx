@@ -7,7 +7,6 @@ import {
   adjustSupplierStock,
   createManHubSupabaseClient,
   deleteSupplierProduct,
-  fetchRows,
   getLogoutUrl,
   getSupplierCommissionRate,
   getSupplierWallet,
@@ -70,6 +69,23 @@ const emptyProductForm: SupplierProductInput = {
   stock: 0,
   warranty_duration_months: 6,
 };
+
+async function getCurrentSupplierId(supabase: Db) {
+  const { data, error } = await supabase.auth.getUser();
+  if (error || !data.user) throw error ?? new Error("Authentication required.");
+  return data.user.id;
+}
+
+async function getCurrentSupplierProfile(supabase: Db) {
+  const supplierId = await getCurrentSupplierId(supabase);
+  const { data, error } = await supabase
+    .from("supplier_profiles")
+    .select("*")
+    .eq("supplier_id", supplierId)
+    .maybeSingle();
+  if (error) throw error;
+  return (data ?? null) as SupplierProfile | null;
+}
 
 function SupplierApp() {
   const supabase = useMemo(() => createManHubSupabaseClient(), []);
@@ -158,10 +174,7 @@ function Dashboard({ supabase }: { supabase: Db }) {
   const claims = useSupplierResource(() => listSupplierWarrantyClaims(supabase), [supabase], [] as SupplierWarrantyClaim[]);
   const wallet = useSupplierResource(() => getSupplierWallet(supabase), [supabase], null as SupplierWallet | null);
   const invoices = useSupplierResource(() => listSupplierInvoices(supabase), [supabase], [] as SupplierInvoice[]);
-  const profile = useSupplierResource(async () => {
-    const rows = await fetchRows<SupplierProfile>(supabase, "supplier_profiles");
-    return rows[0] ?? null;
-  }, [supabase], null as SupplierProfile | null);
+  const profile = useSupplierResource(() => getCurrentSupplierProfile(supabase), [supabase], null as SupplierProfile | null);
 
   const dashboard = useMemo(() => {
     const today = new Date().toISOString().slice(0, 10);
@@ -616,10 +629,7 @@ function AnalyticsPage({ supabase }: { supabase: Db }) {
 }
 
 function ProfilePage({ run, supabase }: ActionProps) {
-  const profile = useSupplierResource(async () => {
-    const rows = await fetchRows<SupplierProfile>(supabase, "supplier_profiles");
-    return rows[0] ?? null;
-  }, [supabase], null as SupplierProfile | null);
+  const profile = useSupplierResource(() => getCurrentSupplierProfile(supabase), [supabase], null as SupplierProfile | null);
   const [form, setForm] = useState({
     bank_account_number: "",
     bank_name: "",
@@ -650,10 +660,12 @@ function ProfilePage({ run, supabase }: ActionProps) {
           event.preventDefault();
           void run(async () => {
             if (profile.data?.id) {
-              const { error } = await supabase.from("supplier_profiles").update(form).eq("id", profile.data.id);
+              const supplierId = await getCurrentSupplierId(supabase);
+              const { error } = await supabase.from("supplier_profiles").update(form).eq("id", profile.data.id).eq("supplier_id", supplierId);
               if (error) throw error;
             } else {
-              const { error } = await supabase.from("supplier_profiles").insert(form);
+              const supplierId = await getCurrentSupplierId(supabase);
+              const { error } = await supabase.from("supplier_profiles").insert({ ...form, supplier_id: supplierId });
               if (error) throw error;
             }
             await profile.reload();
