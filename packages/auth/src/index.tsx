@@ -30,6 +30,24 @@ import {
 } from "@manhub/backend";
 import { Button, Card, EmptyState, FileField, FormField, PageHeader, PortalShell, TextAreaField } from "@manhub/ui";
 
+function getAuthPathUrl(path: string) {
+  const url = new URL("/", getAuthAppUrl());
+  url.hash = path.startsWith("/") ? path : `/${path}`;
+  return url.toString();
+}
+
+function getPartnerApplicationsUrl() {
+  return getAuthPathUrl("/partners");
+}
+
+function getAuthRouteParams() {
+  const hashQueryStart = window.location.hash.indexOf("?");
+  if (hashQueryStart >= 0) {
+    return new URLSearchParams(window.location.hash.slice(hashQueryStart + 1));
+  }
+  return new URLSearchParams(window.location.search);
+}
+
 export type AuthState = {
   allowed: boolean;
   loading: boolean;
@@ -132,7 +150,7 @@ export function usePortalAuth(supabase: SupabaseClient | null, portalRole: Porta
 
 export function SingleSignOnPage() {
   const supabase = useMemo(() => createManHubSupabaseClient(), []);
-  const nextUrl = useMemo(() => new URLSearchParams(window.location.search).get("next"), []);
+  const nextUrl = useMemo(() => getAuthRouteParams().get("next"), []);
   const [email, setEmail] = useState("");
   const [fullName, setFullName] = useState("");
   const [mode, setMode] = useState<"login" | "customer-register">("login");
@@ -196,7 +214,7 @@ export function SingleSignOnPage() {
               {mode === "login" ? "Create customer account" : "Back to sign in"}
             </Button>
             {mode === "login" && (
-              <Button tone="ghost" onClick={() => window.location.assign("/partners")}>
+              <Button tone="ghost" onClick={() => window.location.assign(getPartnerApplicationsUrl())}>
                 Become a ManFix Partner
               </Button>
             )}
@@ -355,7 +373,7 @@ export function PartnerLandingPage() {
   return (
     <AuthShell>
       <PageHeader title="Become a ManFix Partner">
-        <Button tone="ghost" onClick={() => window.location.assign("/login")}>Back to sign in</Button>
+        <Button tone="ghost" onClick={() => window.location.assign(getLoginUrl())}>Back to sign in</Button>
       </PageHeader>
       <Card tone="blue">
         <span className="mh-stat-label">Partner Network</span>
@@ -370,7 +388,7 @@ export function PartnerLandingPage() {
                 <h2 className="mh-card-title">{application.label}</h2>
                 <p>{application.description}</p>
               </div>
-              <Button onClick={() => window.location.assign(application.path)}>Open application</Button>
+              <Button onClick={() => window.location.assign(getAuthPathUrl(application.path))}>Open application</Button>
             </div>
           </Card>
         ))}
@@ -645,7 +663,7 @@ export function SetPasswordPage() {
             <Button disabled={!ready || busy} onClick={() => void save()}>
               {busy ? "Activating..." : "Activate account"}
             </Button>
-            <Button tone="ghost" onClick={() => window.location.assign("/login")}>Back to sign in</Button>
+            <Button tone="ghost" onClick={() => window.location.assign(getLoginUrl())}>Back to sign in</Button>
           </div>
         </div>
       </Card>
@@ -714,7 +732,7 @@ export async function registerCustomer(supabase: SupabaseClient, email: string, 
     password,
     options: {
       data: { full_name: fullName, requested_role: "customer" },
-      emailRedirectTo: new URL("/login", getAuthAppUrl()).toString(),
+      emailRedirectTo: getLoginUrl(),
     },
   });
   if (error) throw error;
@@ -800,8 +818,8 @@ function PartnerApplicationShell({
           <p>Your reference is {submittedId}. No portal account has been created yet. Approved applicants receive a secure password setup email.</p>
         </Card>
         <div className="mh-actions">
-          <Button onClick={() => window.location.assign("/login")}>Back to sign in</Button>
-          <Button tone="ghost" onClick={() => window.location.assign("/partners")}>Partner applications</Button>
+          <Button onClick={() => window.location.assign(getLoginUrl())}>Back to sign in</Button>
+          <Button tone="ghost" onClick={() => window.location.assign(getPartnerApplicationsUrl())}>Partner applications</Button>
         </div>
       </AuthShell>
     );
@@ -810,7 +828,7 @@ function PartnerApplicationShell({
   return (
     <AuthShell>
       <PageHeader title={title}>
-        <Button tone="ghost" onClick={() => window.location.assign("/partners")}>Back</Button>
+        <Button tone="ghost" onClick={() => window.location.assign(getPartnerApplicationsUrl())}>Back</Button>
       </PageHeader>
       <Card tone="blue">
         <span className="mh-stat-label">Approval Required</span>
@@ -824,7 +842,7 @@ function PartnerApplicationShell({
           <Button disabled={busy} onClick={() => void onSubmit()}>
             {busy ? "Submitting..." : "Submit application"}
           </Button>
-          <Button disabled={busy} tone="ghost" onClick={() => window.location.assign("/login")}>Cancel</Button>
+          <Button disabled={busy} tone="ghost" onClick={() => window.location.assign(getLoginUrl())}>Cancel</Button>
         </div>
       </Card>
     </AuthShell>

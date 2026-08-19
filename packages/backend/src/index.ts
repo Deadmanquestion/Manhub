@@ -483,22 +483,24 @@ export function createManFixSessionHandoffUrl(
   }
 
   const url = new URL(destinationUrl);
-  const fragment = new URLSearchParams(url.hash.slice(1));
-  fragment.set(MANFIX_HANDOFF_ACCESS_TOKEN, accessToken);
-  fragment.set(MANFIX_HANDOFF_REFRESH_TOKEN, refreshToken);
-  url.hash = fragment.toString();
+  url.searchParams.set(MANFIX_HANDOFF_ACCESS_TOKEN, accessToken);
+  url.searchParams.set(MANFIX_HANDOFF_REFRESH_TOKEN, refreshToken);
   return url.toString();
 }
 
 export function readManFixSessionHandoff(value: string) {
   try {
     const url = new URL(value);
-    const fragment = new URLSearchParams(url.hash.slice(1));
-    const accessToken = fragment.get(MANFIX_HANDOFF_ACCESS_TOKEN);
-    const refreshToken = fragment.get(MANFIX_HANDOFF_REFRESH_TOKEN);
+    const accessToken = url.searchParams.get(MANFIX_HANDOFF_ACCESS_TOKEN);
+    const refreshToken = url.searchParams.get(MANFIX_HANDOFF_REFRESH_TOKEN);
+    if (accessToken && refreshToken) return { accessToken, refreshToken };
 
-    if (!accessToken || !refreshToken) return null;
-    return { accessToken, refreshToken };
+    const fragment = new URLSearchParams(url.hash.slice(1));
+    const legacyAccessToken = fragment.get(MANFIX_HANDOFF_ACCESS_TOKEN);
+    const legacyRefreshToken = fragment.get(MANFIX_HANDOFF_REFRESH_TOKEN);
+
+    if (!legacyAccessToken || !legacyRefreshToken) return null;
+    return { accessToken: legacyAccessToken, refreshToken: legacyRefreshToken };
   } catch {
     return null;
   }
@@ -506,10 +508,15 @@ export function readManFixSessionHandoff(value: string) {
 
 export function removeManFixSessionHandoff(value: string) {
   const url = new URL(value);
+  url.searchParams.delete(MANFIX_HANDOFF_ACCESS_TOKEN);
+  url.searchParams.delete(MANFIX_HANDOFF_REFRESH_TOKEN);
+
   const fragment = new URLSearchParams(url.hash.slice(1));
   fragment.delete(MANFIX_HANDOFF_ACCESS_TOKEN);
   fragment.delete(MANFIX_HANDOFF_REFRESH_TOKEN);
-  url.hash = fragment.toString();
+  if (url.hash.includes(MANFIX_HANDOFF_ACCESS_TOKEN) || url.hash.includes(MANFIX_HANDOFF_REFRESH_TOKEN)) {
+    url.hash = fragment.toString();
+  }
   return url.toString();
 }
 
@@ -654,23 +661,28 @@ export function isAuthAppUrl(value: string) {
 }
 
 export function getUnauthorizedUrl(reason = "role") {
-  const url = new URL("/unauthorized", getAuthAppUrl());
-  url.searchParams.set("reason", reason);
-  return url.toString();
+  return getAuthRouteUrl("/unauthorized", { reason });
 }
 
 export function getLoginUrl(nextUrl?: string) {
-  const url = new URL("/login", getAuthAppUrl());
-  if (nextUrl) url.searchParams.set("next", nextUrl);
-  return url.toString();
+  return getAuthRouteUrl("/login", nextUrl ? { next: nextUrl } : undefined);
 }
 
 export function getPortalSelectorUrl() {
-  return new URL("/select-portal", getAuthAppUrl()).toString();
+  return getAuthRouteUrl("/select-portal");
 }
 
 export function getLogoutUrl() {
-  return new URL("/logout", getAuthAppUrl()).toString();
+  return getAuthRouteUrl("/logout");
+}
+
+function getAuthRouteUrl(path: string, params?: Record<string, string>) {
+  const url = new URL("/", getAuthAppUrl());
+  const search = new URLSearchParams(params);
+  const route = path.startsWith("/") ? path : `/${path}`;
+  const query = search.toString();
+  url.hash = query ? `${route}?${query}` : route;
+  return url.toString();
 }
 
 export function getPortalDestination(role: PortalRole) {
