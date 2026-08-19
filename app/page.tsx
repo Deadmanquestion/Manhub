@@ -13,15 +13,15 @@ function normalizeRenderUrl(value: string | undefined, fallbackUrl: string) {
 }
 
 const authUrl = `${normalizeRenderUrl(
-  process.env.NEXT_PUBLIC_MANFIX_AUTH_URL ?? process.env.NEXT_PUBLIC_MANHUB_AUTH_URL,
+  process.env.NEXT_PUBLIC_MANFIX_AUTH_URL,
   manfixRenderUrls.auth,
 )}/login`;
 const supplierUrl = normalizeRenderUrl(
-  process.env.NEXT_PUBLIC_MANFIX_SUPPLIER_URL ?? process.env.NEXT_PUBLIC_MANHUB_SUPPLIER_URL,
+  process.env.NEXT_PUBLIC_MANFIX_SUPPLIER_URL,
   manfixRenderUrls.supplier,
 );
 const workshopUrl = normalizeRenderUrl(
-  process.env.NEXT_PUBLIC_MANFIX_WORKSHOP_URL ?? process.env.NEXT_PUBLIC_MANHUB_WORKSHOP_URL,
+  process.env.NEXT_PUBLIC_MANFIX_WORKSHOP_URL,
   manfixRenderUrls.workshop,
 );
 const technicianUrl = normalizeRenderUrl(
@@ -29,7 +29,7 @@ const technicianUrl = normalizeRenderUrl(
   manfixRenderUrls.technician,
 );
 const adminUrl = normalizeRenderUrl(
-  process.env.NEXT_PUBLIC_MANFIX_ADMIN_URL ?? process.env.NEXT_PUBLIC_MANHUB_ADMIN_URL,
+  process.env.NEXT_PUBLIC_MANFIX_ADMIN_URL,
   manfixRenderUrls.admin,
 );
 
